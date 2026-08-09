@@ -1,2 +1,2 @@
-# fiszy-mvp
-Landing page for Fiszy MVP
+# Fiszy MVP
+Status: start projektu.
