@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
   try {
     const config = await readAuctionConfig();
     const now = Date.now();
-    const auction = getTimedAuctionState(now, config.startsAt);
+    const auction = getTimedAuctionState(now, config);
 
     if (auction.status !== "live") {
       return NextResponse.json(
@@ -92,6 +92,7 @@ export async function POST(request: NextRequest) {
           bidderId,
           amount: winner.price * 100,
           expiresAt,
+          productName: config.productName,
         });
       } catch (error) {
         await releaseAuctionWinner(config.runId, bidderId);

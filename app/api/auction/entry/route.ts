@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
     }
 
     const winner = await readAuctionWinner(config.runId);
-    const timedState = getTimedAuctionState(Date.now(), config.startsAt);
+    const timedState = getTimedAuctionState(Date.now(), config);
 
     if (winner || timedState.status === "ended") {
       return NextResponse.json(
@@ -98,6 +98,7 @@ export async function POST(request: NextRequest) {
       runId: config.runId,
       bidderId,
       amount: ENTRY_FEE_GROSZE,
+      productName: config.productName,
     });
 
     return NextResponse.json({

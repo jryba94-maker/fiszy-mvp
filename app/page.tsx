@@ -1,5 +1,6 @@
 "use client";
 
+import Image, { type ImageLoaderProps } from "next/image";
 import { useEffect, useState } from "react";
 
 type AuctionStatus = "waiting" | "live" | "ended" | "payment_pending" | "sold";
@@ -9,9 +10,11 @@ type AuctionState = {
   auctionId: string;
   runId: string;
   product: string;
+  productImageUrl: string | null;
   regularPrice: number;
   startPrice: number;
   floorPrice: number;
+  durationMinutes: number;
   currentPrice: number;
   entryFee: number;
   status: AuctionStatus;
@@ -68,6 +71,10 @@ type CancelPurchaseResponse = {
 const FALLBACK_PRICE = 749;
 const BIDDER_STORAGE_KEY = "fiszy-demo-bidder-id";
 
+function productImageLoader({ src }: ImageLoaderProps) {
+  return src;
+}
+
 function getBidderId() {
   const existing = window.localStorage.getItem(BIDDER_STORAGE_KEY);
   if (existing) return existing;
@@ -92,6 +99,7 @@ export default function Home() {
   const [entryRunId, setEntryRunId] = useState<string | null>(null);
   const [isEntering, setIsEntering] = useState(false);
   const [entryMessage, setEntryMessage] = useState("");
+  const [imageFailed, setImageFailed] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -116,6 +124,10 @@ export default function Home() {
       window.clearInterval(timer);
     };
   }, []);
+
+  useEffect(() => {
+    setImageFailed(false);
+  }, [auction?.productImageUrl]);
 
   useEffect(() => {
     if (!auction?.runId) return;
@@ -173,8 +185,9 @@ export default function Home() {
       attempts += 1;
       if (attempts >= 15) {
         setEntryMessage(
-          "Płatność wróciła ze Stripe, ale potwierdzenie jeszcze nie dotarło. Odśwież stronę za chwilę.",
+          "Wejście nie zostało przyznane. Jeśli aukcja zakończyła się podczas płatności, 5 zł zostanie automatycznie zwrócone.",
         );
+        clearQueryParam("payment");
         return;
       }
 
@@ -248,6 +261,8 @@ export default function Home() {
   }, [auction?.runId, auction?.status]);
 
   const currentPrice = auction?.currentPrice ?? FALLBACK_PRICE;
+  const productName = auction?.product ?? "AirPods Pro";
+  const productImageUrl = auction?.productImageUrl ?? null;
   const status = auction?.status ?? "waiting";
   const isLive = status === "live";
   const isEnded = status === "ended";
@@ -417,17 +432,35 @@ export default function Home() {
       </header>
 
       <section className="auctionCard" aria-labelledby="auction-title">
-        <div className="productVisual" role="img" aria-label="Miejsce na zdjęcie AirPods Pro">
-          <span>AirPods Pro</span>
+        <div className="productVisual">
+          {productImageUrl && !imageFailed ? (
+            <Image
+              className="productImage"
+              loader={productImageLoader}
+              src={productImageUrl}
+              alt={productName}
+              fill
+              sizes="(max-width: 820px) 100vw, 55vw"
+              unoptimized
+              priority
+              onError={() => setImageFailed(true)}
+            />
+          ) : (
+            <span role="img" aria-label={`Brak zdjęcia produktu ${productName}`}>
+              {productName}
+            </span>
+          )}
         </div>
 
         <div className="auctionContent">
-          <p className="eyebrow">Pierwsza aukcja testowa</p>
-          <h1 id="auction-title">AirPods Pro</h1>
+          <p className="eyebrow">
+            Aukcja • {auction?.durationMinutes ?? 10} min
+          </p>
+          <h1 id="auction-title">{productName}</h1>
 
           <div className="priceBlock">
             <div className="regularPrice">
-              Cena regularna <span>999 zł</span>
+              Cena regularna <span>{auction?.regularPrice ?? 999} zł</span>
             </div>
             <div className="currentPriceLabel">Aktualna cena</div>
             <div

@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { AUCTION_ID } from "../../../../lib/auction";
+import { AUCTION_ID, getAuctionEndsAt } from "../../../../lib/auction";
 import {
-  grantAuctionEntry,
+  grantAuctionEntryIfCurrent,
   markAuctionWinnerPaid,
+  readAuctionRunConfig,
   readAuctionWinner,
   releaseAuctionWinner,
   type AuctionEntry,
@@ -14,6 +15,7 @@ import {
 } from "../../../../lib/order-storage";
 import {
   stripeWebhookSecret,
+  refundCheckoutSessionPayment,
   verifyStripeWebhook,
   type StripeAddress,
   type StripeCheckoutSession,
@@ -74,13 +76,54 @@ function orderAddress(address: StripeAddress | null | undefined): OrderAddress |
   };
 }
 
+async function handlePaidEntry(session: StripeCheckoutSession) {
+  const paidEntry = paidAuctionEntry(session);
+  if (!paidEntry) return null;
+
+  const runConfig = await readAuctionRunConfig(paidEntry.runId);
+  const now = Date.now();
+  const entry: AuctionEntry = {
+    bidderId: paidEntry.bidderId,
+    fee: ENTRY_FEE,
+    grantedAt: new Date(now).toISOString(),
+    provider: "stripe",
+    paymentSessionId: session.id,
+  };
+
+  const grantResult = await grantAuctionEntryIfCurrent(
+    paidEntry.runId,
+    getAuctionEndsAt(runConfig).getTime(),
+    now,
+    entry,
+  );
+
+  if (grantResult === 1 || grantResult === 2) {
+    return "auction_entry";
+  }
+
+  if (
+    grantResult === 0 ||
+    grantResult === -1 ||
+    grantResult === -2 ||
+    grantResult === -4
+  ) {
+    await refundCheckoutSessionPayment(session);
+    return "auction_entry_refunded";
+  }
+
+  throw new Error("Unable to validate paid auction entry state.");
+}
+
 async function handlePaidPurchase(session: StripeCheckoutSession) {
   const metadata = auctionMetadata(session, "auction_purchase");
   if (!metadata || session.mode !== "payment" || session.payment_status !== "paid") {
     return false;
   }
 
-  const winner = await readAuctionWinner(metadata.runId);
+  const [winner, runConfig] = await Promise.all([
+    readAuctionWinner(metadata.runId),
+    readAuctionRunConfig(metadata.runId),
+  ]);
 
   if (
     !winner ||
@@ -102,7 +145,7 @@ async function handlePaidPurchase(session: StripeCheckoutSession) {
     auctionId: AUCTION_ID,
     runId: metadata.runId,
     bidderId: metadata.bidderId,
-    product: "AirPods Pro",
+    product: runConfig.productName,
     amount: winner.price,
     currency: "pln",
     paymentSessionId: session.id,
@@ -187,19 +230,9 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const paidEntry = paidAuctionEntry(event.data.object);
-
-    if (paidEntry) {
-      const entry: AuctionEntry = {
-        bidderId: paidEntry.bidderId,
-        fee: ENTRY_FEE,
-        grantedAt: new Date().toISOString(),
-        provider: "stripe",
-        paymentSessionId: event.data.object.id,
-      };
-
-      await grantAuctionEntry(paidEntry.runId, entry);
-      return NextResponse.json({ received: true, kind: "auction_entry" });
+    const entryOutcome = await handlePaidEntry(event.data.object);
+    if (entryOutcome) {
+      return NextResponse.json({ received: true, kind: entryOutcome });
     }
 
     const purchasePaid = await handlePaidPurchase(event.data.object);

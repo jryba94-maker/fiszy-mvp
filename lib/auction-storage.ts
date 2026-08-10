@@ -2,6 +2,8 @@ import {
   AUCTION_ID,
   type AuctionConfig,
   defaultAuctionConfig,
+  defaultAuctionDefinition,
+  parseAuctionDefinition,
 } from "./auction";
 import { redisCommand } from "./redis";
 
@@ -32,6 +34,10 @@ function configKey() {
   return `fiszy:${environmentName()}:auction:${AUCTION_ID}:config`;
 }
 
+function runConfigKey(runId: string) {
+  return `fiszy:${environmentName()}:auction:${AUCTION_ID}:run:${runId}:config`;
+}
+
 export function winnerKey(runId: string) {
   return `fiszy:${environmentName()}:auction:${AUCTION_ID}:run:${runId}:winner`;
 }
@@ -40,17 +46,37 @@ export function entryKey(runId: string, bidderId: string) {
   return `fiszy:${environmentName()}:auction:${AUCTION_ID}:run:${runId}:entry:${encodeURIComponent(bidderId)}`;
 }
 
-function isAuctionConfig(value: unknown): value is AuctionConfig {
-  if (!value || typeof value !== "object") return false;
+function normalizeAuctionConfig(value: unknown): AuctionConfig | null {
+  if (!value || typeof value !== "object") return null;
 
   const candidate = value as Partial<AuctionConfig>;
-  return (
-    typeof candidate.runId === "string" &&
-    candidate.runId.length > 0 &&
-    candidate.runId.length <= 120 &&
-    typeof candidate.startsAt === "string" &&
-    Number.isFinite(new Date(candidate.startsAt).getTime())
-  );
+  if (
+    typeof candidate.runId !== "string" ||
+    candidate.runId.length === 0 ||
+    candidate.runId.length > 120 ||
+    typeof candidate.startsAt !== "string" ||
+    !Number.isFinite(new Date(candidate.startsAt).getTime())
+  ) {
+    return null;
+  }
+
+  const defaults = defaultAuctionDefinition();
+  const definition =
+    parseAuctionDefinition({
+      productName: candidate.productName ?? defaults.productName,
+      productImageUrl: candidate.productImageUrl ?? defaults.productImageUrl,
+      regularPrice: candidate.regularPrice ?? defaults.regularPrice,
+      startPrice: candidate.startPrice ?? defaults.startPrice,
+      floorPrice: candidate.floorPrice ?? defaults.floorPrice,
+      durationMinutes: candidate.durationMinutes ?? defaults.durationMinutes,
+    }) ?? defaults;
+
+  return {
+    schemaVersion: 2,
+    runId: candidate.runId,
+    startsAt: candidate.startsAt,
+    ...definition,
+  };
 }
 
 export async function readAuctionConfig(): Promise<AuctionConfig> {
@@ -59,14 +85,66 @@ export async function readAuctionConfig(): Promise<AuctionConfig> {
 
   try {
     const parsed = JSON.parse(raw) as unknown;
-    return isAuctionConfig(parsed) ? parsed : defaultAuctionConfig();
+    return normalizeAuctionConfig(parsed) ?? defaultAuctionConfig();
   } catch {
     return defaultAuctionConfig();
   }
 }
 
-export async function writeAuctionConfig(config: AuctionConfig) {
-  await redisCommand<string>(["SET", configKey(), JSON.stringify(config)]);
+export async function writeAuctionConfigIfCurrent(
+  expectedRunId: string,
+  config: AuctionConfig,
+) {
+  const serialized = JSON.stringify(config);
+  const script = `
+local raw = redis.call("GET", KEYS[1])
+
+if raw then
+  local ok, current = pcall(cjson.decode, raw)
+  if not ok or type(current) ~= "table" or not current.runId then return -1 end
+  if current.runId ~= ARGV[1] then return 0 end
+elseif ARGV[1] ~= ARGV[2] then
+  return 0
+end
+
+if redis.call("EXISTS", KEYS[2]) == 1 then return -1 end
+
+redis.call("SET", KEYS[2], ARGV[3])
+redis.call("SET", KEYS[1], ARGV[3])
+return 1
+`;
+
+  return redisCommand<number>([
+    "EVAL",
+    script,
+    2,
+    configKey(),
+    runConfigKey(config.runId),
+    expectedRunId,
+    defaultAuctionConfig().runId,
+    serialized,
+  ]);
+}
+
+export async function readAuctionRunConfig(runId: string) {
+  const raw = await redisCommand<string>(["GET", runConfigKey(runId)]);
+
+  if (raw) {
+    try {
+      const config = normalizeAuctionConfig(JSON.parse(raw) as unknown);
+      if (config?.runId === runId) return config;
+    } catch {
+      // Fall through to the active or legacy configuration.
+    }
+  }
+
+  const activeConfig = await readAuctionConfig();
+  if (activeConfig.runId === runId) return activeConfig;
+
+  return {
+    ...defaultAuctionConfig(),
+    runId,
+  };
 }
 
 export async function readAuctionWinner(runId: string): Promise<AuctionWinner | null> {
@@ -193,12 +271,45 @@ export async function readAuctionEntry(
   }
 }
 
-export async function grantAuctionEntry(runId: string, entry: AuctionEntry) {
-  return redisCommand<string>([
-    "SET",
+export async function grantAuctionEntryIfCurrent(
+  runId: string,
+  endsAtMs: number,
+  nowMs: number,
+  entry: AuctionEntry,
+) {
+  const script = `
+local existingRaw = redis.call("GET", KEYS[2])
+if existingRaw then
+  local ok, existing = pcall(cjson.decode, existingRaw)
+  if not ok or type(existing) ~= "table" then return -3 end
+  if existing.paymentSessionId == ARGV[2] then return 2 end
+  return -2
+end
+
+local configRaw = redis.call("GET", KEYS[1])
+if not configRaw then return -3 end
+
+local ok, current = pcall(cjson.decode, configRaw)
+if not ok or type(current) ~= "table" or not current.runId then return -3 end
+if current.runId ~= ARGV[1] then return 0 end
+if redis.call("EXISTS", KEYS[3]) == 1 then return -4 end
+if tonumber(ARGV[3]) >= tonumber(ARGV[4]) then return -1 end
+
+redis.call("SET", KEYS[2], ARGV[5], "EX", 604800)
+return 1
+`;
+
+  return redisCommand<number>([
+    "EVAL",
+    script,
+    3,
+    configKey(),
     entryKey(runId, entry.bidderId),
+    winnerKey(runId),
+    runId,
+    entry.paymentSessionId ?? "",
+    nowMs,
+    endsAtMs,
     JSON.stringify(entry),
-    "EX",
-    604800,
   ]);
 }

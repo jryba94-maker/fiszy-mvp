@@ -60,7 +60,9 @@ input {
 }
 
 .productVisual {
+  position: relative;
   min-height: 620px;
+  overflow: hidden;
   display: grid;
   place-items: center;
   background: linear-gradient(145deg, #ecece8, #fafaf8);
@@ -70,6 +72,16 @@ input {
   letter-spacing: -0.07em;
   text-align: center;
   padding: 32px;
+}
+
+.productVisual span {
+  position: relative;
+  z-index: 1;
+}
+
+.productImage {
+  object-fit: contain;
+  padding: clamp(24px, 5vw, 64px);
 }
 
 .auctionContent {
@@ -172,7 +184,7 @@ h1 {
 }
 
 .adminShell {
-  width: min(720px, calc(100% - 28px));
+  width: min(860px, calc(100% - 28px));
   margin: 0 auto;
   padding: 48px 0;
 }
@@ -197,7 +209,7 @@ h1 {
 
 .adminStatus {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 10px;
   margin-bottom: 30px;
 }
@@ -246,6 +258,54 @@ h1 {
 .adminInput:focus {
   outline: 2px solid #111;
   outline-offset: 2px;
+}
+
+.adminAuctionForm {
+  margin: 26px 0 18px;
+  border-top: 1px solid #e5e5e0;
+  padding-top: 26px;
+}
+
+.adminFormHeader {
+  margin-bottom: 18px;
+}
+
+.adminFormHeader .eyebrow {
+  margin-bottom: 5px;
+}
+
+.adminFormGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.adminField {
+  display: block;
+  min-width: 0;
+}
+
+.adminFieldWide {
+  grid-column: 1 / -1;
+}
+
+.adminField > span {
+  display: block;
+  margin-bottom: 8px;
+  font-size: .82rem;
+  font-weight: 800;
+}
+
+.adminField .adminInput {
+  margin-bottom: 0;
+}
+
+.adminField small {
+  display: block;
+  margin-top: 7px;
+  color: #777;
+  font-size: .76rem;
+  line-height: 1.4;
 }
 
 .adminMessage {
@@ -367,8 +427,13 @@ h1 {
   }
 
   .adminStatus,
+  .adminFormGrid,
   .orderDetails {
     grid-template-columns: 1fr;
+  }
+
+  .adminFieldWide {
+    grid-column: auto;
   }
 
   .orderDetails .orderWide {

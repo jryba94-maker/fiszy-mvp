@@ -158,6 +158,7 @@ async function run() {
   let entryKeyA = null;
   let entryKeyB = null;
   let winnerKey = null;
+  let runConfigKey = null;
   let result = null;
   let testError = null;
   const cleanupErrors = [];
@@ -179,6 +180,7 @@ async function run() {
     entryKeyA = `fiszy:development:auction:${AUCTION_ID}:run:${runId}:entry:${encodeURIComponent(bidderA)}`;
     entryKeyB = `fiszy:development:auction:${AUCTION_ID}:run:${runId}:entry:${encodeURIComponent(bidderB)}`;
     winnerKey = `fiszy:development:auction:${AUCTION_ID}:run:${runId}:winner`;
+    runConfigKey = `fiszy:development:auction:${AUCTION_ID}:run:${runId}:config`;
 
     const publicScheduled = await requestJson("/api/auction");
     if (publicScheduled.body?.runId !== runId) {
@@ -355,7 +357,7 @@ async function run() {
       }
 
       try {
-        await redis(["DEL", entryKeyA, entryKeyB, winnerKey]);
+        await redis(["DEL", entryKeyA, entryKeyB, winnerKey, runConfigKey]);
       } catch {
         cleanupErrors.push("temporary race keys could not be removed");
       }

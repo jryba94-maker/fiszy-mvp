@@ -20,6 +20,7 @@ export type StripeCheckoutSession = {
   amount_total: number | null;
   currency: string | null;
   metadata: Record<string, string> | null;
+  payment_intent?: string | { id?: string } | null;
   status?: string | null;
   customer_details?: {
     address: StripeAddress | null;
@@ -85,6 +86,7 @@ export async function createEntryCheckoutSession(input: {
   runId: string;
   bidderId: string;
   amount: number;
+  productName: string;
 }) {
   const body = new URLSearchParams();
   body.set("mode", "payment");
@@ -95,7 +97,7 @@ export async function createEntryCheckoutSession(input: {
   body.set("line_items[0][price_data][unit_amount]", String(input.amount));
   body.set(
     "line_items[0][price_data][product_data][name]",
-    "Wejście do aukcji Fiszy",
+    `Wejście do aukcji: ${input.productName}`,
   );
   body.set("line_items[0][quantity]", "1");
   body.set("metadata[kind]", "auction_entry");
@@ -113,6 +115,7 @@ export async function createPurchaseCheckoutSession(input: {
   bidderId: string;
   amount: number;
   expiresAt: number;
+  productName: string;
 }) {
   const body = new URLSearchParams();
   body.set("mode", "payment");
@@ -127,7 +130,7 @@ export async function createPurchaseCheckoutSession(input: {
   body.set("line_items[0][price_data][unit_amount]", String(input.amount));
   body.set(
     "line_items[0][price_data][product_data][name]",
-    "AirPods Pro — wygrana aukcji Fiszy",
+    `${input.productName} — wygrana aukcji Fiszy`,
   );
   body.set("line_items[0][quantity]", "1");
   body.set("metadata[kind]", "auction_purchase");
@@ -161,6 +164,40 @@ export async function expireCheckoutSession(sessionId: string) {
   }
 
   return data;
+}
+
+export async function refundCheckoutSessionPayment(
+  session: StripeCheckoutSession,
+) {
+  const paymentIntentId =
+    typeof session.payment_intent === "string"
+      ? session.payment_intent
+      : session.payment_intent?.id;
+
+  if (!paymentIntentId) {
+    throw new Error("Paid Checkout Session has no PaymentIntent to refund.");
+  }
+
+  const response = await fetch(`${STRIPE_API_BASE}/refunds`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${stripeSecretKey()}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+      "Idempotency-Key": `fiszy-entry-refund-${session.id}`,
+    },
+    body: new URLSearchParams({ payment_intent: paymentIntentId }),
+    cache: "no-store",
+  });
+
+  const data = (await response.json()) as {
+    id?: string;
+    error?: { code?: string; message?: string };
+  };
+
+  if (response.ok && data.id) return;
+  if (data.error?.code === "charge_already_refunded") return;
+
+  throw new Error(data.error?.message ?? "Unable to refund late auction entry.");
 }
 
 function parseStripeSignature(header: string) {

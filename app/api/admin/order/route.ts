@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { readAuctionConfig } from "../../../../lib/auction-storage";
-import { readAuctionOrder } from "../../../../lib/order-storage";
+import {
+  readAuctionOrder,
+  readLatestAuctionOrder,
+  saveAuctionOrder,
+} from "../../../../lib/order-storage";
 
 export const dynamic = "force-dynamic";
 
@@ -25,12 +29,17 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const config = await readAuctionConfig();
-    const order = await readAuctionOrder(config.runId);
+    let order = await readLatestAuctionOrder();
+
+    if (!order) {
+      const config = await readAuctionConfig();
+      order = await readAuctionOrder(config.runId);
+      if (order) await saveAuctionOrder(order);
+    }
 
     return NextResponse.json({
       outcome: "ok",
-      runId: config.runId,
+      runId: order?.runId ?? null,
       order,
     });
   } catch (error) {

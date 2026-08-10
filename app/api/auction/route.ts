@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import {
   AUCTION_ID,
-  FLOOR_PRICE,
-  START_PRICE,
   defaultAuctionConfig,
   getAuctionEndsAt,
   getTimedAuctionState,
@@ -28,7 +26,7 @@ export async function GET() {
     console.error("Unable to read auction state from Redis.", error);
   }
 
-  const timedState = getTimedAuctionState(now, config.startsAt);
+  const timedState = getTimedAuctionState(now, config);
   const status = winner
     ? winner.paymentStatus === "pending"
       ? "payment_pending"
@@ -40,15 +38,17 @@ export async function GET() {
     {
       auctionId: AUCTION_ID,
       runId: config.runId,
-      product: "AirPods Pro",
-      regularPrice: 999,
-      startPrice: START_PRICE,
-      floorPrice: FLOOR_PRICE,
+      product: config.productName,
+      productImageUrl: config.productImageUrl,
+      regularPrice: config.regularPrice,
+      startPrice: config.startPrice,
+      floorPrice: config.floorPrice,
+      durationMinutes: config.durationMinutes,
       currentPrice,
       entryFee: 5,
       status,
       startsAt: config.startsAt,
-      endsAt: getAuctionEndsAt(config.startsAt).toISOString(),
+      endsAt: getAuctionEndsAt(config).toISOString(),
       soldAt:
         winner && winner.paymentStatus !== "pending"
           ? winner.paidAt ?? winner.claimedAt
