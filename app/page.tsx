@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 
-type AuctionStatus = "waiting" | "live" | "ended" | "sold";
-type PurchaseResult = "won" | "lost" | "error" | null;
+type AuctionStatus = "waiting" | "live" | "ended" | "payment_pending" | "sold";
+type PurchaseResult = "lost" | "error" | null;
 
 type AuctionState = {
   auctionId: string;
@@ -18,20 +18,24 @@ type AuctionState = {
   startsAt: string;
   endsAt: string;
   soldAt: string | null;
+  paymentExpiresAt?: string | null;
   storageReady: boolean;
   serverTime: string;
 };
 
 type BuyResponse = {
   outcome:
-    | "won"
+    | "checkout"
     | "lost"
     | "not_live"
     | "entry_required"
+    | "stripe_not_configured"
+    | "payment_error"
     | "storage_error"
     | "invalid_request";
   price?: number;
   winnerPrice?: number | null;
+  checkoutUrl?: string | null;
 };
 
 type EntryResponse = {
@@ -50,6 +54,17 @@ type EntryResponse = {
   checkoutUrl?: string | null;
 };
 
+type CancelPurchaseResponse = {
+  outcome:
+    | "cancelled"
+    | "nothing_to_cancel"
+    | "already_paid"
+    | "cannot_cancel"
+    | "stripe_not_configured"
+    | "storage_error"
+    | "invalid_request";
+};
+
 const FALLBACK_PRICE = 749;
 const BIDDER_STORAGE_KEY = "fiszy-demo-bidder-id";
 
@@ -62,9 +77,9 @@ function getBidderId() {
   return created;
 }
 
-function clearPaymentQuery() {
+function clearQueryParam(name: string) {
   const url = new URL(window.location.href);
-  url.searchParams.delete("payment");
+  url.searchParams.delete(name);
   window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
 }
 
@@ -72,6 +87,7 @@ export default function Home() {
   const [auction, setAuction] = useState<AuctionState | null>(null);
   const [isBuying, setIsBuying] = useState(false);
   const [purchaseResult, setPurchaseResult] = useState<PurchaseResult>(null);
+  const [purchaseMessage, setPurchaseMessage] = useState("");
   const [hasEntry, setHasEntry] = useState(false);
   const [entryRunId, setEntryRunId] = useState<string | null>(null);
   const [isEntering, setIsEntering] = useState(false);
@@ -118,7 +134,7 @@ export default function Home() {
       setEntryMessage("Płatność zakończona. Czekam na potwierdzenie Stripe...");
     } else if (paymentState === "cancelled") {
       setEntryMessage("Płatność została anulowana. Wejście nie zostało aktywowane.");
-      clearPaymentQuery();
+      clearQueryParam("payment");
     } else {
       setEntryMessage("");
     }
@@ -141,7 +157,7 @@ export default function Home() {
 
         if (granted && paymentState === "success") {
           setEntryMessage("Płatność potwierdzona. Masz dostęp do tej aukcji.");
-          clearPaymentQuery();
+          clearQueryParam("payment");
         }
 
         return granted;
@@ -173,10 +189,69 @@ export default function Home() {
     };
   }, [auction?.runId]);
 
+  useEffect(() => {
+    if (!auction?.runId) return;
+
+    const purchaseState = new URLSearchParams(window.location.search).get("purchase");
+    if (!purchaseState) return;
+
+    if (purchaseState === "success") {
+      if (auction.status === "sold") {
+        setPurchaseMessage("Płatność potwierdzona. Produkt jest Twój.");
+        clearQueryParam("purchase");
+      } else {
+        setPurchaseMessage("Płatność zakończona. Czekam na potwierdzenie Stripe...");
+      }
+      return;
+    }
+
+    if (purchaseState !== "cancelled") return;
+
+    let active = true;
+    setPurchaseMessage("Anuluję rezerwację płatności...");
+
+    const cancelPurchase = async () => {
+      try {
+        const response = await fetch("/api/auction/purchase/cancel", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ bidderId: getBidderId() }),
+        });
+        const data = (await response.json()) as CancelPurchaseResponse;
+        if (!active) return;
+
+        if (data.outcome === "cancelled" || data.outcome === "nothing_to_cancel") {
+          setPurchaseMessage("Płatność została anulowana. Zakup nie został opłacony.");
+          clearQueryParam("purchase");
+        } else if (data.outcome === "already_paid") {
+          setPurchaseMessage("Płatność została już potwierdzona.");
+          clearQueryParam("purchase");
+        } else {
+          setPurchaseMessage(
+            "Nie udało się bezpiecznie anulować płatności. Rezerwacja pozostaje zablokowana.",
+          );
+        }
+      } catch {
+        if (active) {
+          setPurchaseMessage(
+            "Nie udało się bezpiecznie anulować płatności. Rezerwacja pozostaje zablokowana.",
+          );
+        }
+      }
+    };
+
+    void cancelPurchase();
+
+    return () => {
+      active = false;
+    };
+  }, [auction?.runId, auction?.status]);
+
   const currentPrice = auction?.currentPrice ?? FALLBACK_PRICE;
   const status = auction?.status ?? "waiting";
   const isLive = status === "live";
   const isEnded = status === "ended";
+  const isPaymentPending = status === "payment_pending";
   const isSold = status === "sold";
   const storageReady = auction?.storageReady ?? false;
   const hasCurrentEntry = Boolean(
@@ -231,6 +306,7 @@ export default function Home() {
 
     setIsBuying(true);
     setPurchaseResult(null);
+    setPurchaseMessage("");
 
     try {
       const response = await fetch("/api/auction/buy", {
@@ -243,17 +319,8 @@ export default function Home() {
 
       const data = (await response.json()) as BuyResponse;
 
-      if (data.outcome === "won") {
-        setPurchaseResult("won");
-        setAuction((current) =>
-          current
-            ? {
-                ...current,
-                status: "sold",
-                currentPrice: data.price ?? current.currentPrice,
-              }
-            : current,
-        );
+      if (data.outcome === "checkout" && data.checkoutUrl) {
+        window.location.assign(data.checkoutUrl);
         return;
       }
 
@@ -263,7 +330,7 @@ export default function Home() {
           current
             ? {
                 ...current,
-                status: "sold",
+                status: "payment_pending",
                 currentPrice: data.winnerPrice ?? current.currentPrice,
               }
             : current,
@@ -279,17 +346,19 @@ export default function Home() {
       }
 
       setPurchaseResult("error");
+      setPurchaseMessage("Nie udało się rozpocząć płatności za wygrany produkt.");
     } catch {
       setPurchaseResult("error");
+      setPurchaseMessage("Nie udało się rozpocząć płatności za wygrany produkt.");
     } finally {
       setIsBuying(false);
     }
   };
 
-  const statusLabel = purchaseResult === "won"
-    ? "WYGRYWASZ"
-    : status === "live"
-      ? "AUKCJA LIVE"
+  const statusLabel = status === "live"
+    ? "AUKCJA LIVE"
+    : status === "payment_pending"
+      ? "OCZEKUJE NA PŁATNOŚĆ"
       : status === "sold"
         ? "SPRZEDANE"
         : status === "ended"
@@ -305,14 +374,14 @@ export default function Home() {
 
   let auctionMessage: string;
 
-  if (purchaseResult === "won") {
-    auctionMessage = `Twój klik był pierwszy. Kupujesz AirPods Pro za ${currentPrice} zł.`;
-  } else if (purchaseResult === "lost") {
-    auctionMessage = "Ktoś kliknął wcześniej. Aukcja została już zamknięta.";
+  if (purchaseResult === "lost") {
+    auctionMessage = "Ktoś kliknął wcześniej. Produkt został zarezerwowany dla zwycięzcy.";
   } else if (!storageReady && auction) {
     auctionMessage = "Mechanizm zakupu jest chwilowo niedostępny.";
+  } else if (isPaymentPending) {
+    auctionMessage = `Pierwszy klik został zarezerwowany przy cenie ${currentPrice} zł. Czekamy na płatność zwycięzcy.`;
   } else if (isSold) {
-    auctionMessage = `Produkt został kupiony za ${currentPrice} zł.`;
+    auctionMessage = `Produkt został opłacony za ${currentPrice} zł.`;
   } else if (isLive && !hasCurrentEntry) {
     auctionMessage = "Aby kupić w tej aukcji, najpierw opłać wejście 5 zł.";
   } else if (isLive) {
@@ -323,21 +392,22 @@ export default function Home() {
     auctionMessage = `Start aukcji: ${startTime}. Cena zacznie spadać automatycznie.`;
   }
 
-  const buttonLabel = purchaseResult === "won"
-    ? `WYGRYWASZ — ${currentPrice} zł`
-    : isSold
-      ? "SPRZEDANE"
+  const buttonLabel = isSold
+    ? "SPRZEDANE"
+    : isPaymentPending
+      ? "ZAREZERWOWANE — PŁATNOŚĆ"
       : isEnded
         ? "AUKCJA ZAKOŃCZONA"
         : isLive
           ? !hasCurrentEntry
             ? "WEJŚCIE WYMAGANE"
             : isBuying
-              ? "SPRAWDZAM..."
+              ? "REZERWUJĘ..."
               : `KUP TERAZ — ${currentPrice} zł`
           : "OCZEKIWANIE NA START";
 
-  const canEnter = !isSold && !isEnded && storageReady && !hasCurrentEntry;
+  const canEnter =
+    !isSold && !isPaymentPending && !isEnded && storageReady && !hasCurrentEntry;
 
   return (
     <main className="pageShell">
@@ -385,6 +455,7 @@ export default function Home() {
           ) : null}
 
           {entryMessage ? <p className="auctionMessage" aria-live="polite">{entryMessage}</p> : null}
+          {purchaseMessage ? <p className="auctionMessage" aria-live="polite">{purchaseMessage}</p> : null}
 
           <button
             className="buyButton"
