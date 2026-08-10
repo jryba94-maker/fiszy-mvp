@@ -1,23 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AUCTION_ID, getTimedAuctionState } from "../../../../lib/auction";
-import { redisCommand } from "../../../../lib/redis";
+import {
+  claimAuctionWinner,
+  readAuctionConfig,
+  readAuctionWinner,
+  type AuctionWinner,
+} from "../../../../lib/auction-storage";
 
 export const dynamic = "force-dynamic";
 
 type BuyRequest = {
   bidderId?: string;
 };
-
-type AuctionWinner = {
-  bidderId: string;
-  price: number;
-  claimedAt: string;
-};
-
-function winnerKey() {
-  const environment = process.env.VERCEL_ENV ?? "local";
-  return `fiszy:${environment}:auction:${AUCTION_ID}:winner`;
-}
 
 export async function POST(request: NextRequest) {
   let body: BuyRequest;
@@ -34,59 +28,48 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ outcome: "invalid_request" }, { status: 400 });
   }
 
-  const now = Date.now();
-  const auction = getTimedAuctionState(now);
-
-  if (auction.status !== "live") {
-    return NextResponse.json(
-      {
-        outcome: "not_live",
-        status: auction.status,
-        currentPrice: auction.currentPrice,
-      },
-      { status: 409 },
-    );
-  }
-
-  const winner: AuctionWinner = {
-    bidderId,
-    price: auction.currentPrice,
-    claimedAt: new Date(now).toISOString(),
-  };
-
   try {
-    const result = await redisCommand<string>([
-      "SET",
-      winnerKey(),
-      JSON.stringify(winner),
-      "NX",
-    ]);
+    const config = await readAuctionConfig();
+    const now = Date.now();
+    const auction = getTimedAuctionState(now, config.startsAt);
+
+    if (auction.status !== "live") {
+      return NextResponse.json(
+        {
+          outcome: "not_live",
+          status: auction.status,
+          currentPrice: auction.currentPrice,
+        },
+        { status: 409 },
+      );
+    }
+
+    const winner: AuctionWinner = {
+      bidderId,
+      price: auction.currentPrice,
+      claimedAt: new Date(now).toISOString(),
+    };
+
+    const result = await claimAuctionWinner(config.runId, winner);
 
     if (result === "OK") {
       return NextResponse.json({
         outcome: "won",
         auctionId: AUCTION_ID,
+        runId: config.runId,
         price: winner.price,
         claimedAt: winner.claimedAt,
       });
     }
 
-    const existingValue = await redisCommand<string>(["GET", winnerKey()]);
-    let winnerPrice: number | null = null;
-
-    if (existingValue) {
-      try {
-        winnerPrice = (JSON.parse(existingValue) as AuctionWinner).price;
-      } catch {
-        winnerPrice = null;
-      }
-    }
+    const existingWinner = await readAuctionWinner(config.runId);
 
     return NextResponse.json(
       {
         outcome: "lost",
         auctionId: AUCTION_ID,
-        winnerPrice,
+        runId: config.runId,
+        winnerPrice: existingWinner?.price ?? null,
       },
       { status: 409 },
     );
