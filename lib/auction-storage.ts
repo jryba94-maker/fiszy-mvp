@@ -15,6 +15,8 @@ export type AuctionEntry = {
   bidderId: string;
   fee: number;
   grantedAt: string;
+  provider?: "test" | "stripe";
+  paymentSessionId?: string;
 };
 
 function environmentName() {

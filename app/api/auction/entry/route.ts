@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
+import { AUCTION_ID, getTimedAuctionState } from "../../../../lib/auction";
 import {
-  grantAuctionEntry,
   readAuctionConfig,
   readAuctionEntry,
-  type AuctionEntry,
+  readAuctionWinner,
 } from "../../../../lib/auction-storage";
+import { createEntryCheckoutSession } from "../../../../lib/stripe";
 
 export const dynamic = "force-dynamic";
 
 const ENTRY_FEE = 5;
+const ENTRY_FEE_GROSZE = ENTRY_FEE * 100;
 
 type EntryRequest = {
   bidderId?: string;
@@ -59,26 +61,52 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ outcome: "invalid_request" }, { status: 400 });
   }
 
+  if (!process.env.STRIPE_SECRET_KEY) {
+    return NextResponse.json({ outcome: "stripe_not_configured" }, { status: 503 });
+  }
+
   try {
     const config = await readAuctionConfig();
-    const grantedAt = new Date().toISOString();
-    const entry: AuctionEntry = {
-      bidderId,
-      fee: ENTRY_FEE,
-      grantedAt,
-    };
+    const existingEntry = await readAuctionEntry(config.runId, bidderId);
 
-    await grantAuctionEntry(config.runId, entry);
+    if (existingEntry) {
+      return NextResponse.json({
+        outcome: "already_granted",
+        runId: config.runId,
+        hasEntry: true,
+        entryFee: ENTRY_FEE,
+      });
+    }
+
+    const winner = await readAuctionWinner(config.runId);
+    const timedState = getTimedAuctionState(Date.now(), config.startsAt);
+
+    if (winner || timedState.status === "ended") {
+      return NextResponse.json(
+        {
+          outcome: "auction_unavailable",
+          runId: config.runId,
+        },
+        { status: 409 },
+      );
+    }
+
+    const session = await createEntryCheckoutSession({
+      origin: request.nextUrl.origin,
+      auctionId: AUCTION_ID,
+      runId: config.runId,
+      bidderId,
+      amount: ENTRY_FEE_GROSZE,
+    });
 
     return NextResponse.json({
-      outcome: "granted",
+      outcome: "checkout",
       runId: config.runId,
-      hasEntry: true,
+      checkoutUrl: session.url,
       entryFee: ENTRY_FEE,
-      grantedAt,
     });
   } catch (error) {
-    console.error("Unable to grant auction entry in Redis.", error);
-    return NextResponse.json({ outcome: "storage_error" }, { status: 503 });
+    console.error("Unable to create Stripe Checkout Session.", error);
+    return NextResponse.json({ outcome: "payment_error" }, { status: 503 });
   }
 }

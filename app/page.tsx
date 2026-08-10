@@ -35,10 +35,19 @@ type BuyResponse = {
 };
 
 type EntryResponse = {
-  outcome: "ok" | "granted" | "storage_error" | "invalid_request";
+  outcome:
+    | "ok"
+    | "checkout"
+    | "already_granted"
+    | "auction_unavailable"
+    | "stripe_not_configured"
+    | "payment_error"
+    | "storage_error"
+    | "invalid_request";
   runId?: string;
   hasEntry?: boolean;
   entryFee?: number;
+  checkoutUrl?: string | null;
 };
 
 const FALLBACK_PRICE = 749;
@@ -51,6 +60,12 @@ function getBidderId() {
   const created = window.crypto.randomUUID();
   window.localStorage.setItem(BIDDER_STORAGE_KEY, created);
   return created;
+}
+
+function clearPaymentQuery() {
+  const url = new URL(window.location.href);
+  url.searchParams.delete("payment");
+  window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
 }
 
 export default function Home() {
@@ -90,9 +105,25 @@ export default function Home() {
     if (!auction?.runId) return;
 
     let active = true;
+    let retryTimer: number | undefined;
+    let attempts = 0;
     const runId = auction.runId;
+    const paymentState = new URLSearchParams(window.location.search).get("payment");
 
-    const loadEntry = async () => {
+    setPurchaseResult(null);
+    setHasEntry(false);
+    setEntryRunId(runId);
+
+    if (paymentState === "success") {
+      setEntryMessage("Płatność zakończona. Czekam na potwierdzenie Stripe...");
+    } else if (paymentState === "cancelled") {
+      setEntryMessage("Płatność została anulowana. Wejście nie zostało aktywowane.");
+      clearPaymentQuery();
+    } else {
+      setEntryMessage("");
+    }
+
+    const loadEntry = async (): Promise<boolean> => {
       try {
         const bidderId = getBidderId();
         const response = await fetch(
@@ -100,27 +131,45 @@ export default function Home() {
           { cache: "no-store" },
         );
 
-        if (!response.ok) return;
+        if (!response.ok) return false;
         const data = (await response.json()) as EntryResponse;
+        if (!active) return false;
 
-        if (active) {
-          setHasEntry(Boolean(data.hasEntry));
-          setEntryRunId(data.runId ?? runId);
+        const granted = Boolean(data.hasEntry && data.runId === runId);
+        setHasEntry(granted);
+        setEntryRunId(data.runId ?? runId);
+
+        if (granted && paymentState === "success") {
+          setEntryMessage("Płatność potwierdzona. Masz dostęp do tej aukcji.");
+          clearPaymentQuery();
         }
+
+        return granted;
       } catch {
-        if (active) {
-          setHasEntry(false);
-          setEntryRunId(runId);
-        }
+        return false;
       }
     };
 
-    setPurchaseResult(null);
-    setEntryMessage("");
-    void loadEntry();
+    const checkEntry = async () => {
+      const granted = await loadEntry();
+      if (!active || granted || paymentState !== "success") return;
+
+      attempts += 1;
+      if (attempts >= 15) {
+        setEntryMessage(
+          "Płatność wróciła ze Stripe, ale potwierdzenie jeszcze nie dotarło. Odśwież stronę za chwilę.",
+        );
+        return;
+      }
+
+      retryTimer = window.setTimeout(() => void checkEntry(), 800);
+    };
+
+    void checkEntry();
 
     return () => {
       active = false;
+      if (retryTimer) window.clearTimeout(retryTimer);
     };
   }, [auction?.runId]);
 
@@ -151,15 +200,27 @@ export default function Home() {
 
       const data = (await response.json()) as EntryResponse;
 
-      if (data.outcome === "granted" && data.runId) {
+      if (data.outcome === "checkout" && data.checkoutUrl) {
+        window.location.assign(data.checkoutUrl);
+        return;
+      }
+
+      if (data.outcome === "already_granted" && data.runId) {
         setHasEntry(true);
         setEntryRunId(data.runId);
-        setEntryMessage("Wejście testowe zapisane. Możesz uczestniczyć w tej aukcji.");
+        setEntryMessage("Masz już opłacone wejście do tej aukcji.");
+        return;
+      }
+
+      if (data.outcome === "auction_unavailable") {
+        setEntryMessage("Do tej aukcji nie można już wykupić wejścia.");
+      } else if (data.outcome === "stripe_not_configured") {
+        setEntryMessage("Stripe nie jest jeszcze skonfigurowany po stronie serwera.");
       } else {
-        setEntryMessage("Nie udało się zapisać wejścia do aukcji.");
+        setEntryMessage("Nie udało się rozpocząć płatności. Spróbuj ponownie.");
       }
     } catch {
-      setEntryMessage("Nie udało się zapisać wejścia do aukcji.");
+      setEntryMessage("Nie udało się rozpocząć płatności. Spróbuj ponownie.");
     } finally {
       setIsEntering(false);
     }
@@ -253,7 +314,7 @@ export default function Home() {
   } else if (isSold) {
     auctionMessage = `Produkt został kupiony za ${currentPrice} zł.`;
   } else if (isLive && !hasCurrentEntry) {
-    auctionMessage = "Aby kupić w tej aukcji, najpierw opłać wejście testowe 5 zł.";
+    auctionMessage = "Aby kupić w tej aukcji, najpierw opłać wejście 5 zł.";
   } else if (isLive) {
     auctionMessage = "Cena spada. Kupujesz za cenę, którą widzisz.";
   } else if (isEnded) {
@@ -317,7 +378,9 @@ export default function Home() {
               onClick={handleEntry}
               disabled={isEntering}
             >
-              {isEntering ? "ZAPISUJĘ WEJŚCIE..." : `TEST: OPŁAĆ WEJŚCIE — ${auction?.entryFee ?? 5} ZŁ`}
+              {isEntering
+                ? "PRZECHODZĘ DO PŁATNOŚCI..."
+                : `OPŁAĆ WEJŚCIE — ${auction?.entryFee ?? 5} ZŁ`}
             </button>
           ) : null}
 
