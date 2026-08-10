@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 const START_DELAY_MS = 60_000;
 
 function hasValidAdminKey(request: NextRequest) {
-  const configuredKey = process.env.FISZY_ADMIN_KEY;
+  const configuredKey = process.env.FISZY_ADMIN_SECRET;
   if (!configuredKey) return false;
 
   const authorization = request.headers.get("authorization") ?? "";
@@ -19,7 +19,7 @@ function hasValidAdminKey(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!process.env.FISZY_ADMIN_KEY) {
+  if (!process.env.FISZY_ADMIN_SECRET) {
     return NextResponse.json(
       { outcome: "admin_not_configured" },
       { status: 503 },
