@@ -8,8 +8,14 @@ import {
   type AuctionEntry,
 } from "../../../../lib/auction-storage";
 import {
+  saveAuctionOrder,
+  type AuctionOrder,
+  type OrderAddress,
+} from "../../../../lib/order-storage";
+import {
   stripeWebhookSecret,
   verifyStripeWebhook,
+  type StripeAddress,
   type StripeCheckoutSession,
 } from "../../../../lib/stripe";
 
@@ -55,6 +61,19 @@ function paidAuctionEntry(session: StripeCheckoutSession) {
   return metadata;
 }
 
+function orderAddress(address: StripeAddress | null | undefined): OrderAddress | null {
+  if (!address) return null;
+
+  return {
+    city: address.city ?? null,
+    country: address.country ?? null,
+    line1: address.line1 ?? null,
+    line2: address.line2 ?? null,
+    postalCode: address.postal_code ?? null,
+    state: address.state ?? null,
+  };
+}
+
 async function handlePaidPurchase(session: StripeCheckoutSession) {
   const metadata = auctionMetadata(session, "auction_purchase");
   if (!metadata || session.mode !== "payment" || session.payment_status !== "paid") {
@@ -66,19 +85,52 @@ async function handlePaidPurchase(session: StripeCheckoutSession) {
   if (
     !winner ||
     winner.bidderId !== metadata.bidderId ||
-    winner.paymentStatus !== "pending" ||
     winner.paymentSessionId !== session.id ||
+    (winner.paymentStatus !== "pending" && winner.paymentStatus !== "paid") ||
     session.currency !== "pln" ||
     session.amount_total !== winner.price * 100
   ) {
     return false;
   }
 
+  const paidAt = winner.paidAt ?? new Date().toISOString();
+  const shipping = session.collected_information?.shipping_details ?? null;
+  const customer = session.customer_details ?? null;
+
+  const order: AuctionOrder = {
+    orderId: `FISZY-${metadata.runId.slice(0, 8).toUpperCase()}`,
+    auctionId: AUCTION_ID,
+    runId: metadata.runId,
+    bidderId: metadata.bidderId,
+    product: "AirPods Pro",
+    amount: winner.price,
+    currency: "pln",
+    paymentSessionId: session.id,
+    paidAt,
+    customer: {
+      name:
+        shipping?.name ??
+        session.collected_information?.individual_name ??
+        customer?.individual_name ??
+        customer?.name ??
+        null,
+      email: customer?.email ?? null,
+      phone: customer?.phone ?? null,
+    },
+    shippingAddress: orderAddress(shipping?.address ?? customer?.address),
+  };
+
+  await saveAuctionOrder(order);
+
+  if (winner.paymentStatus === "paid") {
+    return true;
+  }
+
   const updated = await markAuctionWinnerPaid(
     metadata.runId,
     metadata.bidderId,
     session.id,
-    new Date().toISOString(),
+    paidAt,
   );
 
   return updated === 1;
