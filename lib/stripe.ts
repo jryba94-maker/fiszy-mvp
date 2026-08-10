@@ -11,6 +11,7 @@ export type StripeCheckoutSession = {
   amount_total: number | null;
   currency: string | null;
   metadata: Record<string, string> | null;
+  status?: string | null;
 };
 
 type StripeEvent = {
@@ -31,6 +32,28 @@ export function stripeWebhookSecret() {
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
   if (!secret) throw new Error("STRIPE_WEBHOOK_SECRET is not configured.");
   return secret;
+}
+
+async function createCheckoutSession(body: URLSearchParams) {
+  const response = await fetch(`${STRIPE_API_BASE}/checkout/sessions`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${stripeSecretKey()}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body,
+    cache: "no-store",
+  });
+
+  const data = (await response.json()) as StripeCheckoutSession & {
+    error?: { message?: string };
+  };
+
+  if (!response.ok || !data.id || !data.url) {
+    throw new Error(data.error?.message ?? "Unable to create Stripe Checkout Session.");
+  }
+
+  return data;
 }
 
 export async function createEntryCheckoutSession(input: {
@@ -57,22 +80,58 @@ export async function createEntryCheckoutSession(input: {
   body.set("metadata[runId]", input.runId);
   body.set("metadata[bidderId]", input.bidderId);
 
-  const response = await fetch(`${STRIPE_API_BASE}/checkout/sessions`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${stripeSecretKey()}`,
-      "Content-Type": "application/x-www-form-urlencoded",
+  return createCheckoutSession(body);
+}
+
+export async function createPurchaseCheckoutSession(input: {
+  origin: string;
+  auctionId: string;
+  runId: string;
+  bidderId: string;
+  amount: number;
+  expiresAt: number;
+}) {
+  const body = new URLSearchParams();
+  body.set("mode", "payment");
+  body.set("success_url", `${input.origin}/?purchase=success`);
+  body.set("cancel_url", `${input.origin}/?purchase=cancelled`);
+  body.set("payment_method_types[0]", "card");
+  body.set("expires_at", String(input.expiresAt));
+  body.set("line_items[0][price_data][currency]", "pln");
+  body.set("line_items[0][price_data][unit_amount]", String(input.amount));
+  body.set(
+    "line_items[0][price_data][product_data][name]",
+    "AirPods Pro — wygrana aukcji Fiszy",
+  );
+  body.set("line_items[0][quantity]", "1");
+  body.set("metadata[kind]", "auction_purchase");
+  body.set("metadata[auctionId]", input.auctionId);
+  body.set("metadata[runId]", input.runId);
+  body.set("metadata[bidderId]", input.bidderId);
+
+  return createCheckoutSession(body);
+}
+
+export async function expireCheckoutSession(sessionId: string) {
+  const response = await fetch(
+    `${STRIPE_API_BASE}/checkout/sessions/${encodeURIComponent(sessionId)}/expire`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${stripeSecretKey()}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams(),
+      cache: "no-store",
     },
-    body,
-    cache: "no-store",
-  });
+  );
 
   const data = (await response.json()) as StripeCheckoutSession & {
     error?: { message?: string };
   };
 
-  if (!response.ok || !data.id || !data.url) {
-    throw new Error(data.error?.message ?? "Unable to create Stripe Checkout Session.");
+  if (!response.ok || !data.id) {
+    throw new Error(data.error?.message ?? "Unable to expire Stripe Checkout Session.");
   }
 
   return data;
