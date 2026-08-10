@@ -16,7 +16,8 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-button {
+button,
+input {
   font: inherit;
 }
 
@@ -145,13 +146,18 @@ h1 {
   transition: transform .15s ease, opacity .15s ease;
 }
 
-.buyButton:hover {
+.buyButton:hover:not(:disabled) {
   transform: translateY(-1px);
   opacity: .92;
 }
 
-.buyButton:active {
+.buyButton:active:not(:disabled) {
   transform: translateY(0);
+}
+
+.buyButton:disabled {
+  cursor: not-allowed;
+  opacity: .45;
 }
 
 .entryFee {
@@ -163,6 +169,97 @@ h1 {
 
 .entryFee strong {
   color: #111;
+}
+
+.adminShell {
+  width: min(720px, calc(100% - 28px));
+  margin: 0 auto;
+  padding: 48px 0;
+}
+
+.adminCard {
+  background: #fff;
+  border: 1px solid rgba(0,0,0,.08);
+  border-radius: 28px;
+  box-shadow: 0 24px 70px rgba(0,0,0,.08);
+  padding: clamp(28px, 6vw, 56px);
+}
+
+.adminCard h1 {
+  margin-bottom: 28px;
+}
+
+.adminStatus {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 30px;
+}
+
+.adminStatus div {
+  border-radius: 14px;
+  padding: 14px;
+  background: #f4f4f1;
+}
+
+.adminStatus span,
+.adminStatus strong {
+  display: block;
+}
+
+.adminStatus span {
+  margin-bottom: 5px;
+  color: #777;
+  font-size: .72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+
+.adminStatus strong {
+  font-size: .95rem;
+}
+
+.adminLabel {
+  display: block;
+  margin-bottom: 8px;
+  font-size: .82rem;
+  font-weight: 800;
+}
+
+.adminInput {
+  width: 100%;
+  margin-bottom: 12px;
+  border: 1px solid #ccc;
+  border-radius: 14px;
+  padding: 15px 16px;
+  background: #fff;
+  color: #111;
+}
+
+.adminInput:focus {
+  outline: 2px solid #111;
+  outline-offset: 2px;
+}
+
+.adminMessage {
+  margin: 18px 0 0;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.adminNote {
+  margin: 22px 0 0;
+  color: #666;
+  font-size: .9rem;
+  line-height: 1.5;
+}
+
+.adminLink {
+  display: inline-block;
+  margin-top: 22px;
+  color: #111;
+  font-weight: 800;
 }
 
 @media (max-width: 820px) {
@@ -190,5 +287,9 @@ h1 {
 
   h1 {
     margin-bottom: 28px;
+  }
+
+  .adminStatus {
+    grid-template-columns: 1fr;
   }
 }

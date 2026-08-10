@@ -1,58 +1,41 @@
 import { NextResponse } from "next/server";
 import {
-  AUCTION_ENDS_AT,
   AUCTION_ID,
-  AUCTION_STARTS_AT,
   FLOOR_PRICE,
   START_PRICE,
+  defaultAuctionConfig,
+  getAuctionEndsAt,
   getTimedAuctionState,
 } from "../../../lib/auction";
-import { redisCommand } from "../../../lib/redis";
+import {
+  readAuctionConfig,
+  readAuctionWinner,
+} from "../../../lib/auction-storage";
 
 export const dynamic = "force-dynamic";
 
-type AuctionWinner = {
-  bidderId: string;
-  price: number;
-  claimedAt: string;
-};
-
-function winnerKey() {
-  const environment = process.env.VERCEL_ENV ?? "local";
-  return `fiszy:${environment}:auction:${AUCTION_ID}:winner`;
-}
-
-async function readWinner(): Promise<AuctionWinner | null> {
-  const value = await redisCommand<string>(["GET", winnerKey()]);
-  if (!value) return null;
-
-  try {
-    return JSON.parse(value) as AuctionWinner;
-  } catch {
-    return null;
-  }
-}
-
 export async function GET() {
   const now = Date.now();
-  const timedState = getTimedAuctionState(now);
-
-  let winner: AuctionWinner | null = null;
+  let config = defaultAuctionConfig();
+  let winner = null;
   let storageReady = true;
 
   try {
-    winner = await readWinner();
+    config = await readAuctionConfig();
+    winner = await readAuctionWinner(config.runId);
   } catch (error) {
     storageReady = false;
-    console.error("Unable to read auction winner from Redis.", error);
+    console.error("Unable to read auction state from Redis.", error);
   }
 
+  const timedState = getTimedAuctionState(now, config.startsAt);
   const status = winner ? "sold" : timedState.status;
   const currentPrice = winner?.price ?? timedState.currentPrice;
 
   return NextResponse.json(
     {
       auctionId: AUCTION_ID,
+      runId: config.runId,
       product: "AirPods Pro",
       regularPrice: 999,
       startPrice: START_PRICE,
@@ -60,8 +43,8 @@ export async function GET() {
       currentPrice,
       entryFee: 5,
       status,
-      startsAt: AUCTION_STARTS_AT.toISOString(),
-      endsAt: AUCTION_ENDS_AT.toISOString(),
+      startsAt: config.startsAt,
+      endsAt: getAuctionEndsAt(config.startsAt).toISOString(),
       soldAt: winner?.claimedAt ?? null,
       storageReady,
       serverTime: new Date(now).toISOString(),
