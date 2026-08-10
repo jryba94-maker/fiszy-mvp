@@ -4,6 +4,8 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   const adminSecretConfigured = Boolean(process.env.FISZY_ADMIN_SECRET);
+  const stripeConfigured = Boolean(process.env.STRIPE_SECRET_KEY);
+  const stripeWebhookConfigured = Boolean(process.env.STRIPE_WEBHOOK_SECRET);
   const redisUrlConfigured = Boolean(
     process.env.STORAGE_KV_REST_API_URL ||
       process.env.KV_REST_API_URL ||
@@ -20,6 +22,8 @@ export async function GET() {
       environment: process.env.VERCEL_ENV ?? "unknown",
       adminSecretConfigured,
       redisConfigured: redisUrlConfigured && redisTokenConfigured,
+      stripeConfigured,
+      stripeWebhookConfigured,
     },
     {
       headers: {
