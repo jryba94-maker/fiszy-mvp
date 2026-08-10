@@ -11,6 +11,12 @@ export type AuctionWinner = {
   claimedAt: string;
 };
 
+export type AuctionEntry = {
+  bidderId: string;
+  fee: number;
+  grantedAt: string;
+};
+
 function environmentName() {
   return process.env.VERCEL_ENV ?? "local";
 }
@@ -21,6 +27,10 @@ function configKey() {
 
 export function winnerKey(runId: string) {
   return `fiszy:${environmentName()}:auction:${AUCTION_ID}:run:${runId}:winner`;
+}
+
+export function entryKey(runId: string, bidderId: string) {
+  return `fiszy:${environmentName()}:auction:${AUCTION_ID}:run:${runId}:entry:${encodeURIComponent(bidderId)}`;
 }
 
 function isAuctionConfig(value: unknown): value is AuctionConfig {
@@ -69,6 +79,30 @@ export async function claimAuctionWinner(runId: string, winner: AuctionWinner) {
     winnerKey(runId),
     JSON.stringify(winner),
     "NX",
+    "EX",
+    604800,
+  ]);
+}
+
+export async function readAuctionEntry(
+  runId: string,
+  bidderId: string,
+): Promise<AuctionEntry | null> {
+  const raw = await redisCommand<string>(["GET", entryKey(runId, bidderId)]);
+  if (!raw) return null;
+
+  try {
+    return JSON.parse(raw) as AuctionEntry;
+  } catch {
+    return null;
+  }
+}
+
+export async function grantAuctionEntry(runId: string, entry: AuctionEntry) {
+  return redisCommand<string>([
+    "SET",
+    entryKey(runId, entry.bidderId),
+    JSON.stringify(entry),
     "EX",
     604800,
   ]);
