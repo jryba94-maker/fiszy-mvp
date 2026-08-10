@@ -2,20 +2,46 @@
 
 import { useEffect, useState } from "react";
 
-const START_PRICE = 749;
-const FLOOR_PRICE = 699;
-const DROP_INTERVAL_MS = 2000;
+type AuctionState = {
+  auctionId: string;
+  product: string;
+  regularPrice: number;
+  currentPrice: number;
+  entryFee: number;
+  status: "live";
+  serverTime: string;
+};
+
+const FALLBACK_PRICE = 749;
 
 export default function Home() {
-  const [currentPrice, setCurrentPrice] = useState(START_PRICE);
+  const [auction, setAuction] = useState<AuctionState | null>(null);
 
   useEffect(() => {
-    const timer = window.setInterval(() => {
-      setCurrentPrice((price) => Math.max(FLOOR_PRICE, price - 1));
-    }, DROP_INTERVAL_MS);
+    let active = true;
 
-    return () => window.clearInterval(timer);
+    const loadAuction = async () => {
+      try {
+        const response = await fetch("/api/auction", { cache: "no-store" });
+        if (!response.ok) return;
+
+        const data = (await response.json()) as AuctionState;
+        if (active) setAuction(data);
+      } catch {
+        // Keep the last known price visible if the demo endpoint is temporarily unavailable.
+      }
+    };
+
+    void loadAuction();
+    const timer = window.setInterval(() => void loadAuction(), 1000);
+
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
   }, []);
+
+  const currentPrice = auction?.currentPrice ?? FALLBACK_PRICE;
 
   return (
     <main className="pageShell">
