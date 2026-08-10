@@ -2,13 +2,19 @@
 
 import { useEffect, useState } from "react";
 
+type AuctionStatus = "waiting" | "live" | "ended";
+
 type AuctionState = {
   auctionId: string;
   product: string;
   regularPrice: number;
+  startPrice: number;
+  floorPrice: number;
   currentPrice: number;
   entryFee: number;
-  status: "live";
+  status: AuctionStatus;
+  startsAt: string;
+  endsAt: string;
   serverTime: string;
 };
 
@@ -28,7 +34,7 @@ export default function Home() {
         const data = (await response.json()) as AuctionState;
         if (active) setAuction(data);
       } catch {
-        // Keep the last known price visible if the demo endpoint is temporarily unavailable.
+        // Keep the last known auction state visible if the endpoint is temporarily unavailable.
       }
     };
 
@@ -42,12 +48,33 @@ export default function Home() {
   }, []);
 
   const currentPrice = auction?.currentPrice ?? FALLBACK_PRICE;
+  const status = auction?.status ?? "waiting";
+  const isLive = status === "live";
+  const isEnded = status === "ended";
+
+  const statusLabel =
+    status === "live" ? "AUKCJA LIVE" : status === "ended" ? "AUKCJA ZAKOŃCZONA" : "AUKCJA OCZEKUJE";
+
+  const startTime = auction?.startsAt
+    ? new Date(auction.startsAt).toLocaleTimeString("pl-PL", {
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "--:--";
+
+  const auctionMessage = isLive
+    ? "Cena spada. Kupujesz za cenę, którą widzisz."
+    : isEnded
+      ? "Aukcja zakończona. Cena nie uruchomi się ponownie."
+      : `Start aukcji: ${startTime}. Cena zacznie spadać automatycznie.`;
+
+  const buttonLabel = isEnded ? "AUKCJA ZAKOŃCZONA" : isLive ? `KUP TERAZ — ${currentPrice} zł` : "OCZEKIWANIE NA START";
 
   return (
     <main className="pageShell">
       <header className="brandBar">
         <div className="brand">Fiszy</div>
-        <div className="liveBadge">AUKCJA LIVE</div>
+        <div className="liveBadge">{statusLabel}</div>
       </header>
 
       <section className="auctionCard" aria-labelledby="auction-title">
@@ -73,13 +100,15 @@ export default function Home() {
             </div>
           </div>
 
-          <p className="auctionMessage">Cena spada. Kupujesz za cenę, którą widzisz.</p>
+          <p className="auctionMessage">{auctionMessage}</p>
 
-          <button className="buyButton" type="button">
-            KUP TERAZ — {currentPrice} zł
+          <button className="buyButton" type="button" disabled={!isLive}>
+            {buttonLabel}
           </button>
 
-          <div className="entryFee">Wejście do aukcji: <strong>5 zł</strong></div>
+          <div className="entryFee">
+            Wejście do aukcji: <strong>{auction?.entryFee ?? 5} zł</strong>
+          </div>
         </div>
       </section>
     </main>
