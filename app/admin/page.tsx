@@ -68,9 +68,9 @@ export default function AdminPage() {
         setMessage(`Nowa aukcja zaplanowana na ${formatDateTime(data.startsAt)}.`);
         await loadAuction();
       } else if (data.outcome === "unauthorized") {
-        setMessage("Nieprawidłowy klucz administratora.");
+        setMessage("Nieprawidłowy sekret administratora.");
       } else if (data.outcome === "admin_not_configured") {
-        setMessage("Brak FISZY_ADMIN_KEY w zmiennych środowiskowych Vercela.");
+        setMessage("Brak FISZY_ADMIN_SECRET w zmiennych środowiskowych Vercela.");
       } else {
         setMessage("Nie udało się zapisać nowej aukcji w Redisie.");
       }
@@ -103,7 +103,7 @@ export default function AdminPage() {
         </div>
 
         <label className="adminLabel" htmlFor="admin-key">
-          Klucz administratora
+          Sekret administratora
         </label>
         <input
           id="admin-key"
@@ -112,7 +112,7 @@ export default function AdminPage() {
           value={adminKey}
           onChange={(event) => setAdminKey(event.target.value)}
           autoComplete="off"
-          placeholder="FISZY_ADMIN_KEY"
+          placeholder="FISZY_ADMIN_SECRET"
         />
 
         <button
