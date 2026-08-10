@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const adminKeyConfigured = Boolean(process.env.FISZY_ADMIN_KEY);
+  const adminSecretConfigured = Boolean(process.env.FISZY_ADMIN_SECRET);
   const redisUrlConfigured = Boolean(
     process.env.STORAGE_KV_REST_API_URL ||
       process.env.KV_REST_API_URL ||
@@ -18,7 +18,7 @@ export async function GET() {
   return NextResponse.json(
     {
       environment: process.env.VERCEL_ENV ?? "unknown",
-      adminKeyConfigured,
+      adminSecretConfigured,
       redisConfigured: redisUrlConfigured && redisTokenConfigured,
     },
     {
