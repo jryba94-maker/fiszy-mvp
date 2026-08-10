@@ -3,6 +3,15 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 const STRIPE_API_BASE = "https://api.stripe.com/v1";
 const WEBHOOK_TOLERANCE_SECONDS = 300;
 
+export type StripeAddress = {
+  city: string | null;
+  country: string | null;
+  line1: string | null;
+  line2: string | null;
+  postal_code: string | null;
+  state: string | null;
+};
+
 export type StripeCheckoutSession = {
   id: string;
   url: string | null;
@@ -12,6 +21,20 @@ export type StripeCheckoutSession = {
   currency: string | null;
   metadata: Record<string, string> | null;
   status?: string | null;
+  customer_details?: {
+    address: StripeAddress | null;
+    email: string | null;
+    name: string | null;
+    individual_name?: string | null;
+    phone: string | null;
+  } | null;
+  collected_information?: {
+    individual_name?: string | null;
+    shipping_details?: {
+      name: string;
+      address: StripeAddress;
+    } | null;
+  } | null;
 };
 
 type StripeEvent = {
@@ -97,6 +120,9 @@ export async function createPurchaseCheckoutSession(input: {
   body.set("cancel_url", `${input.origin}/?purchase=cancelled`);
   body.set("payment_method_types[0]", "card");
   body.set("expires_at", String(input.expiresAt));
+  body.set("shipping_address_collection[allowed_countries][0]", "PL");
+  body.set("phone_number_collection[enabled]", "true");
+  body.set("name_collection[individual][enabled]", "true");
   body.set("line_items[0][price_data][currency]", "pln");
   body.set("line_items[0][price_data][unit_amount]", String(input.amount));
   body.set(

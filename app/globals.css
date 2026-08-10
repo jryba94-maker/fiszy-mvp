@@ -189,6 +189,12 @@ h1 {
   margin-bottom: 28px;
 }
 
+.adminCard h2 {
+  margin: 0;
+  font-size: 1.45rem;
+  letter-spacing: -.035em;
+}
+
 .adminStatus {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -248,6 +254,77 @@ h1 {
   line-height: 1.45;
 }
 
+.orderSection {
+  margin-top: 34px;
+  border-top: 1px solid #e5e5e0;
+  padding-top: 28px;
+}
+
+.orderHeader {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.orderHeader .eyebrow {
+  margin-bottom: 5px;
+}
+
+.adminSecondaryButton {
+  border: 1px solid #111;
+  border-radius: 12px;
+  padding: 11px 14px;
+  background: #fff;
+  color: #111;
+  cursor: pointer;
+  font-size: .78rem;
+  font-weight: 900;
+}
+
+.adminSecondaryButton:disabled {
+  cursor: not-allowed;
+  opacity: .4;
+}
+
+.orderDetails {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.orderDetails > div {
+  min-width: 0;
+  border-radius: 14px;
+  padding: 14px;
+  background: #f4f4f1;
+}
+
+.orderDetails span,
+.orderDetails strong {
+  display: block;
+}
+
+.orderDetails span {
+  margin-bottom: 5px;
+  color: #777;
+  font-size: .7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+
+.orderDetails strong {
+  overflow-wrap: anywhere;
+  font-size: .92rem;
+  line-height: 1.35;
+}
+
+.orderDetails .orderWide {
+  grid-column: 1 / -1;
+}
+
 .adminNote {
   margin: 22px 0 0;
   color: #666;
@@ -289,7 +366,17 @@ h1 {
     margin-bottom: 28px;
   }
 
-  .adminStatus {
+  .adminStatus,
+  .orderDetails {
     grid-template-columns: 1fr;
+  }
+
+  .orderDetails .orderWide {
+    grid-column: auto;
+  }
+
+  .orderHeader {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
