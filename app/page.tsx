@@ -7,6 +7,7 @@ type PurchaseResult = "won" | "lost" | "error" | null;
 
 type AuctionState = {
   auctionId: string;
+  runId: string;
   product: string;
   regularPrice: number;
   startPrice: number;
@@ -22,9 +23,22 @@ type AuctionState = {
 };
 
 type BuyResponse = {
-  outcome: "won" | "lost" | "not_live" | "storage_error" | "invalid_request";
+  outcome:
+    | "won"
+    | "lost"
+    | "not_live"
+    | "entry_required"
+    | "storage_error"
+    | "invalid_request";
   price?: number;
   winnerPrice?: number | null;
+};
+
+type EntryResponse = {
+  outcome: "ok" | "granted" | "storage_error" | "invalid_request";
+  runId?: string;
+  hasEntry?: boolean;
+  entryFee?: number;
 };
 
 const FALLBACK_PRICE = 749;
@@ -43,6 +57,10 @@ export default function Home() {
   const [auction, setAuction] = useState<AuctionState | null>(null);
   const [isBuying, setIsBuying] = useState(false);
   const [purchaseResult, setPurchaseResult] = useState<PurchaseResult>(null);
+  const [hasEntry, setHasEntry] = useState(false);
+  const [entryRunId, setEntryRunId] = useState<string | null>(null);
+  const [isEntering, setIsEntering] = useState(false);
+  const [entryMessage, setEntryMessage] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -68,15 +86,87 @@ export default function Home() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!auction?.runId) return;
+
+    let active = true;
+    const runId = auction.runId;
+
+    const loadEntry = async () => {
+      try {
+        const bidderId = getBidderId();
+        const response = await fetch(
+          `/api/auction/entry?bidderId=${encodeURIComponent(bidderId)}`,
+          { cache: "no-store" },
+        );
+
+        if (!response.ok) return;
+        const data = (await response.json()) as EntryResponse;
+
+        if (active) {
+          setHasEntry(Boolean(data.hasEntry));
+          setEntryRunId(data.runId ?? runId);
+        }
+      } catch {
+        if (active) {
+          setHasEntry(false);
+          setEntryRunId(runId);
+        }
+      }
+    };
+
+    setPurchaseResult(null);
+    setEntryMessage("");
+    void loadEntry();
+
+    return () => {
+      active = false;
+    };
+  }, [auction?.runId]);
+
   const currentPrice = auction?.currentPrice ?? FALLBACK_PRICE;
   const status = auction?.status ?? "waiting";
   const isLive = status === "live";
   const isEnded = status === "ended";
   const isSold = status === "sold";
   const storageReady = auction?.storageReady ?? false;
+  const hasCurrentEntry = Boolean(
+    auction?.runId && hasEntry && entryRunId === auction.runId,
+  );
+
+  const handleEntry = async () => {
+    if (!auction || hasCurrentEntry || isEntering || !storageReady) return;
+
+    setIsEntering(true);
+    setEntryMessage("");
+
+    try {
+      const response = await fetch("/api/auction/entry", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ bidderId: getBidderId() }),
+      });
+
+      const data = (await response.json()) as EntryResponse;
+
+      if (data.outcome === "granted" && data.runId) {
+        setHasEntry(true);
+        setEntryRunId(data.runId);
+        setEntryMessage("Wejście testowe zapisane. Możesz uczestniczyć w tej aukcji.");
+      } else {
+        setEntryMessage("Nie udało się zapisać wejścia do aukcji.");
+      }
+    } catch {
+      setEntryMessage("Nie udało się zapisać wejścia do aukcji.");
+    } finally {
+      setIsEntering(false);
+    }
+  };
 
   const handleBuy = async () => {
-    if (!isLive || isBuying || !storageReady) return;
+    if (!isLive || isBuying || !storageReady || !hasCurrentEntry) return;
 
     setIsBuying(true);
     setPurchaseResult(null);
@@ -120,6 +210,13 @@ export default function Home() {
         return;
       }
 
+      if (data.outcome === "entry_required") {
+        setHasEntry(false);
+        setEntryRunId(auction?.runId ?? null);
+        setEntryMessage("Najpierw opłać wejście do tej aukcji.");
+        return;
+      }
+
       setPurchaseResult("error");
     } catch {
       setPurchaseResult("error");
@@ -155,6 +252,8 @@ export default function Home() {
     auctionMessage = "Mechanizm zakupu jest chwilowo niedostępny.";
   } else if (isSold) {
     auctionMessage = `Produkt został kupiony za ${currentPrice} zł.`;
+  } else if (isLive && !hasCurrentEntry) {
+    auctionMessage = "Aby kupić w tej aukcji, najpierw opłać wejście testowe 5 zł.";
   } else if (isLive) {
     auctionMessage = "Cena spada. Kupujesz za cenę, którą widzisz.";
   } else if (isEnded) {
@@ -170,10 +269,14 @@ export default function Home() {
       : isEnded
         ? "AUKCJA ZAKOŃCZONA"
         : isLive
-          ? isBuying
-            ? "SPRAWDZAM..."
-            : `KUP TERAZ — ${currentPrice} zł`
+          ? !hasCurrentEntry
+            ? "WEJŚCIE WYMAGANE"
+            : isBuying
+              ? "SPRAWDZAM..."
+              : `KUP TERAZ — ${currentPrice} zł`
           : "OCZEKIWANIE NA START";
+
+  const canEnter = !isSold && !isEnded && storageReady && !hasCurrentEntry;
 
   return (
     <main className="pageShell">
@@ -207,17 +310,31 @@ export default function Home() {
 
           <p className="auctionMessage" aria-live="polite">{auctionMessage}</p>
 
+          {canEnter ? (
+            <button
+              className="buyButton"
+              type="button"
+              onClick={handleEntry}
+              disabled={isEntering}
+            >
+              {isEntering ? "ZAPISUJĘ WEJŚCIE..." : `TEST: OPŁAĆ WEJŚCIE — ${auction?.entryFee ?? 5} ZŁ`}
+            </button>
+          ) : null}
+
+          {entryMessage ? <p className="auctionMessage" aria-live="polite">{entryMessage}</p> : null}
+
           <button
             className="buyButton"
             type="button"
             onClick={handleBuy}
-            disabled={!isLive || isBuying || !storageReady}
+            disabled={!isLive || isBuying || !storageReady || !hasCurrentEntry}
           >
             {buttonLabel}
           </button>
 
           <div className="entryFee">
-            Wejście do aukcji: <strong>{auction?.entryFee ?? 5} zł</strong>
+            {hasCurrentEntry ? "Wejście opłacone: " : "Wejście do aukcji: "}
+            <strong>{auction?.entryFee ?? 5} zł</strong>
           </div>
         </div>
       </section>
