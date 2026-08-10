@@ -1,4 +1,22 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
+const START_PRICE = 749;
+const FLOOR_PRICE = 699;
+const DROP_INTERVAL_MS = 2000;
+
 export default function Home() {
+  const [currentPrice, setCurrentPrice] = useState(START_PRICE);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setCurrentPrice((price) => Math.max(FLOOR_PRICE, price - 1));
+    }, DROP_INTERVAL_MS);
+
+    return () => window.clearInterval(timer);
+  }, []);
+
   return (
     <main className="pageShell">
       <header className="brandBar">
@@ -20,15 +38,19 @@ export default function Home() {
               Cena regularna <span>999 zł</span>
             </div>
             <div className="currentPriceLabel">Aktualna cena</div>
-            <div className="currentPrice" aria-label="Aktualna cena 749 zł">
-              749 zł
+            <div
+              className="currentPrice"
+              aria-live="polite"
+              aria-label={`Aktualna cena ${currentPrice} zł`}
+            >
+              {currentPrice} zł
             </div>
           </div>
 
           <p className="auctionMessage">Cena spada. Kupujesz za cenę, którą widzisz.</p>
 
           <button className="buyButton" type="button">
-            KUP TERAZ — 749 zł
+            KUP TERAZ — {currentPrice} zł
           </button>
 
           <div className="entryFee">Wejście do aukcji: <strong>5 zł</strong></div>
