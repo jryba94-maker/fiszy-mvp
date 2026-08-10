@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 
-type AuctionStatus = "waiting" | "live" | "ended";
+type AuctionStatus = "waiting" | "live" | "ended" | "sold";
+type PurchaseResult = "won" | "lost" | "error" | null;
 
 type AuctionState = {
   auctionId: string;
@@ -15,13 +16,33 @@ type AuctionState = {
   status: AuctionStatus;
   startsAt: string;
   endsAt: string;
+  soldAt: string | null;
+  storageReady: boolean;
   serverTime: string;
 };
 
+type BuyResponse = {
+  outcome: "won" | "lost" | "not_live" | "storage_error" | "invalid_request";
+  price?: number;
+  winnerPrice?: number | null;
+};
+
 const FALLBACK_PRICE = 749;
+const BIDDER_STORAGE_KEY = "fiszy-demo-bidder-id";
+
+function getBidderId() {
+  const existing = window.localStorage.getItem(BIDDER_STORAGE_KEY);
+  if (existing) return existing;
+
+  const created = window.crypto.randomUUID();
+  window.localStorage.setItem(BIDDER_STORAGE_KEY, created);
+  return created;
+}
 
 export default function Home() {
   const [auction, setAuction] = useState<AuctionState | null>(null);
+  const [isBuying, setIsBuying] = useState(false);
+  const [purchaseResult, setPurchaseResult] = useState<PurchaseResult>(null);
 
   useEffect(() => {
     let active = true;
@@ -51,9 +72,71 @@ export default function Home() {
   const status = auction?.status ?? "waiting";
   const isLive = status === "live";
   const isEnded = status === "ended";
+  const isSold = status === "sold";
+  const storageReady = auction?.storageReady ?? false;
 
-  const statusLabel =
-    status === "live" ? "AUKCJA LIVE" : status === "ended" ? "AUKCJA ZAKOŃCZONA" : "AUKCJA OCZEKUJE";
+  const handleBuy = async () => {
+    if (!isLive || isBuying || !storageReady) return;
+
+    setIsBuying(true);
+    setPurchaseResult(null);
+
+    try {
+      const response = await fetch("/api/auction/buy", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ bidderId: getBidderId() }),
+      });
+
+      const data = (await response.json()) as BuyResponse;
+
+      if (data.outcome === "won") {
+        setPurchaseResult("won");
+        setAuction((current) =>
+          current
+            ? {
+                ...current,
+                status: "sold",
+                currentPrice: data.price ?? current.currentPrice,
+              }
+            : current,
+        );
+        return;
+      }
+
+      if (data.outcome === "lost") {
+        setPurchaseResult("lost");
+        setAuction((current) =>
+          current
+            ? {
+                ...current,
+                status: "sold",
+                currentPrice: data.winnerPrice ?? current.currentPrice,
+              }
+            : current,
+        );
+        return;
+      }
+
+      setPurchaseResult("error");
+    } catch {
+      setPurchaseResult("error");
+    } finally {
+      setIsBuying(false);
+    }
+  };
+
+  const statusLabel = purchaseResult === "won"
+    ? "WYGRYWASZ"
+    : status === "live"
+      ? "AUKCJA LIVE"
+      : status === "sold"
+        ? "SPRZEDANE"
+        : status === "ended"
+          ? "AUKCJA ZAKOŃCZONA"
+          : "AUKCJA OCZEKUJE";
 
   const startTime = auction?.startsAt
     ? new Date(auction.startsAt).toLocaleTimeString("pl-PL", {
@@ -62,13 +145,35 @@ export default function Home() {
       })
     : "--:--";
 
-  const auctionMessage = isLive
-    ? "Cena spada. Kupujesz za cenę, którą widzisz."
-    : isEnded
-      ? "Aukcja zakończona. Cena nie uruchomi się ponownie."
-      : `Start aukcji: ${startTime}. Cena zacznie spadać automatycznie.`;
+  let auctionMessage: string;
 
-  const buttonLabel = isEnded ? "AUKCJA ZAKOŃCZONA" : isLive ? `KUP TERAZ — ${currentPrice} zł` : "OCZEKIWANIE NA START";
+  if (purchaseResult === "won") {
+    auctionMessage = `Twój klik był pierwszy. Kupujesz AirPods Pro za ${currentPrice} zł.`;
+  } else if (purchaseResult === "lost") {
+    auctionMessage = "Ktoś kliknął wcześniej. Aukcja została już zamknięta.";
+  } else if (!storageReady && auction) {
+    auctionMessage = "Mechanizm zakupu jest chwilowo niedostępny.";
+  } else if (isSold) {
+    auctionMessage = `Produkt został kupiony za ${currentPrice} zł.`;
+  } else if (isLive) {
+    auctionMessage = "Cena spada. Kupujesz za cenę, którą widzisz.";
+  } else if (isEnded) {
+    auctionMessage = "Aukcja zakończona. Cena nie uruchomi się ponownie.";
+  } else {
+    auctionMessage = `Start aukcji: ${startTime}. Cena zacznie spadać automatycznie.`;
+  }
+
+  const buttonLabel = purchaseResult === "won"
+    ? `WYGRYWASZ — ${currentPrice} zł`
+    : isSold
+      ? "SPRZEDANE"
+      : isEnded
+        ? "AUKCJA ZAKOŃCZONA"
+        : isLive
+          ? isBuying
+            ? "SPRAWDZAM..."
+            : `KUP TERAZ — ${currentPrice} zł`
+          : "OCZEKIWANIE NA START";
 
   return (
     <main className="pageShell">
@@ -100,9 +205,14 @@ export default function Home() {
             </div>
           </div>
 
-          <p className="auctionMessage">{auctionMessage}</p>
+          <p className="auctionMessage" aria-live="polite">{auctionMessage}</p>
 
-          <button className="buyButton" type="button" disabled={!isLive}>
+          <button
+            className="buyButton"
+            type="button"
+            onClick={handleBuy}
+            disabled={!isLive || isBuying || !storageReady}
+          >
             {buttonLabel}
           </button>
 
