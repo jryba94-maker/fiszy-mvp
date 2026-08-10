@@ -1,7 +1,7 @@
 export const AUCTION_ID = "demo-airpods-pro-1";
 export const START_PRICE = 749;
 export const FLOOR_PRICE = 699;
-export const DROP_INTERVAL_MS = 2000;
+export const DROP_INTERVAL_MS = 12_000;
 export const DEFAULT_AUCTION_RUN_ID = "run-2026-08-10-1010";
 export const DEFAULT_AUCTION_STARTS_AT = new Date("2026-08-10T08:10:00.000Z");
 

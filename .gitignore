@@ -4,3 +4,15 @@ out/
 *.tsbuildinfo
 next-env.d.ts
 
+.vercel
+
+# Local agent skills installed by marketplace tooling.
+.agents/
+skills-lock.json
+
+# Local environment files may contain secrets.
+.env*
+!.env.example
+
+# Local development server logs.
+.codex-dev.*.log

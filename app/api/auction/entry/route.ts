@@ -5,6 +5,7 @@ import {
   readAuctionEntry,
   readAuctionWinner,
 } from "../../../../lib/auction-storage";
+import { getCheckoutOrigin } from "../../../../lib/request-origin";
 import { createEntryCheckoutSession } from "../../../../lib/stripe";
 
 export const dynamic = "force-dynamic";
@@ -92,7 +93,7 @@ export async function POST(request: NextRequest) {
     }
 
     const session = await createEntryCheckoutSession({
-      origin: request.nextUrl.origin,
+      origin: getCheckoutOrigin(request),
       auctionId: AUCTION_ID,
       runId: config.runId,
       bidderId,

@@ -9,6 +9,7 @@ import {
   releaseAuctionWinner,
   type AuctionWinner,
 } from "../../../../lib/auction-storage";
+import { getCheckoutOrigin } from "../../../../lib/request-origin";
 import {
   createPurchaseCheckoutSession,
   expireCheckoutSession,
@@ -85,7 +86,7 @@ export async function POST(request: NextRequest) {
 
       try {
         session = await createPurchaseCheckoutSession({
-          origin: request.nextUrl.origin,
+          origin: getCheckoutOrigin(request),
           auctionId: AUCTION_ID,
           runId: config.runId,
           bidderId,
