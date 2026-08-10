@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { AUCTION_ID } from "../../../../lib/auction";
 import {
   grantAuctionEntry,
+  markAuctionWinnerPaid,
+  readAuctionWinner,
+  releaseAuctionWinner,
   type AuctionEntry,
 } from "../../../../lib/auction-storage";
 import {
@@ -15,16 +18,12 @@ export const dynamic = "force-dynamic";
 const ENTRY_FEE = 5;
 const ENTRY_FEE_GROSZE = ENTRY_FEE * 100;
 
-function paidAuctionEntry(session: StripeCheckoutSession) {
+function auctionMetadata(session: StripeCheckoutSession, kind: string) {
   const metadata = session.metadata;
 
   if (
-    session.mode !== "payment" ||
-    session.payment_status !== "paid" ||
-    session.amount_total !== ENTRY_FEE_GROSZE ||
-    session.currency !== "pln" ||
     !metadata ||
-    metadata.kind !== "auction_entry" ||
+    metadata.kind !== kind ||
     metadata.auctionId !== AUCTION_ID ||
     !metadata.runId ||
     !metadata.bidderId ||
@@ -38,6 +37,64 @@ function paidAuctionEntry(session: StripeCheckoutSession) {
     runId: metadata.runId,
     bidderId: metadata.bidderId,
   };
+}
+
+function paidAuctionEntry(session: StripeCheckoutSession) {
+  const metadata = auctionMetadata(session, "auction_entry");
+
+  if (
+    !metadata ||
+    session.mode !== "payment" ||
+    session.payment_status !== "paid" ||
+    session.amount_total !== ENTRY_FEE_GROSZE ||
+    session.currency !== "pln"
+  ) {
+    return null;
+  }
+
+  return metadata;
+}
+
+async function handlePaidPurchase(session: StripeCheckoutSession) {
+  const metadata = auctionMetadata(session, "auction_purchase");
+  if (!metadata || session.mode !== "payment" || session.payment_status !== "paid") {
+    return false;
+  }
+
+  const winner = await readAuctionWinner(metadata.runId);
+
+  if (
+    !winner ||
+    winner.bidderId !== metadata.bidderId ||
+    winner.paymentStatus !== "pending" ||
+    winner.paymentSessionId !== session.id ||
+    session.currency !== "pln" ||
+    session.amount_total !== winner.price * 100
+  ) {
+    return false;
+  }
+
+  const updated = await markAuctionWinnerPaid(
+    metadata.runId,
+    metadata.bidderId,
+    session.id,
+    new Date().toISOString(),
+  );
+
+  return updated === 1;
+}
+
+async function handleExpiredPurchase(session: StripeCheckoutSession) {
+  const metadata = auctionMetadata(session, "auction_purchase");
+  if (!metadata) return false;
+
+  const released = await releaseAuctionWinner(
+    metadata.runId,
+    metadata.bidderId,
+    session.id,
+  );
+
+  return released === 1;
 }
 
 export async function POST(request: NextRequest) {
@@ -60,6 +117,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ outcome: "invalid_signature" }, { status: 400 });
   }
 
+  if (event.type === "checkout.session.expired") {
+    try {
+      const released = await handleExpiredPurchase(event.data.object);
+      return NextResponse.json({ received: true, released });
+    } catch (error) {
+      console.error("Unable to release expired auction purchase.", error);
+      return NextResponse.json({ outcome: "storage_error" }, { status: 503 });
+    }
+  }
+
   if (
     event.type !== "checkout.session.completed" &&
     event.type !== "checkout.session.async_payment_succeeded"
@@ -67,25 +134,29 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ received: true });
   }
 
-  const paidEntry = paidAuctionEntry(event.data.object);
-  if (!paidEntry) {
-    return NextResponse.json({ received: true, ignored: true });
-  }
-
-  const entry: AuctionEntry = {
-    bidderId: paidEntry.bidderId,
-    fee: ENTRY_FEE,
-    grantedAt: new Date().toISOString(),
-    provider: "stripe",
-    paymentSessionId: event.data.object.id,
-  };
-
   try {
-    await grantAuctionEntry(paidEntry.runId, entry);
+    const paidEntry = paidAuctionEntry(event.data.object);
+
+    if (paidEntry) {
+      const entry: AuctionEntry = {
+        bidderId: paidEntry.bidderId,
+        fee: ENTRY_FEE,
+        grantedAt: new Date().toISOString(),
+        provider: "stripe",
+        paymentSessionId: event.data.object.id,
+      };
+
+      await grantAuctionEntry(paidEntry.runId, entry);
+      return NextResponse.json({ received: true, kind: "auction_entry" });
+    }
+
+    const purchasePaid = await handlePaidPurchase(event.data.object);
+    return NextResponse.json({
+      received: true,
+      kind: purchasePaid ? "auction_purchase" : "ignored",
+    });
   } catch (error) {
-    console.error("Unable to grant paid auction entry in Redis.", error);
+    console.error("Unable to process Stripe Checkout event.", error);
     return NextResponse.json({ outcome: "storage_error" }, { status: 503 });
   }
-
-  return NextResponse.json({ received: true });
 }
