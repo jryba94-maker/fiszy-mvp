@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Fiszy",
-  description: "Fiszy MVP w budowie",
+  title: "Fiszy | Aukcja",
+  description: "Fiszy — kupujesz za cenę, którą widzisz.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
@@ -13,4 +14,3 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
     </html>
   );
 }
-
