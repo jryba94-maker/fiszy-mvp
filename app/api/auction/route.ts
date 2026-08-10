@@ -1,40 +1,58 @@
 import { NextResponse } from "next/server";
-
-const START_PRICE = 749;
-const FLOOR_PRICE = 699;
-const DROP_INTERVAL_MS = 2000;
-const AUCTION_STARTS_AT = new Date("2026-08-10T08:00:00.000Z");
-const TOTAL_DROPS = START_PRICE - FLOOR_PRICE;
-const AUCTION_DURATION_MS = TOTAL_DROPS * DROP_INTERVAL_MS;
-const AUCTION_ENDS_AT = new Date(AUCTION_STARTS_AT.getTime() + AUCTION_DURATION_MS);
+import {
+  AUCTION_ENDS_AT,
+  AUCTION_ID,
+  AUCTION_STARTS_AT,
+  FLOOR_PRICE,
+  START_PRICE,
+  getTimedAuctionState,
+} from "../../../lib/auction";
+import { redisCommand } from "../../../lib/redis";
 
 export const dynamic = "force-dynamic";
 
-type AuctionStatus = "waiting" | "live" | "ended";
+type AuctionWinner = {
+  bidderId: string;
+  price: number;
+  claimedAt: string;
+};
+
+function winnerKey() {
+  const environment = process.env.VERCEL_ENV ?? "local";
+  return `fiszy:${environment}:auction:${AUCTION_ID}:winner`;
+}
+
+async function readWinner(): Promise<AuctionWinner | null> {
+  const value = await redisCommand<string>(["GET", winnerKey()]);
+  if (!value) return null;
+
+  try {
+    return JSON.parse(value) as AuctionWinner;
+  } catch {
+    return null;
+  }
+}
 
 export async function GET() {
   const now = Date.now();
-  const startsAt = AUCTION_STARTS_AT.getTime();
-  const endsAt = AUCTION_ENDS_AT.getTime();
+  const timedState = getTimedAuctionState(now);
 
-  let status: AuctionStatus;
-  let currentPrice: number;
+  let winner: AuctionWinner | null = null;
+  let storageReady = true;
 
-  if (now < startsAt) {
-    status = "waiting";
-    currentPrice = START_PRICE;
-  } else if (now >= endsAt) {
-    status = "ended";
-    currentPrice = FLOOR_PRICE;
-  } else {
-    status = "live";
-    const completedDrops = Math.floor((now - startsAt) / DROP_INTERVAL_MS);
-    currentPrice = Math.max(FLOOR_PRICE, START_PRICE - completedDrops);
+  try {
+    winner = await readWinner();
+  } catch (error) {
+    storageReady = false;
+    console.error("Unable to read auction winner from Redis.", error);
   }
+
+  const status = winner ? "sold" : timedState.status;
+  const currentPrice = winner?.price ?? timedState.currentPrice;
 
   return NextResponse.json(
     {
-      auctionId: "demo-airpods-pro-1",
+      auctionId: AUCTION_ID,
       product: "AirPods Pro",
       regularPrice: 999,
       startPrice: START_PRICE,
@@ -44,6 +62,8 @@ export async function GET() {
       status,
       startsAt: AUCTION_STARTS_AT.toISOString(),
       endsAt: AUCTION_ENDS_AT.toISOString(),
+      soldAt: winner?.claimedAt ?? null,
+      storageReady,
       serverTime: new Date(now).toISOString(),
     },
     {
