@@ -29,7 +29,11 @@ export async function GET() {
   }
 
   const timedState = getTimedAuctionState(now, config.startsAt);
-  const status = winner ? "sold" : timedState.status;
+  const status = winner
+    ? winner.paymentStatus === "pending"
+      ? "payment_pending"
+      : "sold"
+    : timedState.status;
   const currentPrice = winner?.price ?? timedState.currentPrice;
 
   return NextResponse.json(
@@ -45,7 +49,12 @@ export async function GET() {
       status,
       startsAt: config.startsAt,
       endsAt: getAuctionEndsAt(config.startsAt).toISOString(),
-      soldAt: winner?.claimedAt ?? null,
+      soldAt:
+        winner && winner.paymentStatus !== "pending"
+          ? winner.paidAt ?? winner.claimedAt
+          : null,
+      paymentExpiresAt:
+        winner?.paymentStatus === "pending" ? winner.paymentExpiresAt ?? null : null,
       storageReady,
       serverTime: new Date(now).toISOString(),
     },

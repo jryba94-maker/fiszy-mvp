@@ -9,6 +9,11 @@ export type AuctionWinner = {
   bidderId: string;
   price: number;
   claimedAt: string;
+  paymentStatus?: "pending" | "paid";
+  paymentSessionId?: string;
+  paymentCheckoutUrl?: string;
+  paymentExpiresAt?: string;
+  paidAt?: string;
 };
 
 export type AuctionEntry = {
@@ -83,6 +88,94 @@ export async function claimAuctionWinner(runId: string, winner: AuctionWinner) {
     "NX",
     "EX",
     604800,
+  ]);
+}
+
+export async function attachAuctionWinnerCheckout(
+  runId: string,
+  bidderId: string,
+  paymentSessionId: string,
+  paymentCheckoutUrl: string,
+  paymentExpiresAt: string,
+) {
+  const script = `
+local raw = redis.call("GET", KEYS[1])
+if not raw then return 0 end
+local data = cjson.decode(raw)
+if data.bidderId ~= ARGV[1] then return 0 end
+if data.paymentStatus ~= "pending" then return 0 end
+data.paymentSessionId = ARGV[2]
+data.paymentCheckoutUrl = ARGV[3]
+data.paymentExpiresAt = ARGV[4]
+redis.call("SET", KEYS[1], cjson.encode(data), "EX", 604800)
+return 1
+`;
+
+  return redisCommand<number>([
+    "EVAL",
+    script,
+    1,
+    winnerKey(runId),
+    bidderId,
+    paymentSessionId,
+    paymentCheckoutUrl,
+    paymentExpiresAt,
+  ]);
+}
+
+export async function markAuctionWinnerPaid(
+  runId: string,
+  bidderId: string,
+  paymentSessionId: string,
+  paidAt: string,
+) {
+  const script = `
+local raw = redis.call("GET", KEYS[1])
+if not raw then return 0 end
+local data = cjson.decode(raw)
+if data.bidderId ~= ARGV[1] then return 0 end
+if data.paymentStatus ~= "pending" then return 0 end
+if data.paymentSessionId ~= ARGV[2] then return 0 end
+data.paymentStatus = "paid"
+data.paidAt = ARGV[3]
+redis.call("SET", KEYS[1], cjson.encode(data), "EX", 604800)
+return 1
+`;
+
+  return redisCommand<number>([
+    "EVAL",
+    script,
+    1,
+    winnerKey(runId),
+    bidderId,
+    paymentSessionId,
+    paidAt,
+  ]);
+}
+
+export async function releaseAuctionWinner(
+  runId: string,
+  bidderId: string,
+  paymentSessionId?: string,
+) {
+  const script = `
+local raw = redis.call("GET", KEYS[1])
+if not raw then return 0 end
+local data = cjson.decode(raw)
+if data.bidderId ~= ARGV[1] then return 0 end
+if data.paymentStatus == "paid" then return 0 end
+if ARGV[2] ~= "" and data.paymentSessionId ~= ARGV[2] then return 0 end
+redis.call("DEL", KEYS[1])
+return 1
+`;
+
+  return redisCommand<number>([
+    "EVAL",
+    script,
+    1,
+    winnerKey(runId),
+    bidderId,
+    paymentSessionId ?? "",
   ]);
 }
 

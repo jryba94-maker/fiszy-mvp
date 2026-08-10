@@ -4,7 +4,13 @@ import {
   type AuctionConfig,
   getAuctionEndsAt,
 } from "../../../../../lib/auction";
-import { writeAuctionConfig } from "../../../../../lib/auction-storage";
+import {
+  readAuctionConfig,
+  readAuctionWinner,
+  releaseAuctionWinner,
+  writeAuctionConfig,
+} from "../../../../../lib/auction-storage";
+import { expireCheckoutSession } from "../../../../../lib/stripe";
 
 export const dynamic = "force-dynamic";
 
@@ -30,13 +36,35 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ outcome: "unauthorized" }, { status: 401 });
   }
 
-  const startsAt = new Date(Date.now() + START_DELAY_MS);
-  const config: AuctionConfig = {
-    runId: randomUUID(),
-    startsAt: startsAt.toISOString(),
-  };
-
   try {
+    const currentConfig = await readAuctionConfig();
+    const currentWinner = await readAuctionWinner(currentConfig.runId);
+
+    if (currentWinner?.paymentStatus === "pending") {
+      if (!currentWinner.paymentSessionId || !process.env.STRIPE_SECRET_KEY) {
+        return NextResponse.json({ outcome: "pending_payment" }, { status: 409 });
+      }
+
+      try {
+        await expireCheckoutSession(currentWinner.paymentSessionId);
+      } catch (error) {
+        console.error("Unable to expire previous winner Checkout Session.", error);
+        return NextResponse.json({ outcome: "pending_payment" }, { status: 409 });
+      }
+
+      await releaseAuctionWinner(
+        currentConfig.runId,
+        currentWinner.bidderId,
+        currentWinner.paymentSessionId,
+      );
+    }
+
+    const startsAt = new Date(Date.now() + START_DELAY_MS);
+    const config: AuctionConfig = {
+      runId: randomUUID(),
+      startsAt: startsAt.toISOString(),
+    };
+
     await writeAuctionConfig(config);
 
     return NextResponse.json({
