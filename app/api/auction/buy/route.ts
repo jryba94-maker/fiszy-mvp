@@ -3,6 +3,7 @@ import { AUCTION_ID, getTimedAuctionState } from "../../../../lib/auction";
 import {
   claimAuctionWinner,
   readAuctionConfig,
+  readAuctionEntry,
   readAuctionWinner,
   type AuctionWinner,
 } from "../../../../lib/auction-storage";
@@ -41,6 +42,19 @@ export async function POST(request: NextRequest) {
           currentPrice: auction.currentPrice,
         },
         { status: 409 },
+      );
+    }
+
+    const entry = await readAuctionEntry(config.runId, bidderId);
+
+    if (!entry) {
+      return NextResponse.json(
+        {
+          outcome: "entry_required",
+          auctionId: AUCTION_ID,
+          runId: config.runId,
+        },
+        { status: 403 },
       );
     }
 
