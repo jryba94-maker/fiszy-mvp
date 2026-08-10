@@ -1,6 +1,8 @@
-export const AUCTION_ID = "demo-airpods-pro-1";
+export const LEGACY_AUCTION_ID = "demo-airpods-pro-1";
+export const AUCTION_ID = LEGACY_AUCTION_ID;
 export const START_PRICE = 749;
 export const FLOOR_PRICE = 699;
+export const ENTRY_FEE = 5;
 export const DEFAULT_REGULAR_PRICE = 999;
 export const DEFAULT_PRODUCT_NAME = "AirPods Pro";
 export const DEFAULT_DURATION_MINUTES = 10;
@@ -8,6 +10,9 @@ export const MIN_PRODUCT_PRICE = 2;
 export const DROP_INTERVAL_MS = 12_000;
 export const DEFAULT_AUCTION_RUN_ID = "run-2026-08-10-1010";
 export const DEFAULT_AUCTION_STARTS_AT = new Date("2026-08-10T08:10:00.000Z");
+
+const AUCTION_ID_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,78}[a-z0-9])?$/;
+const RUN_ID_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,118}[A-Za-z0-9])?$/;
 
 export type AuctionDefinition = {
   productName: string;
@@ -24,12 +29,60 @@ export type AuctionConfig = AuctionDefinition & {
   startsAt: string;
 };
 
+export type AuctionRecordState = "draft" | "published" | "archived";
+
+export type AuctionRecord = AuctionDefinition & {
+  schemaVersion: 1;
+  auctionId: string;
+  state: AuctionRecordState;
+  currentRunId: string | null;
+  revision: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type TimedAuctionStatus = "waiting" | "live" | "ended";
+export type PublicAuctionStatus =
+  | TimedAuctionStatus
+  | "payment_pending"
+  | "sold";
 
 export type TimedAuctionState = {
   currentPrice: number;
   status: TimedAuctionStatus;
 };
+
+export type PublicAuction = {
+  auctionId: string;
+  runId: string;
+  product: string;
+  productImageUrl: string | null;
+  regularPrice: number;
+  startPrice: number;
+  floorPrice: number;
+  durationMinutes: number;
+  currentPrice: number;
+  entryFee: number;
+  status: PublicAuctionStatus;
+  startsAt: string;
+  endsAt: string;
+  soldAt: string | null;
+  paymentExpiresAt: string | null;
+  storageReady: boolean;
+  serverTime: string;
+};
+
+export function normalizeAuctionId(value: unknown) {
+  if (typeof value !== "string") return null;
+  const auctionId = value.trim().toLowerCase();
+  return AUCTION_ID_PATTERN.test(auctionId) ? auctionId : null;
+}
+
+export function normalizeRunId(value: unknown) {
+  if (typeof value !== "string") return null;
+  const runId = value.trim();
+  return RUN_ID_PATTERN.test(runId) ? runId : null;
+}
 
 export function defaultAuctionDefinition(): AuctionDefinition {
   return {
@@ -53,6 +106,32 @@ export function auctionDefinitionFromConfig(
     floorPrice: config.floorPrice,
     durationMinutes: config.durationMinutes,
   };
+}
+
+function normalizedImageUrl(value: unknown) {
+  if (value === null || value === "") return null;
+  if (typeof value !== "string") return undefined;
+
+  const imageUrl = value.trim();
+  if (!imageUrl || imageUrl.length > 500 || imageUrl.includes("\\")) {
+    return undefined;
+  }
+
+  if (imageUrl.startsWith("/") && !imageUrl.startsWith("//")) {
+    return imageUrl;
+  }
+
+  try {
+    const parsed = new URL(imageUrl);
+    return parsed.protocol === "https:" &&
+      !parsed.username &&
+      !parsed.password &&
+      !isPrivateImageHostname(parsed.hostname)
+      ? parsed.toString()
+      : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function isPrivateImageHostname(hostname: string) {
@@ -88,39 +167,11 @@ function isPrivateImageHostname(hostname: string) {
   );
 }
 
-function normalizedImageUrl(value: unknown) {
-  if (value === null || value === "") return null;
-  if (typeof value !== "string") return undefined;
-
-  const imageUrl = value.trim();
-  if (!imageUrl || imageUrl.length > 500 || imageUrl.includes("\\")) {
-    return undefined;
-  }
-
-  if (imageUrl.startsWith("/") && !imageUrl.startsWith("//")) {
-    return imageUrl;
-  }
-
-  try {
-    const parsed = new URL(imageUrl);
-    return parsed.protocol === "https:" &&
-      !parsed.username &&
-      !parsed.password &&
-      !isPrivateImageHostname(parsed.hostname)
-      ? parsed.toString()
-      : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
 function isInteger(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value);
 }
 
-export function parseAuctionDefinition(
-  value: unknown,
-): AuctionDefinition | null {
+export function parseAuctionDefinition(value: unknown): AuctionDefinition | null {
   if (!value || typeof value !== "object") return null;
 
   const candidate = value as Partial<AuctionDefinition>;
@@ -168,6 +219,20 @@ export function defaultAuctionConfig(): AuctionConfig {
     runId: DEFAULT_AUCTION_RUN_ID,
     startsAt: DEFAULT_AUCTION_STARTS_AT.toISOString(),
     ...defaultAuctionDefinition(),
+  };
+}
+
+export function legacyAuctionRecord(config: AuctionConfig): AuctionRecord {
+  const createdAt = DEFAULT_AUCTION_STARTS_AT.toISOString();
+  return {
+    schemaVersion: 1,
+    auctionId: LEGACY_AUCTION_ID,
+    state: "published",
+    currentRunId: config.runId,
+    revision: 1,
+    createdAt,
+    updatedAt: config.startsAt,
+    ...auctionDefinitionFromConfig(config),
   };
 }
 

@@ -1,15 +1,21 @@
+import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { AUCTION_ID, getAuctionEndsAt } from "../../../../lib/auction";
+import {
+  ENTRY_FEE,
+  getAuctionEndsAt,
+  normalizeAuctionId,
+  normalizeRunId,
+} from "../../../../lib/auction";
 import {
   grantAuctionEntryIfCurrent,
-  markAuctionWinnerPaid,
+  recordRefundedAuctionEntry,
   readAuctionRunConfig,
   readAuctionWinner,
   releaseAuctionWinner,
   type AuctionEntry,
 } from "../../../../lib/auction-storage";
 import {
-  saveAuctionOrder,
+  savePaidAuctionOrder,
   type AuctionOrder,
   type OrderAddress,
 } from "../../../../lib/order-storage";
@@ -20,10 +26,10 @@ import {
   type StripeAddress,
   type StripeCheckoutSession,
 } from "../../../../lib/stripe";
+import { errorDetails, logEvent } from "../../../../lib/observability";
 
 export const dynamic = "force-dynamic";
 
-const ENTRY_FEE = 5;
 const ENTRY_FEE_GROSZE = ENTRY_FEE * 100;
 
 function auctionMetadata(session: StripeCheckoutSession, kind: string) {
@@ -32,17 +38,21 @@ function auctionMetadata(session: StripeCheckoutSession, kind: string) {
   if (
     !metadata ||
     metadata.kind !== kind ||
-    metadata.auctionId !== AUCTION_ID ||
+    !metadata.auctionId ||
     !metadata.runId ||
     !metadata.bidderId ||
-    metadata.runId.length > 120 ||
     metadata.bidderId.length > 100
   ) {
     return null;
   }
 
+  const auctionId = normalizeAuctionId(metadata.auctionId);
+  const runId = normalizeRunId(metadata.runId);
+  if (!auctionId || !runId) return null;
+
   return {
-    runId: metadata.runId,
+    auctionId,
+    runId,
     bidderId: metadata.bidderId,
   };
 }
@@ -80,7 +90,10 @@ async function handlePaidEntry(session: StripeCheckoutSession) {
   const paidEntry = paidAuctionEntry(session);
   if (!paidEntry) return null;
 
-  const runConfig = await readAuctionRunConfig(paidEntry.runId);
+  const runConfig = await readAuctionRunConfig(
+    paidEntry.runId,
+    paidEntry.auctionId,
+  );
   const now = Date.now();
   const entry: AuctionEntry = {
     bidderId: paidEntry.bidderId,
@@ -90,14 +103,22 @@ async function handlePaidEntry(session: StripeCheckoutSession) {
     paymentSessionId: session.id,
   };
 
-  const grantResult = await grantAuctionEntryIfCurrent(
-    paidEntry.runId,
-    getAuctionEndsAt(runConfig).getTime(),
-    now,
-    entry,
-  );
+  const grantResult = runConfig
+    ? await grantAuctionEntryIfCurrent(
+        paidEntry.runId,
+        getAuctionEndsAt(runConfig).getTime(),
+        now,
+        entry,
+        paidEntry.auctionId,
+      )
+    : 0;
 
   if (grantResult === 1 || grantResult === 2) {
+    logEvent("auction_entry_granted", {
+      auctionId: paidEntry.auctionId,
+      runId: paidEntry.runId,
+      duplicate: grantResult === 2,
+    });
     return "auction_entry";
   }
 
@@ -108,6 +129,21 @@ async function handlePaidEntry(session: StripeCheckoutSession) {
     grantResult === -4
   ) {
     await refundCheckoutSessionPayment(session);
+    await recordRefundedAuctionEntry({
+      schemaVersion: 1,
+      participantId: paidEntry.bidderId,
+      auctionId: paidEntry.auctionId,
+      runId: paidEntry.runId,
+      entryStatus: "refunded",
+      entryFee: ENTRY_FEE,
+      entryPaymentSessionId: session.id,
+      refundedAt: new Date().toISOString(),
+    });
+    logEvent("late_auction_entry_refunded", {
+      auctionId: paidEntry.auctionId,
+      runId: paidEntry.runId,
+      grantResult,
+    }, "warning");
     return "auction_entry_refunded";
   }
 
@@ -121,9 +157,13 @@ async function handlePaidPurchase(session: StripeCheckoutSession) {
   }
 
   const [winner, runConfig] = await Promise.all([
-    readAuctionWinner(metadata.runId),
-    readAuctionRunConfig(metadata.runId),
+    readAuctionWinner(metadata.runId, metadata.auctionId),
+    readAuctionRunConfig(metadata.runId, metadata.auctionId),
   ]);
+
+  if (!runConfig) {
+    throw new Error("Paid auction purchase has no immutable run configuration.");
+  }
 
   if (
     !winner ||
@@ -141,8 +181,12 @@ async function handlePaidPurchase(session: StripeCheckoutSession) {
   const customer = session.customer_details ?? null;
 
   const order: AuctionOrder = {
-    orderId: `FISZY-${metadata.runId.slice(0, 8).toUpperCase()}`,
-    auctionId: AUCTION_ID,
+    orderId: `FISZY-${createHash("sha256")
+      .update(`${metadata.auctionId}\u0000${metadata.runId}`)
+      .digest("hex")
+      .slice(0, 24)
+      .toUpperCase()}`,
+    auctionId: metadata.auctionId,
     runId: metadata.runId,
     bidderId: metadata.bidderId,
     product: runConfig.productName,
@@ -163,20 +207,18 @@ async function handlePaidPurchase(session: StripeCheckoutSession) {
     shippingAddress: orderAddress(shipping?.address ?? customer?.address),
   };
 
-  await saveAuctionOrder(order);
-
-  if (winner.paymentStatus === "paid") {
+  const saved = await savePaidAuctionOrder(order);
+  if (saved === 1 || saved === 0) {
+    logEvent("auction_purchase_paid", {
+      auctionId: metadata.auctionId,
+      runId: metadata.runId,
+      amount: winner.price,
+      duplicate: saved === 0,
+    });
     return true;
   }
-
-  const updated = await markAuctionWinnerPaid(
-    metadata.runId,
-    metadata.bidderId,
-    session.id,
-    paidAt,
-  );
-
-  return updated === 1;
+  if (saved === -2) return false;
+  throw new Error("Unable to save paid auction order atomically.");
 }
 
 async function handleExpiredPurchase(session: StripeCheckoutSession) {
@@ -187,7 +229,14 @@ async function handleExpiredPurchase(session: StripeCheckoutSession) {
     metadata.runId,
     metadata.bidderId,
     session.id,
+    metadata.auctionId,
   );
+
+  logEvent("auction_purchase_expired", {
+    auctionId: metadata.auctionId,
+    runId: metadata.runId,
+    released: released === 1,
+  });
 
   return released === 1;
 }
@@ -208,7 +257,7 @@ export async function POST(request: NextRequest) {
   try {
     event = verifyStripeWebhook(rawBody, signature, stripeWebhookSecret());
   } catch (error) {
-    console.error("Stripe webhook signature verification failed.", error);
+    logEvent("stripe_webhook_signature_rejected", errorDetails(error), "warning");
     return NextResponse.json({ outcome: "invalid_signature" }, { status: 400 });
   }
 
@@ -217,7 +266,11 @@ export async function POST(request: NextRequest) {
       const released = await handleExpiredPurchase(event.data.object);
       return NextResponse.json({ received: true, released });
     } catch (error) {
-      console.error("Unable to release expired auction purchase.", error);
+      logEvent(
+        "stripe_webhook_expiry_failed",
+        errorDetails(error),
+        "error",
+      );
       return NextResponse.json({ outcome: "storage_error" }, { status: 503 });
     }
   }
@@ -241,7 +294,7 @@ export async function POST(request: NextRequest) {
       kind: purchasePaid ? "auction_purchase" : "ignored",
     });
   } catch (error) {
-    console.error("Unable to process Stripe Checkout event.", error);
+    logEvent("stripe_webhook_processing_failed", errorDetails(error), "error");
     return NextResponse.json({ outcome: "storage_error" }, { status: 503 });
   }
 }

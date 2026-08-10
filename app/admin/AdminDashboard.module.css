@@ -1,0 +1,1214 @@
+.dashboardShell,
+.gateShell {
+  --admin-bg: #f3f3ef;
+  --admin-surface: #ffffff;
+  --admin-surface-soft: #f6f6f2;
+  --admin-ink: #151514;
+  --admin-muted: #70706a;
+  --admin-border: rgba(21, 21, 20, 0.1);
+  --admin-live: #e8391f;
+  --admin-waiting: #b56b00;
+  --admin-sold: #147a4b;
+  --admin-focus: #3859ff;
+  min-height: 100vh;
+  color: var(--admin-ink);
+}
+
+.dashboardShell {
+  width: min(1240px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 24px 0 48px;
+}
+
+.gateShell {
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 15% 10%, rgba(255, 255, 255, 0.95), transparent 34%),
+    var(--admin-bg);
+}
+
+.gateCard {
+  width: min(100%, 540px);
+  border: 1px solid var(--admin-border);
+  border-radius: 28px;
+  padding: clamp(28px, 7vw, 56px);
+  background: var(--admin-surface);
+  box-shadow: 0 24px 80px rgba(20, 20, 16, 0.1);
+}
+
+.gateBrand,
+.brand {
+  font-weight: 950;
+  letter-spacing: -0.07em;
+}
+
+.gateBrand {
+  margin-bottom: 52px;
+  font-size: 2rem;
+}
+
+.gateBrand span {
+  color: var(--admin-live);
+}
+
+.eyebrow {
+  margin: 0 0 7px;
+  color: var(--admin-muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.gateTitle {
+  margin: 0 0 28px;
+  font-size: clamp(2.25rem, 8vw, 4rem);
+  line-height: 0.96;
+  letter-spacing: -0.065em;
+}
+
+.gateForm {
+  display: grid;
+  gap: 12px;
+}
+
+.sessionCheck {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 56px;
+  color: var(--admin-muted);
+  font-weight: 750;
+}
+
+.spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(21, 21, 20, 0.16);
+  border-top-color: var(--admin-ink);
+  border-radius: 50%;
+  animation: adminSpin 0.8s linear infinite;
+}
+
+.field {
+  display: block;
+  min-width: 0;
+}
+
+.field > span {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 0.82rem;
+  font-weight: 850;
+}
+
+.input {
+  width: 100%;
+  min-height: 50px;
+  border: 1px solid rgba(21, 21, 20, 0.18);
+  border-radius: 13px;
+  padding: 12px 14px;
+  background: #fff;
+  color: var(--admin-ink);
+  font-size: 1rem;
+  line-height: 1.2;
+}
+
+.input::placeholder {
+  color: #9a9a93;
+}
+
+.input:disabled {
+  cursor: not-allowed;
+  background: #ecece8;
+}
+
+.fieldHint,
+.field small {
+  display: block;
+  margin: 7px 0 0;
+  color: var(--admin-muted);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.primaryButton,
+.cardPrimaryButton,
+.secondaryButton,
+.ghostButton,
+.iconButton,
+.filterChip {
+  min-height: 44px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 850;
+  transition: transform 140ms ease, opacity 140ms ease, background 140ms ease;
+}
+
+.primaryButton,
+.cardPrimaryButton {
+  border: 1px solid var(--admin-ink);
+  background: var(--admin-ink);
+  color: #fff;
+}
+
+.primaryButton {
+  width: 100%;
+  min-height: 54px;
+  padding: 14px 18px;
+  letter-spacing: -0.01em;
+}
+
+.cardPrimaryButton {
+  flex: 1 1 220px;
+  padding: 11px 14px;
+  font-size: 0.74rem;
+  letter-spacing: 0.02em;
+}
+
+.secondaryButton,
+.ghostButton,
+.iconButton {
+  border: 1px solid var(--admin-border);
+  background: #fff;
+  color: var(--admin-ink);
+}
+
+.secondaryButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 10px 14px;
+  font-size: 0.8rem;
+  text-decoration: none;
+}
+
+.ghostButton {
+  padding: 10px 13px;
+  color: var(--admin-muted);
+  font-size: 0.8rem;
+}
+
+.iconButton {
+  display: grid;
+  flex: 0 0 44px;
+  width: 44px;
+  padding: 0;
+  place-items: center;
+  font-size: 1.35rem;
+}
+
+.primaryButton:hover:not(:disabled),
+.cardPrimaryButton:hover:not(:disabled),
+.secondaryButton:hover:not(:disabled),
+.ghostButton:hover:not(:disabled),
+.iconButton:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.primaryButton:disabled,
+.cardPrimaryButton:disabled,
+.secondaryButton:disabled,
+.ghostButton:disabled,
+.iconButton:disabled,
+.filterChip:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.input:focus-visible,
+.primaryButton:focus-visible,
+.cardPrimaryButton:focus-visible,
+.secondaryButton:focus-visible,
+.ghostButton:focus-visible,
+.iconButton:focus-visible,
+.filterChip:focus-visible,
+.portalLink:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--admin-focus) 68%, transparent);
+  outline-offset: 3px;
+}
+
+.notice button:focus-visible,
+.errorBanner button:focus-visible,
+.orderMeta a:focus-visible,
+.focusHeading:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--admin-focus) 68%, transparent);
+  outline-offset: 3px;
+}
+
+.blockingNotice,
+.errorNotice {
+  border-radius: 13px;
+  padding: 13px 14px;
+  line-height: 1.45;
+}
+
+.blockingNotice {
+  display: grid;
+  gap: 4px;
+  border: 1px solid #e4b458;
+  background: #fff5dc;
+  color: #684100;
+}
+
+.errorNotice {
+  margin: 12px 0 0;
+  border: 1px solid #efb2aa;
+  background: #fff1ef;
+  color: #8c2415;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.portalLink {
+  display: inline-flex;
+  gap: 6px;
+  margin-top: 26px;
+  color: var(--admin-ink);
+  font-size: 0.86rem;
+  font-weight: 850;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.brandLine {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brand {
+  font-size: 2rem;
+}
+
+.environment {
+  border-radius: 999px;
+  padding: 6px 9px;
+  background: #e9e9e4;
+  color: #5c5c56;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.headerSubtitle {
+  margin: 5px 0 0;
+  color: var(--admin-muted);
+  font-size: 0.78rem;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rotating {
+  display: inline-block;
+  animation: adminSpin 0.8s linear infinite;
+}
+
+.notice,
+.errorBanner,
+.compatibilityBanner {
+  margin-bottom: 16px;
+  border-radius: 16px;
+  padding: 14px 16px;
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid transparent;
+  font-weight: 750;
+}
+
+.notice button {
+  flex: 0 0 44px;
+  min-height: 44px;
+  border: 0;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.58);
+  color: inherit;
+  cursor: pointer;
+  font-size: 1.2rem;
+}
+
+.notice_success {
+  border-color: #a8d9c3;
+  background: #eaf8f1;
+  color: #0d6139;
+}
+
+.notice_info,
+.compatibilityBanner {
+  border: 1px solid #c6d1ff;
+  background: #eef1ff;
+  color: #263b9d;
+}
+
+.notice_error {
+  border-color: #efb2aa;
+  background: #fff1ef;
+  color: #8c2415;
+}
+
+.errorBanner {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 16px;
+  border: 1px solid #efb2aa;
+  background: #fff1ef;
+  color: #752014;
+}
+
+.errorBanner span {
+  color: #934537;
+}
+
+.errorBanner button {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+  min-height: 44px;
+  border: 1px solid currentColor;
+  border-radius: 10px;
+  padding: 8px 12px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.kpiGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.kpiCard {
+  position: relative;
+  min-height: 126px;
+  overflow: hidden;
+  border: 1px solid var(--admin-border);
+  border-radius: 20px;
+  padding: 18px;
+  background: var(--admin-surface);
+}
+
+.kpiLabel,
+.kpiValue {
+  display: block;
+}
+
+.kpiLabel {
+  color: var(--admin-muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.kpiValue {
+  margin-top: 18px;
+  font-size: 2.55rem;
+  line-height: 0.9;
+  letter-spacing: -0.07em;
+}
+
+.kpiDot {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+.kpiDot_neutral {
+  background: #888882;
+}
+
+.kpiDot_live {
+  background: var(--admin-live);
+  box-shadow: 0 0 0 5px rgba(232, 57, 31, 0.12);
+}
+
+.kpiDot_waiting {
+  background: #d68a14;
+}
+
+.kpiDot_sold {
+  background: var(--admin-sold);
+}
+
+.panelSection {
+  min-width: 0;
+  margin-bottom: 16px;
+  border: 1px solid var(--admin-border);
+  border-radius: 22px;
+  padding: clamp(18px, 3vw, 28px);
+  background: var(--admin-surface);
+  box-shadow: 0 10px 34px rgba(20, 20, 16, 0.035);
+}
+
+.panelSection h2 {
+  margin: 0;
+  font-size: clamp(1.35rem, 2.7vw, 1.85rem);
+  line-height: 1.08;
+  letter-spacing: -0.045em;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.sectionCount {
+  display: grid;
+  min-width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  place-items: center;
+  background: var(--admin-surface-soft);
+  color: var(--admin-muted);
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.filterBar {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  margin: -2px -4px 18px;
+  padding: 4px;
+  scrollbar-width: thin;
+}
+
+.filterChip {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
+  min-height: 44px;
+  border: 1px solid var(--admin-border);
+  padding: 8px 12px;
+  background: #fff;
+  color: var(--admin-muted);
+  font-size: 0.76rem;
+}
+
+.filterChip span {
+  display: grid;
+  min-width: 21px;
+  height: 21px;
+  border-radius: 7px;
+  place-items: center;
+  background: var(--admin-surface-soft);
+  font-size: 0.68rem;
+}
+
+.filterChipActive {
+  border-color: var(--admin-ink);
+  background: var(--admin-ink);
+  color: #fff;
+}
+
+.filterChipActive span {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.auctionGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.auctionCard {
+  min-width: 0;
+  border: 1px solid var(--admin-border);
+  border-radius: 18px;
+  padding: 16px;
+  background: #fcfcfa;
+}
+
+.auctionCardTop {
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+}
+
+.productThumb {
+  position: relative;
+  display: grid;
+  flex: 0 0 74px;
+  width: 74px;
+  height: 74px;
+  overflow: hidden;
+  border-radius: 15px;
+  place-items: center;
+  background: linear-gradient(145deg, #e8e8e2, #f8f8f5);
+  color: #777771;
+}
+
+.productThumb img {
+  object-fit: contain;
+  padding: 7px;
+}
+
+.productThumb > span {
+  font-size: 1.55rem;
+  font-weight: 950;
+  letter-spacing: -0.06em;
+}
+
+.productThumbLarge {
+  width: 100%;
+  height: auto;
+  min-height: 220px;
+  border-radius: 18px 18px 0 0;
+}
+
+.productThumbLarge img {
+  padding: 24px;
+}
+
+.productThumbLarge > span {
+  font-size: 3.4rem;
+}
+
+.auctionIdentity {
+  min-width: 0;
+  flex: 1;
+}
+
+.auctionStatusLine {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.statusPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  padding: 5px 8px;
+  font-size: 0.63rem;
+  font-weight: 950;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.statusPill > span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.status_live {
+  background: #ffebe7;
+  color: #c72b15;
+}
+
+.status_waiting {
+  background: #fff3da;
+  color: #8c5500;
+}
+
+.status_payment_pending {
+  background: #f0ecff;
+  color: #563ca4;
+}
+
+.status_sold {
+  background: #e4f6ed;
+  color: #0c6b3e;
+}
+
+.status_ended,
+.status_draft {
+  background: #ecece8;
+  color: #62625c;
+}
+
+.slug {
+  overflow: hidden;
+  color: #96968f;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 0.67rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.auctionIdentity h3 {
+  overflow: hidden;
+  margin: 0;
+  font-size: 1.06rem;
+  letter-spacing: -0.025em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.auctionIdentity p {
+  margin: 5px 0 0;
+  color: var(--admin-muted);
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
+.auctionStats,
+.orderMeta {
+  display: grid;
+  margin: 16px 0;
+}
+
+.auctionStats {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.auctionStats > div,
+.orderMeta > div {
+  min-width: 0;
+  border-radius: 11px;
+  padding: 10px;
+  background: var(--admin-surface-soft);
+}
+
+.auctionStats dt,
+.auctionStats dd,
+.orderMeta dt,
+.orderMeta dd {
+  margin: 0;
+}
+
+.auctionStats dt,
+.orderMeta dt {
+  margin-bottom: 4px;
+  color: var(--admin-muted);
+  font-size: 0.61rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.auctionStats dd,
+.orderMeta dd {
+  overflow-wrap: anywhere;
+  font-size: 0.78rem;
+  font-weight: 780;
+  line-height: 1.35;
+}
+
+.cardActions {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.disabledReason {
+  margin: 8px 0 0;
+  color: var(--admin-muted);
+  font-size: 0.69rem;
+  line-height: 1.4;
+}
+
+.emptyState {
+  display: grid;
+  min-height: 146px;
+  border: 1px dashed rgba(21, 21, 20, 0.18);
+  border-radius: 16px;
+  padding: 24px;
+  place-content: center;
+  text-align: center;
+}
+
+.emptyState strong,
+.emptyState span {
+  display: block;
+}
+
+.emptyState span {
+  margin-top: 5px;
+  color: var(--admin-muted);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.editorLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(240px, 0.65fr);
+  gap: 20px;
+}
+
+.formFields {
+  min-width: 0;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.fieldWide {
+  grid-column: 1 / -1;
+}
+
+.prefixedInput,
+.suffixedInput {
+  display: flex;
+  align-items: center;
+  min-height: 50px;
+  border: 1px solid rgba(21, 21, 20, 0.18);
+  border-radius: 13px;
+  background: #fff;
+}
+
+.prefixedInput > span,
+.suffixedInput > span {
+  flex: 0 0 auto;
+  color: var(--admin-muted);
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.prefixedInput > span {
+  padding-left: 14px;
+}
+
+.suffixedInput > span {
+  padding-right: 14px;
+}
+
+.prefixedInput .input,
+.suffixedInput .input {
+  min-width: 0;
+  border: 0;
+  background: transparent;
+}
+
+.prefixedInput:focus-within,
+.suffixedInput:focus-within {
+  outline: 3px solid color-mix(in srgb, var(--admin-focus) 68%, transparent);
+  outline-offset: 2px;
+}
+
+.prefixedInput .input:focus-visible,
+.suffixedInput .input:focus-visible {
+  outline: none;
+}
+
+.editorPreview {
+  align-self: start;
+  overflow: hidden;
+  border: 1px solid var(--admin-border);
+  border-radius: 18px;
+  background: var(--admin-surface-soft);
+}
+
+.previewContent {
+  padding: 17px;
+}
+
+.previewLabel {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--admin-muted);
+  font-size: 0.65rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.previewContent strong {
+  display: block;
+  font-size: 1.15rem;
+  letter-spacing: -0.03em;
+}
+
+.previewContent p {
+  margin: 8px 0 0;
+  color: var(--admin-muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.editorLayout > .errorNotice,
+.editorActions {
+  grid-column: 1 / -1;
+}
+
+.editorActions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.editorActions .primaryButton {
+  width: min(100%, 360px);
+}
+
+.lowerGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.65fr);
+  gap: 16px;
+}
+
+.lowerGrid .panelSection {
+  margin-bottom: 0;
+}
+
+.ordersList {
+  display: grid;
+  gap: 10px;
+}
+
+.orderCard {
+  border: 1px solid var(--admin-border);
+  border-radius: 16px;
+  padding: 15px;
+  background: #fcfcfa;
+}
+
+.orderHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.orderHeader > div {
+  min-width: 0;
+}
+
+.orderId {
+  display: block;
+  overflow-wrap: anywhere;
+  color: var(--admin-muted);
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 0.66rem;
+}
+
+.orderHeader h3 {
+  margin: 4px 0 0;
+  font-size: 1rem;
+  letter-spacing: -0.025em;
+}
+
+.orderAmount {
+  flex: 0 0 auto;
+  font-size: 1.05rem;
+}
+
+.orderMeta {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.orderMeta a {
+  color: inherit;
+}
+
+.orderMeta .orderAddress {
+  grid-column: 1 / -1;
+}
+
+.orderActions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.healthReady,
+.healthDegraded {
+  border-radius: 999px;
+  padding: 6px 9px;
+  font-size: 0.67rem;
+  font-weight: 900;
+}
+
+.healthReady {
+  background: #e4f6ed;
+  color: #0c6b3e;
+}
+
+.healthDegraded {
+  background: #fff0df;
+  color: #925000;
+}
+
+.healthGrid {
+  display: grid;
+  gap: 9px;
+}
+
+.healthItem {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  border-radius: 13px;
+  padding: 12px;
+  background: var(--admin-surface-soft);
+}
+
+.healthItem > div {
+  min-width: 0;
+}
+
+.healthItem strong,
+.healthItem div > span {
+  display: block;
+}
+
+.healthItem strong {
+  font-size: 0.83rem;
+}
+
+.healthItem div > span {
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+  color: var(--admin-muted);
+  font-size: 0.7rem;
+  line-height: 1.35;
+}
+
+.healthDotReady,
+.healthDotError {
+  flex: 0 0 9px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+.healthDotReady {
+  background: var(--admin-sold);
+  box-shadow: 0 0 0 4px rgba(20, 122, 75, 0.1);
+}
+
+.healthDotError {
+  background: var(--admin-live);
+  box-shadow: 0 0 0 4px rgba(232, 57, 31, 0.1);
+}
+
+.footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px 4px 0;
+  color: var(--admin-muted);
+  font-size: 0.72rem;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  margin: -1px;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+@keyframes adminSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 900px) {
+  .auctionGrid,
+  .lowerGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .lowerGrid .panelSection {
+    margin-bottom: 16px;
+  }
+}
+
+@media (max-width: 720px) {
+  .dashboardShell {
+    width: min(100% - 20px, 620px);
+    padding-top: 14px;
+  }
+
+  .header {
+    align-items: flex-start;
+    flex-direction: column;
+    margin-bottom: 18px;
+  }
+
+  .headerActions {
+    width: 100%;
+  }
+
+  .headerActions .secondaryButton {
+    flex: 1;
+  }
+
+  .kpiGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px;
+  }
+
+  .kpiCard {
+    min-height: 108px;
+    border-radius: 17px;
+    padding: 15px;
+  }
+
+  .kpiValue {
+    margin-top: 15px;
+    font-size: 2.2rem;
+  }
+
+  .panelSection {
+    border-radius: 19px;
+    padding: 18px;
+  }
+
+  .auctionGrid,
+  .editorLayout,
+  .formGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .fieldWide,
+  .editorLayout > .errorNotice,
+  .editorActions {
+    grid-column: auto;
+  }
+
+  .editorPreview {
+    grid-row: 1;
+  }
+
+  .productThumbLarge {
+    min-height: 190px;
+  }
+
+  .editorActions .primaryButton {
+    width: 100%;
+  }
+
+  .errorBanner {
+    grid-template-columns: 1fr;
+  }
+
+  .errorBanner button {
+    grid-column: 1;
+    grid-row: auto;
+    margin-top: 8px;
+  }
+
+  .footer {
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 390px) {
+  .gateShell {
+    padding: 10px;
+  }
+
+  .gateCard {
+    border-radius: 22px;
+    padding: 25px 20px;
+  }
+
+  .gateBrand {
+    margin-bottom: 38px;
+  }
+
+  .brand {
+    font-size: 1.8rem;
+  }
+
+  .headerSubtitle span {
+    display: block;
+    margin-top: 2px;
+  }
+
+  .ghostButton {
+    padding-right: 10px;
+    padding-left: 10px;
+  }
+
+  .auctionCard {
+    padding: 14px;
+  }
+
+  .productThumb {
+    flex-basis: 64px;
+    width: 64px;
+    height: 64px;
+  }
+
+  .auctionStatusLine {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .cardActions {
+    flex-direction: column;
+  }
+
+  .cardPrimaryButton {
+    flex-basis: auto;
+  }
+
+  .orderMeta {
+    grid-template-columns: 1fr;
+  }
+
+  .orderMeta .orderAddress {
+    grid-column: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner,
+  .rotating {
+    animation: none;
+  }
+
+  .primaryButton,
+  .cardPrimaryButton,
+  .secondaryButton,
+  .ghostButton,
+  .iconButton,
+  .filterChip {
+    transition: none;
+  }
+
+  .primaryButton:hover:not(:disabled),
+  .cardPrimaryButton:hover:not(:disabled),
+  .secondaryButton:hover:not(:disabled),
+  .ghostButton:hover:not(:disabled),
+  .iconButton:hover:not(:disabled) {
+    transform: none;
+  }
+}

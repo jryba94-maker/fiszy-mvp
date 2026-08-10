@@ -1,16 +1,30 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Fiszy | Aukcja",
-  description: "Fiszy — kupujesz za cenę, którą widzisz.",
+  title: {
+    default: "Fiszy | Aukcje, w których cena spada",
+    template: "%s | Fiszy",
+  },
+  description: "Wejdź do aukcji, obserwuj spadającą cenę i kup jednym kliknięciem.",
+  applicationName: "Fiszy",
+  robots:
+    process.env.VERCEL_ENV === "production"
+      ? { index: true, follow: true }
+      : { index: false, follow: false },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <html lang="pl">
-      <body>{children}</body>
+      <body>
+        {children}
+        <Analytics />
+        <SpeedInsights />
+      </body>
     </html>
   );
 }

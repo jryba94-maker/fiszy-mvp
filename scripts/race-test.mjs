@@ -138,7 +138,9 @@ async function run() {
     return data?.result ?? null;
   }
 
-  const health = await requestJson("/api/admin/health");
+  const health = await requestJson("/api/admin/health", {
+    headers: { Authorization: `Bearer ${adminSecret}` },
+  });
   if (
     !health.response.ok ||
     health.body?.environment !== "development" ||
@@ -151,7 +153,9 @@ async function run() {
   }
 
   const configKey = `fiszy:development:auction:${AUCTION_ID}:config`;
+  const recordKey = `fiszy:development:auction:${AUCTION_ID}:record`;
   const previousConfigRaw = await redis(["GET", configKey]);
+  const previousRecordRaw = await redis(["GET", recordKey]);
   const bidderA = `race-a-${randomUUID()}`;
   const bidderB = `race-b-${randomUUID()}`;
   let runId = null;
@@ -363,6 +367,12 @@ async function run() {
       }
 
       try {
+        const previousConfig = previousConfigRaw
+          ? JSON.parse(previousConfigRaw)
+          : null;
+        const previousRecord = previousRecordRaw
+          ? JSON.parse(previousRecordRaw)
+          : null;
         const restoreScript = `
 local raw = redis.call("GET", KEYS[1])
 if not raw then return 0 end
@@ -373,16 +383,38 @@ if ARGV[2] == "delete" then
 else
   redis.call("SET", KEYS[1], ARGV[3])
 end
+if ARGV[4] == "delete" then
+  redis.call("DEL", KEYS[2])
+else
+  redis.call("SET", KEYS[2], ARGV[5])
+end
+redis.call("ZREM", KEYS[3], ARGV[6])
+redis.call("ZREM", KEYS[4], ARGV[1])
+if ARGV[7] == "published" and ARGV[8] ~= "" then
+  redis.call("ZADD", KEYS[5], ARGV[8], ARGV[9])
+else
+  redis.call("ZREM", KEYS[5], ARGV[9])
+end
 return 1
 `;
         const restored = await redis([
           "EVAL",
           restoreScript,
-          1,
+          5,
           configKey,
+          recordKey,
+          "fiszy:development:index:v1:runs",
+          `fiszy:development:auction:${AUCTION_ID}:index:v1:runs`,
+          "fiszy:development:index:v1:catalog",
           runId,
           previousConfigRaw === null ? "delete" : "set",
           previousConfigRaw ?? "",
+          previousRecordRaw === null ? "delete" : "set",
+          previousRecordRaw ?? "",
+          `${AUCTION_ID}|${runId}`,
+          previousRecord?.state ?? "",
+          previousConfig ? Date.parse(previousConfig.startsAt) : "",
+          AUCTION_ID,
         ]);
         previousAuctionRestored = restored === 1;
         if (!previousAuctionRestored) {

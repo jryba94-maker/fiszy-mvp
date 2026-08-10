@@ -19,29 +19,29 @@ import {
   saveAuctionOrder,
 } from "../../../../../lib/order-storage";
 import { expireCheckoutSession } from "../../../../../lib/stripe";
+import {
+  hasValidAdminRequest,
+  isAdminConfigured,
+  isSameOriginAdminMutation,
+} from "../../../../../lib/admin-auth";
 
 export const dynamic = "force-dynamic";
 
 const START_DELAY_MS = 60_000;
 
-function hasValidAdminKey(request: NextRequest) {
-  const configuredKey = process.env.FISZY_ADMIN_SECRET;
-  if (!configuredKey) return false;
-
-  const authorization = request.headers.get("authorization") ?? "";
-  return authorization === `Bearer ${configuredKey}`;
-}
-
 export async function POST(request: NextRequest) {
-  if (!process.env.FISZY_ADMIN_SECRET) {
+  if (!isAdminConfigured()) {
     return NextResponse.json(
       { outcome: "admin_not_configured" },
       { status: 503 },
     );
   }
 
-  if (!hasValidAdminKey(request)) {
+  if (!hasValidAdminRequest(request)) {
     return NextResponse.json({ outcome: "unauthorized" }, { status: 401 });
+  }
+  if (!isSameOriginAdminMutation(request)) {
+    return NextResponse.json({ outcome: "invalid_origin" }, { status: 403 });
   }
 
   let requestedDefinition: AuctionDefinition | undefined;
@@ -98,6 +98,8 @@ export async function POST(request: NextRequest) {
         currentConfig.runId,
         currentWinner.bidderId,
         currentWinner.paymentSessionId,
+        undefined,
+        currentWinner.claimedAt,
       );
     }
 

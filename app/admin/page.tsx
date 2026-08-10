@@ -1,437 +1,371 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  ApiError,
+  createAdminSession,
+  createAuction,
+  deleteAdminSession,
+  getAdminSession,
+  loadAuctions,
+  loadHealth,
+  loadOrders,
+  startAuctionRun,
+  updateAuction,
+} from "./api";
+import { AdminGate } from "./components/AdminGate";
+import { AdminHeader } from "./components/AdminHeader";
+import { AuctionEditor } from "./components/AuctionEditor";
+import { AuctionList } from "./components/AuctionList";
+import { HealthPanel } from "./components/HealthPanel";
+import { KpiGrid } from "./components/KpiGrid";
+import { OrdersPanel } from "./components/OrdersPanel";
+import styles from "./AdminDashboard.module.css";
+import type {
+  AdminAuction,
+  AdminHealth,
+  AdminOrder,
+  AuctionDefinitionInput,
+  AuctionFilter,
+} from "./types";
 
-type AuctionState = {
-  runId: string;
-  status: "waiting" | "live" | "ended" | "payment_pending" | "sold";
-  product: string;
-  productImageUrl: string | null;
-  regularPrice: number;
-  startPrice: number;
-  floorPrice: number;
-  durationMinutes: number;
-  currentPrice: number;
-  startsAt: string;
-  endsAt: string;
-};
+type SessionStatus = "checking" | "signed_out" | "authenticated" | "unconfigured";
 
-type AuctionDraft = {
-  productName: string;
-  productImageUrl: string;
-  regularPrice: string;
-  startPrice: string;
-  floorPrice: string;
-  durationMinutes: string;
-};
+type Notice = {
+  tone: "success" | "info" | "error";
+  message: string;
+} | null;
 
-type StartResponse = {
-  outcome:
-    | "scheduled"
-    | "unauthorized"
-    | "admin_not_configured"
-    | "invalid_request"
-    | "auction_in_progress"
-    | "auction_changed"
-    | "pending_payment"
-    | "storage_error";
-  startsAt?: string;
-};
-
-const DEFAULT_DRAFT: AuctionDraft = {
-  productName: "AirPods Pro",
-  productImageUrl: "",
-  regularPrice: "999",
-  startPrice: "749",
-  floorPrice: "699",
-  durationMinutes: "10",
-};
-
-type Order = {
-  orderId: string;
-  runId: string;
-  bidderId: string;
-  product: string;
-  amount: number;
-  currency: "pln";
-  paymentSessionId: string;
-  paidAt: string;
-  customer: {
-    name: string | null;
-    email: string | null;
-    phone: string | null;
-  };
-  shippingAddress: {
-    city: string | null;
-    country: string | null;
-    line1: string | null;
-    line2: string | null;
-    postalCode: string | null;
-    state: string | null;
-  } | null;
-};
-
-type OrderResponse = {
-  outcome: "ok" | "unauthorized" | "admin_not_configured" | "storage_error";
-  order?: Order | null;
-};
-
-function formatDateTime(value?: string) {
-  if (!value) return "—";
-
-  return new Date(value).toLocaleString("pl-PL", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    day: "2-digit",
-    month: "2-digit",
-  });
+function errorMessage(error: unknown) {
+  return error instanceof Error
+    ? error.message
+    : "Wystąpił nieoczekiwany błąd. Spróbuj ponownie.";
 }
 
-function formatAddress(order: Order | null) {
-  const address = order?.shippingAddress;
-  if (!address) return "—";
-
-  const street = [address.line1, address.line2].filter(Boolean).join(", ");
-  const city = [address.postalCode, address.city].filter(Boolean).join(" ");
-  return [street, city, address.country].filter(Boolean).join(" · ") || "—";
+function isUnauthorized(error: unknown) {
+  return error instanceof ApiError && error.status === 401;
 }
 
 export default function AdminPage() {
-  const [auction, setAuction] = useState<AuctionState | null>(null);
-  const [adminKey, setAdminKey] = useState("");
-  const [isStarting, setIsStarting] = useState(false);
-  const [message, setMessage] = useState("");
-  const [draft, setDraft] = useState<AuctionDraft>(DEFAULT_DRAFT);
-  const [draftRunId, setDraftRunId] = useState<string | null>(null);
-  const [order, setOrder] = useState<Order | null>(null);
-  const [isLoadingOrder, setIsLoadingOrder] = useState(false);
-  const [orderMessage, setOrderMessage] = useState("");
-
-  const loadAuction = async () => {
-    try {
-      const response = await fetch("/api/auction", { cache: "no-store" });
-      if (!response.ok) return;
-      setAuction((await response.json()) as AuctionState);
-    } catch {
-      // Status is informational only; starting the auction still has its own error handling.
-    }
-  };
+  const [sessionStatus, setSessionStatus] = useState<SessionStatus>("checking");
+  const [sessionError, setSessionError] = useState("");
+  const [loginBusy, setLoginBusy] = useState(false);
+  const [auctions, setAuctions] = useState<AdminAuction[]>([]);
+  const [orders, setOrders] = useState<AdminOrder[]>([]);
+  const [health, setHealth] = useState<AdminHealth | null>(null);
+  const [filter, setFilter] = useState<AuctionFilter>("all");
+  const [editingAuction, setEditingAuction] = useState<AdminAuction | null>(null);
+  const [dashboardLoading, setDashboardLoading] = useState(false);
+  const [dashboardError, setDashboardError] = useState("");
+  const [savingEditor, setSavingEditor] = useState(false);
+  const [busyAuctionId, setBusyAuctionId] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<number | null>(null);
+  const [notice, setNotice] = useState<Notice>(null);
+  const [legacyMode, setLegacyMode] = useState(false);
+  const loadingRef = useRef(false);
 
   useEffect(() => {
-    void loadAuction();
-    const timer = window.setInterval(() => void loadAuction(), 1000);
-    return () => window.clearInterval(timer);
+    let active = true;
+
+    const checkSession = async () => {
+      try {
+        const session = await getAdminSession();
+        if (!active) return;
+        setSessionStatus(
+          !session.configured
+            ? "unconfigured"
+            : session.authenticated
+              ? "authenticated"
+              : "signed_out",
+        );
+      } catch (error) {
+        if (!active) return;
+        setSessionStatus("signed_out");
+        setSessionError(errorMessage(error));
+      }
+    };
+
+    void checkSession();
+    return () => {
+      active = false;
+    };
   }, []);
 
+  const handleExpiredSession = useCallback(() => {
+    setSessionStatus("signed_out");
+    setSessionError("Sesja administratora wygasła. Zaloguj się ponownie.");
+    setAuctions([]);
+    setOrders([]);
+    setHealth(null);
+  }, []);
+
+  const loadDashboard = useCallback(async (silent = false) => {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
+    if (!silent) setDashboardLoading(true);
+
+    try {
+      const [auctionResult, orderResult, healthResult] = await Promise.allSettled([
+        loadAuctions(),
+        loadOrders(),
+        loadHealth(),
+      ]);
+      const failures: string[] = [];
+      let anySuccess = false;
+      let usedLegacy = false;
+
+      if (auctionResult.status === "fulfilled") {
+        setAuctions(auctionResult.value.auctions);
+        usedLegacy ||= auctionResult.value.legacy;
+        anySuccess = true;
+      } else {
+        if (isUnauthorized(auctionResult.reason)) {
+          handleExpiredSession();
+          return;
+        }
+        failures.push(`Aukcje: ${errorMessage(auctionResult.reason)}`);
+      }
+
+      if (orderResult.status === "fulfilled") {
+        setOrders(orderResult.value.orders);
+        usedLegacy ||= orderResult.value.legacy;
+        anySuccess = true;
+      } else {
+        if (isUnauthorized(orderResult.reason)) {
+          handleExpiredSession();
+          return;
+        }
+        failures.push(`Zamówienia: ${errorMessage(orderResult.reason)}`);
+      }
+
+      if (healthResult.status === "fulfilled") {
+        setHealth(healthResult.value);
+        anySuccess = true;
+      } else {
+        if (isUnauthorized(healthResult.reason)) {
+          handleExpiredSession();
+          return;
+        }
+        failures.push(`System: ${errorMessage(healthResult.reason)}`);
+      }
+
+      setLegacyMode(usedLegacy);
+      setDashboardError(failures.join(" "));
+      if (anySuccess) setLastUpdated(Date.now());
+    } finally {
+      loadingRef.current = false;
+      if (!silent) setDashboardLoading(false);
+    }
+  }, [handleExpiredSession]);
+
   useEffect(() => {
-    if (!auction || draftRunId === auction.runId) return;
+    if (sessionStatus !== "authenticated") return;
+    void loadDashboard();
 
-    setDraft({
-      productName: auction.product,
-      productImageUrl: auction.productImageUrl ?? "",
-      regularPrice: String(auction.regularPrice),
-      startPrice: String(auction.startPrice),
-      floorPrice: String(auction.floorPrice),
-      durationMinutes: String(auction.durationMinutes),
-    });
-    setDraftRunId(auction.runId);
-  }, [auction, draftRunId]);
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") void loadDashboard(true);
+    }, 12_000);
 
-  const updateDraft = (field: keyof AuctionDraft, value: string) => {
-    setDraft((current) => ({ ...current, [field]: value }));
-  };
+    return () => window.clearInterval(timer);
+  }, [sessionStatus, loadDashboard]);
 
-  const loadOrder = async () => {
-    if (!adminKey || isLoadingOrder) return;
-
-    setIsLoadingOrder(true);
-    setOrderMessage("");
+  const handleLogin = async (secret: string) => {
+    setLoginBusy(true);
+    setSessionError("");
 
     try {
-      const response = await fetch("/api/admin/order", {
-        cache: "no-store",
-        headers: {
-          Authorization: `Bearer ${adminKey}`,
-        },
-      });
-      const data = (await response.json()) as OrderResponse;
-
-      if (data.outcome === "ok") {
-        setOrder(data.order ?? null);
-        setOrderMessage(
-          data.order
-            ? "Zamówienie pobrane z Redis."
-            : "Nie ma jeszcze żadnego opłaconego zamówienia.",
-        );
-      } else if (data.outcome === "unauthorized") {
-        setOrder(null);
-        setOrderMessage("Nieprawidłowy sekret administratora.");
-      } else {
-        setOrder(null);
-        setOrderMessage("Nie udało się pobrać zamówienia.");
+      const session = await createAdminSession(secret);
+      if (!session.configured) {
+        setSessionStatus("unconfigured");
+        return false;
       }
-    } catch {
-      setOrder(null);
-      setOrderMessage("Nie udało się połączyć z endpointem zamówienia.");
-    } finally {
-      setIsLoadingOrder(false);
-    }
-  };
+      if (!session.authenticated) {
+        setSessionError("Nieprawidłowy sekret administratora.");
+        return false;
+      }
 
-  const startAuction = async () => {
-    if (!adminKey || isStarting) return;
-
-    const regularPrice = Number(draft.regularPrice);
-    const startPrice = Number(draft.startPrice);
-    const floorPrice = Number(draft.floorPrice);
-    const durationMinutes = Number(draft.durationMinutes);
-
-    if (
-      draft.productName.trim().length < 2 ||
-      !Number.isInteger(regularPrice) ||
-      !Number.isInteger(startPrice) ||
-      !Number.isInteger(floorPrice) ||
-      !Number.isInteger(durationMinutes) ||
-      regularPrice < startPrice ||
-      startPrice <= floorPrice ||
-      floorPrice < 2 ||
-      durationMinutes < 1 ||
-      durationMinutes > 120
-    ) {
-      setMessage(
-        "Sprawdź dane: cena regularna ≥ startowa > minimalna (minimum 2 zł), a czas musi wynosić 1–120 minut.",
+      setSessionStatus("authenticated");
+      return true;
+    } catch (error) {
+      setSessionError(
+        error instanceof ApiError && error.status === 401
+          ? "Nieprawidłowy sekret administratora."
+          : errorMessage(error),
       );
-      return;
-    }
-
-    setIsStarting(true);
-    setMessage("");
-
-    try {
-      const response = await fetch("/api/admin/auction/start", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${adminKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          productName: draft.productName.trim(),
-          productImageUrl: draft.productImageUrl.trim() || null,
-          regularPrice,
-          startPrice,
-          floorPrice,
-          durationMinutes,
-        }),
-      });
-      const data = (await response.json()) as StartResponse;
-
-      if (data.outcome === "scheduled") {
-        setMessage(`Nowa aukcja zaplanowana na ${formatDateTime(data.startsAt)}.`);
-        await loadAuction();
-      } else if (data.outcome === "unauthorized") {
-        setMessage("Nieprawidłowy sekret administratora.");
-      } else if (data.outcome === "admin_not_configured") {
-        setMessage("Brak FISZY_ADMIN_SECRET w zmiennych środowiskowych Vercela.");
-      } else if (data.outcome === "invalid_request") {
-        setMessage("Dane aukcji są nieprawidłowe. Sprawdź ceny, czas i adres zdjęcia HTTPS.");
-      } else if (data.outcome === "auction_in_progress") {
-        setMessage("Trwającej lub oczekującej aukcji nie można zastąpić nowym produktem.");
-      } else if (data.outcome === "auction_changed") {
-        setMessage("Aukcja została właśnie zmieniona w innym oknie. Formularz odświeży się automatycznie.");
-      } else if (data.outcome === "pending_payment") {
-        setMessage("Poprzedni zwycięzca ma jeszcze aktywną płatność. Spróbuj ponownie za chwilę.");
-      } else {
-        setMessage("Nie udało się zapisać nowej aukcji w Redisie.");
-      }
-    } catch {
-      setMessage("Nie udało się połączyć z endpointem administracyjnym.");
+      return false;
     } finally {
-      setIsStarting(false);
+      setLoginBusy(false);
     }
   };
+
+  const handleLogout = async () => {
+    try {
+      await deleteAdminSession();
+    } catch {
+      // Local state is cleared even if the server cannot acknowledge logout.
+    } finally {
+      setSessionStatus("signed_out");
+      setSessionError("");
+      setAuctions([]);
+      setOrders([]);
+      setHealth(null);
+      setNotice(null);
+      setEditingAuction(null);
+    }
+  };
+
+  const handleEditorSubmit = async (
+    input: AuctionDefinitionInput,
+    editingAuctionId: string | null,
+  ) => {
+    setSavingEditor(true);
+    setNotice(null);
+
+    try {
+      const result = editingAuctionId
+        ? await updateAuction(
+            editingAuctionId,
+            input,
+            editingAuction?.auctionId === editingAuctionId
+              ? editingAuction.revision ?? undefined
+              : undefined,
+          )
+        : await createAuction(input);
+      setNotice({
+        tone: result.legacy ? "info" : "success",
+        message: result.legacy
+          ? "Aukcja została uruchomiona przez zgodny endpoint MVP. Nowe API nie jest jeszcze dostępne."
+          : result.message ?? (editingAuctionId ? "Zmiany aukcji zostały zapisane." : "Nowa aukcja została utworzona."),
+      });
+      setEditingAuction(null);
+      await loadDashboard();
+      return true;
+    } catch (error) {
+      if (isUnauthorized(error)) handleExpiredSession();
+      else setNotice({ tone: "error", message: errorMessage(error) });
+      return false;
+    } finally {
+      setSavingEditor(false);
+    }
+  };
+
+  const handleStartRun = async (auction: AdminAuction) => {
+    const confirmed = window.confirm(
+      `Uruchomić kolejną rundę aukcji „${auction.productName}”? Serwer wyznaczy najbliższy bezpieczny start.`,
+    );
+    if (!confirmed) return;
+
+    setBusyAuctionId(auction.auctionId);
+    setNotice(null);
+
+    try {
+      const result = await startAuctionRun(auction);
+      setNotice({
+        tone: result.legacy ? "info" : "success",
+        message: result.legacy
+          ? "Runda została uruchomiona przez zgodny endpoint MVP."
+          : result.message ?? "Nowa runda została zaplanowana.",
+      });
+      await loadDashboard();
+    } catch (error) {
+      if (isUnauthorized(error)) handleExpiredSession();
+      else setNotice({ tone: "error", message: errorMessage(error) });
+    } finally {
+      setBusyAuctionId(null);
+    }
+  };
+
+  const handleEdit = (auction: AdminAuction) => {
+    setEditingAuction(auction);
+    window.requestAnimationFrame(() => {
+      const editor = document.getElementById("auction-editor");
+      editor?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+      document.getElementById("editor-heading")?.focus({ preventScroll: true });
+    });
+  };
+
+  if (sessionStatus !== "authenticated") {
+    return (
+      <AdminGate
+        checking={sessionStatus === "checking"}
+        configured={sessionStatus !== "unconfigured"}
+        busy={loginBusy}
+        error={sessionError}
+        onLogin={handleLogin}
+      />
+    );
+  }
 
   return (
-    <main className="adminShell">
-      <section className="adminCard">
-        <p className="eyebrow">Fiszy / panel testowy</p>
-        <h1>Uruchamianie aukcji</h1>
+    <main className={styles.dashboardShell} aria-busy={dashboardLoading}>
+      <AdminHeader
+        environment={health?.environment ?? "panel"}
+        refreshing={dashboardLoading}
+        lastUpdated={lastUpdated}
+        onRefresh={() => void loadDashboard()}
+        onLogout={() => void handleLogout()}
+      />
 
-        <div className="adminStatus">
-          <div>
-            <span>Status</span>
-            <strong>{auction?.status ?? "—"}</strong>
-          </div>
-          <div>
-            <span>Aktualna cena</span>
-            <strong>{auction ? `${auction.currentPrice} zł` : "—"}</strong>
-          </div>
-          <div>
-            <span>Start</span>
-            <strong>{formatDateTime(auction?.startsAt)}</strong>
-          </div>
-          <div>
-            <span>Produkt</span>
-            <strong>{auction?.product ?? "—"}</strong>
-          </div>
-        </div>
-
-        <label className="adminLabel" htmlFor="admin-key">
-          Sekret administratora
-        </label>
-        <input
-          id="admin-key"
-          className="adminInput"
-          type="password"
-          value={adminKey}
-          onChange={(event) => setAdminKey(event.target.value)}
-          autoComplete="off"
-          placeholder="FISZY_ADMIN_SECRET"
-        />
-
-        <div className="adminAuctionForm">
-          <div className="adminFormHeader">
-            <p className="eyebrow">Nowa aukcja</p>
-            <h2>Produkt i mechanika ceny</h2>
-          </div>
-
-          <div className="adminFormGrid">
-            <label className="adminField adminFieldWide">
-              <span>Nazwa produktu</span>
-              <input
-                className="adminInput"
-                type="text"
-                value={draft.productName}
-                onChange={(event) => updateDraft("productName", event.target.value)}
-                maxLength={80}
-                placeholder="np. Konsola PlayStation 5"
-              />
-            </label>
-
-            <label className="adminField adminFieldWide">
-              <span>Adres zdjęcia (opcjonalnie)</span>
-              <input
-                className="adminInput"
-                type="text"
-                value={draft.productImageUrl}
-                onChange={(event) =>
-                  updateDraft("productImageUrl", event.target.value)
-                }
-                maxLength={500}
-                placeholder="https://.../produkt.jpg"
-              />
-              <small>Użyj bezpiecznego adresu HTTPS. Bez zdjęcia pokażemy nazwę produktu.</small>
-            </label>
-
-            <label className="adminField">
-              <span>Cena regularna (zł)</span>
-              <input
-                className="adminInput"
-                type="number"
-                min="2"
-                max="100000"
-                step="1"
-                value={draft.regularPrice}
-                onChange={(event) => updateDraft("regularPrice", event.target.value)}
-              />
-            </label>
-
-            <label className="adminField">
-              <span>Cena startowa (zł)</span>
-              <input
-                className="adminInput"
-                type="number"
-                min="2"
-                max="100000"
-                step="1"
-                value={draft.startPrice}
-                onChange={(event) => updateDraft("startPrice", event.target.value)}
-              />
-            </label>
-
-            <label className="adminField">
-              <span>Cena minimalna (zł)</span>
-              <input
-                className="adminInput"
-                type="number"
-                min="2"
-                max="99999"
-                step="1"
-                value={draft.floorPrice}
-                onChange={(event) => updateDraft("floorPrice", event.target.value)}
-              />
-            </label>
-
-            <label className="adminField">
-              <span>Czas trwania (minuty)</span>
-              <input
-                className="adminInput"
-                type="number"
-                min="1"
-                max="120"
-                step="1"
-                value={draft.durationMinutes}
-                onChange={(event) =>
-                  updateDraft("durationMinutes", event.target.value)
-                }
-              />
-            </label>
-          </div>
-        </div>
-
-        <button
-          className="buyButton"
-          type="button"
-          onClick={startAuction}
-          disabled={!adminKey || isStarting}
-        >
-          {isStarting
-            ? "ZAPISUJĘ..."
-            : "ZAPISZ AUKCJĘ — START ZA 60 SEKUND"}
-        </button>
-
-        {message ? <p className="adminMessage">{message}</p> : null}
-
-        <div className="orderSection">
-          <div className="orderHeader">
-            <div>
-              <p className="eyebrow">Realizacja</p>
-              <h2>Ostatnie opłacone zamówienie</h2>
-            </div>
-            <button
-              className="adminSecondaryButton"
-              type="button"
-              onClick={loadOrder}
-              disabled={!adminKey || isLoadingOrder}
-            >
-              {isLoadingOrder ? "POBIERAM..." : "POBIERZ OSTATNIE ZAMÓWIENIE"}
-            </button>
-          </div>
-
-          {order ? (
-            <div className="orderDetails">
-              <div><span>Numer</span><strong>{order.orderId}</strong></div>
-              <div><span>Produkt</span><strong>{order.product}</strong></div>
-              <div><span>Kwota</span><strong>{order.amount} zł</strong></div>
-              <div><span>Opłacono</span><strong>{formatDateTime(order.paidAt)}</strong></div>
-              <div><span>Klient</span><strong>{order.customer.name ?? "—"}</strong></div>
-              <div><span>E-mail</span><strong>{order.customer.email ?? "—"}</strong></div>
-              <div><span>Telefon</span><strong>{order.customer.phone ?? "—"}</strong></div>
-              <div className="orderWide"><span>Adres dostawy</span><strong>{formatAddress(order)}</strong></div>
-            </div>
-          ) : null}
-
-          {orderMessage ? <p className="adminMessage">{orderMessage}</p> : null}
-        </div>
-
-        <p className="adminNote">
-          Każde uruchomienie tworzy nową sesję. Poprzedni zwycięzca nie blokuje kolejnego testu.
+      {dashboardLoading && lastUpdated === null ? (
+        <p className={styles.srOnly} role="status">
+          Ładuję dane panelu administratora.
         </p>
+      ) : null}
 
-        <a className="adminLink" href="/">
-          Otwórz stronę aukcji →
-        </a>
-      </section>
+      {notice ? (
+        <div
+          className={`${styles.notice} ${styles[`notice_${notice.tone}`]}`}
+          role={notice.tone === "error" ? "alert" : "status"}
+        >
+          <span>{notice.message}</span>
+          <button type="button" onClick={() => setNotice(null)} aria-label="Zamknij komunikat">×</button>
+        </div>
+      ) : null}
+
+      {dashboardError ? (
+        <div className={styles.errorBanner} role="alert">
+          <strong>Nie wszystkie dane udało się odświeżyć.</strong>
+          <span>{dashboardError}</span>
+          <button type="button" onClick={() => void loadDashboard()}>Spróbuj ponownie</button>
+        </div>
+      ) : null}
+
+      {legacyMode ? (
+        <div className={styles.compatibilityBanner} role="status">
+          Tryb zgodności MVP: panel pokazuje dane ze starszych endpointów do czasu pełnego uruchomienia nowego API.
+        </div>
+      ) : null}
+
+      <KpiGrid auctions={auctions} />
+
+      <AuctionList
+        auctions={auctions}
+        filter={filter}
+        busyAuctionId={busyAuctionId}
+        onFilterChange={setFilter}
+        onEdit={handleEdit}
+        onStart={(auction) => void handleStartRun(auction)}
+      />
+
+      <AuctionEditor
+        editingAuction={editingAuction}
+        busy={savingEditor}
+        onCancel={() => setEditingAuction(null)}
+        onSubmit={handleEditorSubmit}
+      />
+
+      <div className={styles.lowerGrid}>
+        <OrdersPanel orders={orders} />
+        <HealthPanel health={health} />
+      </div>
+
+      <footer className={styles.footer}>
+        <span>Fiszy / panel operacyjny</span>
+        <span>Brakujące lub niedostępne akcje nie są symulowane.</span>
+      </footer>
     </main>
   );
 }
