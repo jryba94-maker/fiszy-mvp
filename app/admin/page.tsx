@@ -44,9 +44,9 @@ type Order = {
   } | null;
 };
 
-type OrderResponse = {
+type OrdersResponse = {
   outcome: "ok" | "unauthorized" | "admin_not_configured" | "storage_error";
-  order?: Order | null;
+  orders?: Order[];
 };
 
 function formatDateTime(value?: string) {
@@ -61,8 +61,8 @@ function formatDateTime(value?: string) {
   });
 }
 
-function formatAddress(order: Order | null) {
-  const address = order?.shippingAddress;
+function formatAddress(order: Order) {
+  const address = order.shippingAddress;
   if (!address) return "—";
 
   const street = [address.line1, address.line2].filter(Boolean).join(", ");
@@ -75,9 +75,9 @@ export default function AdminPage() {
   const [adminKey, setAdminKey] = useState("");
   const [isStarting, setIsStarting] = useState(false);
   const [message, setMessage] = useState("");
-  const [order, setOrder] = useState<Order | null>(null);
-  const [isLoadingOrder, setIsLoadingOrder] = useState(false);
-  const [orderMessage, setOrderMessage] = useState("");
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [isLoadingOrders, setIsLoadingOrders] = useState(false);
+  const [ordersMessage, setOrdersMessage] = useState("");
 
   const loadAuction = async () => {
     try {
@@ -95,40 +95,41 @@ export default function AdminPage() {
     return () => window.clearInterval(timer);
   }, []);
 
-  const loadOrder = async () => {
-    if (!adminKey || isLoadingOrder) return;
+  const loadOrders = async () => {
+    if (!adminKey || isLoadingOrders) return;
 
-    setIsLoadingOrder(true);
-    setOrderMessage("");
+    setIsLoadingOrders(true);
+    setOrdersMessage("");
 
     try {
-      const response = await fetch("/api/admin/order", {
+      const response = await fetch("/api/admin/orders", {
         cache: "no-store",
         headers: {
           Authorization: `Bearer ${adminKey}`,
         },
       });
-      const data = (await response.json()) as OrderResponse;
+      const data = (await response.json()) as OrdersResponse;
 
       if (data.outcome === "ok") {
-        setOrder(data.order ?? null);
-        setOrderMessage(
-          data.order
-            ? "Zamówienie pobrane z Redis."
-            : "Ta sesja aukcji nie ma jeszcze opłaconego zamówienia.",
+        const nextOrders = data.orders ?? [];
+        setOrders(nextOrders);
+        setOrdersMessage(
+          nextOrders.length
+            ? `Pobrano ${nextOrders.length} zamówień.`
+            : "Brak opłaconych zamówień w historii.",
         );
       } else if (data.outcome === "unauthorized") {
-        setOrder(null);
-        setOrderMessage("Nieprawidłowy sekret administratora.");
+        setOrders([]);
+        setOrdersMessage("Nieprawidłowy sekret administratora.");
       } else {
-        setOrder(null);
-        setOrderMessage("Nie udało się pobrać zamówienia.");
+        setOrders([]);
+        setOrdersMessage("Nie udało się pobrać historii zamówień.");
       }
     } catch {
-      setOrder(null);
-      setOrderMessage("Nie udało się połączyć z endpointem zamówienia.");
+      setOrders([]);
+      setOrdersMessage("Nie udało się połączyć z endpointem historii zamówień.");
     } finally {
-      setIsLoadingOrder(false);
+      setIsLoadingOrders(false);
     }
   };
 
@@ -149,8 +150,6 @@ export default function AdminPage() {
 
       if (data.outcome === "scheduled") {
         setMessage(`Nowa aukcja zaplanowana na ${formatDateTime(data.startsAt)}.`);
-        setOrder(null);
-        setOrderMessage("");
         await loadAuction();
       } else if (data.outcome === "unauthorized") {
         setMessage("Nieprawidłowy sekret administratora.");
@@ -217,36 +216,45 @@ export default function AdminPage() {
           <div className="orderHeader">
             <div>
               <p className="eyebrow">Realizacja</p>
-              <h2>Zamówienie zwycięzcy</h2>
+              <h2>Historia zamówień</h2>
             </div>
             <button
               className="adminSecondaryButton"
               type="button"
-              onClick={loadOrder}
-              disabled={!adminKey || isLoadingOrder}
+              onClick={loadOrders}
+              disabled={!adminKey || isLoadingOrders}
             >
-              {isLoadingOrder ? "POBIERAM..." : "POBIERZ ZAMÓWIENIE"}
+              {isLoadingOrders ? "POBIERAM..." : "POBIERZ HISTORIĘ"}
             </button>
           </div>
 
-          {order ? (
-            <div className="orderDetails">
-              <div><span>Numer</span><strong>{order.orderId}</strong></div>
-              <div><span>Produkt</span><strong>{order.product}</strong></div>
-              <div><span>Kwota</span><strong>{order.amount} zł</strong></div>
-              <div><span>Opłacono</span><strong>{formatDateTime(order.paidAt)}</strong></div>
-              <div><span>Klient</span><strong>{order.customer.name ?? "—"}</strong></div>
-              <div><span>E-mail</span><strong>{order.customer.email ?? "—"}</strong></div>
-              <div><span>Telefon</span><strong>{order.customer.phone ?? "—"}</strong></div>
-              <div className="orderWide"><span>Adres dostawy</span><strong>{formatAddress(order)}</strong></div>
+          {orders.length ? (
+            <div className="orderList">
+              {orders.map((order) => (
+                <article className="orderCard" key={order.orderId}>
+                  <div className="orderCardHeader">
+                    <strong>{order.orderId}</strong>
+                    <span>{formatDateTime(order.paidAt)}</span>
+                  </div>
+                  <div className="orderDetails">
+                    <div><span>Produkt</span><strong>{order.product}</strong></div>
+                    <div><span>Kwota</span><strong>{order.amount} zł</strong></div>
+                    <div><span>Klient</span><strong>{order.customer.name ?? "—"}</strong></div>
+                    <div><span>E-mail</span><strong>{order.customer.email ?? "—"}</strong></div>
+                    <div><span>Telefon</span><strong>{order.customer.phone ?? "—"}</strong></div>
+                    <div><span>Run ID</span><strong>{order.runId.slice(0, 12)}</strong></div>
+                    <div className="orderWide"><span>Adres dostawy</span><strong>{formatAddress(order)}</strong></div>
+                  </div>
+                </article>
+              ))}
             </div>
           ) : null}
 
-          {orderMessage ? <p className="adminMessage">{orderMessage}</p> : null}
+          {ordersMessage ? <p className="adminMessage">{ordersMessage}</p> : null}
         </div>
 
         <p className="adminNote">
-          Każde uruchomienie tworzy nową sesję. Poprzedni zwycięzca nie blokuje kolejnego testu.
+          Każde uruchomienie tworzy nową sesję. Historia opłaconych zamówień pozostaje dostępna niezależnie od kolejnych aukcji.
         </p>
 
         <a className="adminLink" href="/">
