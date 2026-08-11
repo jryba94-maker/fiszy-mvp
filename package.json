@@ -7,7 +7,7 @@
     "stripe:listen": "node scripts/stripe-listen.mjs",
     "test:race": "node scripts/race-test.mjs",
     "test:portal": "node scripts/portal-smoke-test.mjs",
-    "test:faults:unit": "node --no-warnings --loader ./scripts/typescript-loader.mjs --test --test-concurrency=1 --test-name-pattern=\"admin session|admin mutation|admin login|Stripe signatures|late-entry refund|webhook orchestration\" scripts/security-fault-tests.mjs",
+    "test:faults:unit": "node --no-warnings --loader ./scripts/typescript-loader.mjs --test --test-concurrency=1 --test-name-pattern=\"admin session|admin mutation|admin login|auction config storage|winner cancellation|stale pending winner|Stripe signatures|late-entry refund|webhook orchestration\" scripts/security-fault-tests.mjs",
     "test:faults": "node --no-warnings --loader ./scripts/typescript-loader.mjs --test --test-concurrency=1 scripts/security-fault-tests.mjs",
     "typecheck": "tsc --noEmit",
     "check:security": "npm audit --omit=dev --audit-level=high",

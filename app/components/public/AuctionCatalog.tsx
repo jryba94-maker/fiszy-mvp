@@ -126,7 +126,7 @@ export function AuctionCatalog() {
         </div>
       </section>
 
-      <div className={styles.stats} aria-label="Najważniejsze zasady Fiszy">
+      <div className={styles.stats} role="group" aria-label="Najważniejsze zasady Fiszy">
         <div className={styles.stat}><strong>5 zł</strong><span>wejście do wybranej aukcji</span></div>
         <div className={styles.stat}><strong>1 klik</strong><span>decyduje o zwycięstwie</span></div>
         <div className={styles.stat}><strong>Na żywo</strong><span>czas zsynchronizowany z serwerem</span></div>

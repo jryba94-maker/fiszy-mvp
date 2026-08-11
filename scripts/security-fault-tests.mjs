@@ -5,7 +5,10 @@ import test from "node:test";
 import { NextRequest } from "next/server.js";
 
 import { POST as postAdminSession } from "../app/api/admin/session/route.ts";
+import { POST as postLegacyAdminAuctionStart } from "../app/api/admin/auction/start/route.ts";
+import { POST as postAdminAuctionRun } from "../app/api/admin/auctions/[auctionId]/runs/route.ts";
 import { POST as postStripeWebhook } from "../app/api/stripe/webhook/route.ts";
+import { handleCancelPost } from "../app/api/auctions/_shared/operations.ts";
 import {
   ADMIN_SESSION_COOKIE,
   ADMIN_SESSION_SECONDS,
@@ -15,8 +18,11 @@ import {
 } from "../lib/admin-auth.ts";
 import {
   attachAuctionWinnerCheckout,
+  parseStoredAuctionConfig,
+  readOptionalAuctionConfig,
   releaseAuctionWinner,
 } from "../lib/auction-storage.ts";
+import { defaultAuctionDefinition } from "../lib/auction.ts";
 import {
   refundCheckoutSessionPayment,
   verifyStripeWebhook,
@@ -204,6 +210,293 @@ test("admin mutation origin policy rejects cross-site requests", () => {
   assert.equal(isSameOriginAdminMutation(fakeAdminRequest()), true);
 });
 
+test("auction config storage only migrates timing-only legacy records", async () => {
+  const timing = {
+    runId: "legacy-timing-only-run",
+    startsAt: "2026-08-10T01:00:00.000Z",
+  };
+  assert.deepEqual(parseStoredAuctionConfig(JSON.stringify(timing)), {
+    schemaVersion: 2,
+    ...timing,
+    ...defaultAuctionDefinition(),
+  });
+
+  const complete = {
+    schemaVersion: 2,
+    ...timing,
+    productName: "Stored product",
+    productImageUrl: null,
+    regularPrice: 120,
+    startPrice: 100,
+    floorPrice: 90,
+    durationMinutes: 10,
+  };
+  assert.deepEqual(parseStoredAuctionConfig(JSON.stringify(complete)), complete);
+  assert.equal(
+    parseStoredAuctionConfig(JSON.stringify({ ...complete, productName: null })),
+    null,
+  );
+  assert.equal(
+    parseStoredAuctionConfig(JSON.stringify({ ...timing, schemaVersion: 2 })),
+    null,
+  );
+  assert.equal(
+    parseStoredAuctionConfig(
+      JSON.stringify({ ...timing, productName: "Incomplete definition" }),
+    ),
+    null,
+  );
+  assert.equal(
+    parseStoredAuctionConfig(JSON.stringify({ ...complete, schemaVersion: 1 })),
+    null,
+  );
+
+  const previousFetch = globalThis.fetch;
+  const previousSettings = {
+    KV_REST_API_URL: process.env.KV_REST_API_URL,
+    KV_REST_API_TOKEN: process.env.KV_REST_API_TOKEN,
+    VERCEL_ENV: process.env.VERCEL_ENV,
+  };
+  process.env.KV_REST_API_URL = "https://redis.config-unit.invalid";
+  process.env.KV_REST_API_TOKEN = "unit-token";
+  process.env.VERCEL_ENV = "development";
+  globalThis.fetch = async () =>
+    Response.json({
+      result: JSON.stringify({ ...complete, productName: null }),
+    });
+
+  try {
+    await assert.rejects(
+      readOptionalAuctionConfig("demo-airpods-pro-1"),
+      /Stored auction config is invalid/,
+    );
+  } finally {
+    globalThis.fetch = previousFetch;
+    for (const [name, value] of Object.entries(previousSettings)) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  }
+});
+
+test("winner cancellation uses the exact claim without a Stripe session", async () => {
+  const previousFetch = globalThis.fetch;
+  const previousSettings = {
+    KV_REST_API_URL: process.env.KV_REST_API_URL,
+    KV_REST_API_TOKEN: process.env.KV_REST_API_TOKEN,
+    STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
+    VERCEL_ENV: process.env.VERCEL_ENV,
+  };
+  const auctionId = "cancel-unit-auction";
+  const runId = "cancel-unit-run";
+  const bidderId = "cancel-unit-bidder";
+  const claimedAt = "2026-08-10T01:02:03.000Z";
+  let releaseCommand = null;
+
+  process.env.KV_REST_API_URL = "https://redis.cancel-unit.invalid";
+  process.env.KV_REST_API_TOKEN = "unit-token";
+  delete process.env.STRIPE_SECRET_KEY;
+  process.env.VERCEL_ENV = "development";
+  globalThis.fetch = async (url, init = {}) => {
+    assert.equal(String(url), "https://redis.cancel-unit.invalid");
+    const command = JSON.parse(init.body);
+    if (command[0] === "GET" && command[1].endsWith(":config")) {
+      return Response.json({ result: null });
+    }
+    if (command[0] === "GET" && command[1].endsWith(":winner")) {
+      return Response.json({
+        result: JSON.stringify({
+          bidderId,
+          price: 97,
+          claimedAt,
+          paymentStatus: "pending",
+        }),
+      });
+    }
+    if (command[0] === "EVAL") {
+      releaseCommand = command;
+      return Response.json({ result: 1 });
+    }
+    throw new Error(`Unexpected Redis command in cancellation test: ${command[0]}`);
+  };
+
+  try {
+    const response = await handleCancelPost(
+      new NextRequest(`${BASE_URL}/api/auctions/${auctionId}/runs/${runId}/purchase/cancel`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bidderId }),
+      }),
+      auctionId,
+      runId,
+    );
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).outcome, "cancelled");
+    assert.ok(releaseCommand);
+    assert.equal(releaseCommand[5], "", "Cancellation unexpectedly required a session id.");
+    assert.equal(releaseCommand[6], claimedAt);
+  } finally {
+    globalThis.fetch = previousFetch;
+    for (const [name, value] of Object.entries(previousSettings)) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  }
+});
+
+test("stale pending winner does not block a new run when expiry webhook is lost", async () => {
+  const previousFetch = globalThis.fetch;
+  const originalNow = Date.now;
+  const previousSettings = {
+    FISZY_ADMIN_SECRET: process.env.FISZY_ADMIN_SECRET,
+    KV_REST_API_URL: process.env.KV_REST_API_URL,
+    KV_REST_API_TOKEN: process.env.KV_REST_API_TOKEN,
+    STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
+    VERCEL_ENV: process.env.VERCEL_ENV,
+  };
+  const now = Date.parse("2026-08-10T03:00:00.000Z");
+  const secret = "unit-admin-secret-with-at-least-32-characters";
+  const auctionId = "stale-winner-unit-auction";
+  const runId = "stale-winner-unit-run";
+  const definition = {
+    productName: "Stale winner product",
+    productImageUrl: null,
+    regularPrice: 120,
+    startPrice: 100,
+    floorPrice: 90,
+    durationMinutes: 1,
+  };
+  const config = {
+    schemaVersion: 2,
+    runId,
+    startsAt: new Date(now - 60 * 60 * 1000).toISOString(),
+    ...definition,
+  };
+  const record = {
+    schemaVersion: 1,
+    auctionId,
+    state: "published",
+    currentRunId: runId,
+    revision: 1,
+    createdAt: new Date(now - 2 * 60 * 60 * 1000).toISOString(),
+    updatedAt: config.startsAt,
+    ...definition,
+  };
+  const claimedAt = new Date(now - 40 * 60 * 1000).toISOString();
+  const paymentSessionId = "cs_test_stale_winner_unit";
+  let winner = {
+    bidderId: "stale-winner-bidder",
+    price: 97,
+    claimedAt,
+    paymentStatus: "pending",
+    paymentSessionId,
+    paymentExpiresAt: new Date(now - 9 * 60 * 1000).toISOString(),
+  };
+  let releases = 0;
+  let schedules = 0;
+
+  Date.now = () => now;
+  process.env.FISZY_ADMIN_SECRET = secret;
+  process.env.KV_REST_API_URL = "https://redis.stale-winner-unit.invalid";
+  process.env.KV_REST_API_TOKEN = "unit-token";
+  process.env.STRIPE_SECRET_KEY = "sk_test_stale_winner_unit";
+  process.env.VERCEL_ENV = "development";
+  globalThis.fetch = async (url, init = {}) => {
+    const target = String(url);
+    if (
+      target ===
+      `https://api.stripe.com/v1/checkout/sessions/${paymentSessionId}`
+    ) {
+      return Response.json({
+        id: paymentSessionId,
+        status: "expired",
+        payment_status: "unpaid",
+      });
+    }
+    assert.equal(target, "https://redis.stale-winner-unit.invalid");
+    const command = JSON.parse(init.body);
+    if (command[0] === "GET") {
+      if (command[1].endsWith(":record")) {
+        return Response.json({ result: JSON.stringify(record) });
+      }
+      if (command[1].endsWith(":config")) {
+        return Response.json({ result: JSON.stringify(config) });
+      }
+      if (command[1].endsWith(":winner")) {
+        return Response.json({ result: winner ? JSON.stringify(winner) : null });
+      }
+      if (command[1].endsWith(":order")) {
+        return Response.json({ result: null });
+      }
+    }
+    if (command[0] === "EVAL") {
+      if (command[1].includes('if data.paymentStatus == "paid" then return 0 end')) {
+        releases += 1;
+        assert.equal(command[5], paymentSessionId);
+        assert.equal(command[6], claimedAt);
+        winner = null;
+        return Response.json({ result: 1 });
+      }
+      if (command[1].includes('if redis.call("EXISTS", KEYS[3]) == 1 then return -1 end')) {
+        schedules += 1;
+        return Response.json({ result: 1 });
+      }
+      if (command[1].includes('if redis.call("EXISTS", KEYS[2]) == 1 then return -1 end')) {
+        schedules += 1;
+        return Response.json({ result: 1 });
+      }
+    }
+    throw new Error(`Unexpected Redis command in stale-winner test: ${command[0]}`);
+  };
+
+  try {
+    const response = await postAdminAuctionRun(
+      new NextRequest(`${BASE_URL}/api/admin/auctions/${auctionId}/runs`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${secret}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          expectedRevision: 1,
+          startsAt: new Date(now + 2 * 60 * 1000).toISOString(),
+        }),
+      }),
+      { params: Promise.resolve({ auctionId }) },
+    );
+    assert.equal(response.status, 201, JSON.stringify(await response.clone().json()));
+    assert.equal((await response.json()).outcome, "scheduled");
+    assert.equal(releases, 1);
+    assert.equal(schedules, 1);
+
+    winner = {
+      bidderId: "stale-winner-bidder",
+      price: 97,
+      claimedAt,
+      paymentStatus: "pending",
+      paymentSessionId,
+      paymentExpiresAt: new Date(now - 9 * 60 * 1000).toISOString(),
+    };
+    const legacyResponse = await postLegacyAdminAuctionStart(
+      new NextRequest(`${BASE_URL}/api/admin/auction/start`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${secret}` },
+      }),
+    );
+    assert.equal(legacyResponse.status, 200);
+    assert.equal((await legacyResponse.json()).outcome, "scheduled");
+    assert.equal(releases, 2);
+    assert.equal(schedules, 2);
+  } finally {
+    globalThis.fetch = previousFetch;
+    Date.now = originalNow;
+    for (const [name, value] of Object.entries(previousSettings)) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  }
+});
+
 test("admin login rate limit blocks the eleventh attempt and resets on success", async () => {
   const previousFetch = globalThis.fetch;
   const previousSettings = {
@@ -378,7 +671,7 @@ test("late-entry refund call is idempotent and never needs a real Stripe request
   }
 });
 
-test("webhook orchestration handles late refunds, duplicate purchases and reordered expiry", async () => {
+test("webhook orchestration handles refunds, duplicates, order-id upgrades and reordered expiry", async () => {
   const previousFetch = globalThis.fetch;
   const previousSettings = {
     KV_REST_API_URL: process.env.KV_REST_API_URL,
@@ -407,6 +700,7 @@ test("webhook orchestration handles late refunds, duplicate purchases and reorde
   let grantResult = -1;
   let refundRecordWrites = 0;
   let orderSaveResults = [];
+  const savedOrders = [];
 
   process.env.KV_REST_API_URL = "https://redis.webhook-unit.invalid";
   process.env.KV_REST_API_TOKEN = "unit-token";
@@ -437,6 +731,21 @@ test("webhook orchestration handles late refunds, duplicate purchases and reorde
           return Response.json({ result: grantResult });
         }
         if (script.includes('local winnerRaw = redis.call("GET", KEYS[5])')) {
+          assert.match(
+            script,
+            /if sameOrderId then\s+redis\.call\("SET", KEYS\[4\], ARGV\[3\], "NX"\)\s+end/,
+          );
+          assert.match(script, /if not sameOrderId then return 2 end/);
+          const replayReturn = script.indexOf("if not sameOrderId then return 2 end");
+          for (const update of [
+            'winner.paymentStatus = "paid"',
+            'redis.call("SET", KEYS[2]',
+            'redis.call("ZADD", KEYS[3]',
+          ]) {
+            const updateIndex = script.indexOf(update);
+            assert.ok(updateIndex >= 0 && updateIndex < replayReturn);
+          }
+          savedOrders.push(JSON.parse(command[8]));
           return Response.json({ result: orderSaveResults.shift() ?? -2 });
         }
         if (script.includes('if data.paymentStatus == "paid" then return 0 end')) {
@@ -531,6 +840,61 @@ test("webhook orchestration handles late refunds, duplicate purchases and reorde
       assert.equal(response.status, 200);
       assert.equal((await response.json()).kind, "auction_purchase");
     }
+    assert.deepEqual(orderSaveResults, []);
+    assert.equal(savedOrders.length, 2);
+    assert.match(savedOrders[0].orderId, /^FISZY-[A-F0-9]{64}$/);
+    assert.equal(savedOrders[1].orderId, savedOrders[0].orderId);
+
+    winner = {
+      bidderId: "route-upgrade-replay-bidder",
+      price: 96,
+      claimedAt: "2026-08-10T01:00:01.250Z",
+      paymentStatus: "pending",
+      paymentSessionId: "cs_test_route_upgrade_replay",
+    };
+    orderSaveResults = [2];
+    const upgradeReplay = await invoke({
+      id: "evt_route_upgrade_replay",
+      type: "checkout.session.completed",
+      data: {
+        object: checkoutSession({
+          id: winner.paymentSessionId,
+          kind: "auction_purchase",
+          auctionId,
+          runId,
+          bidderId: winner.bidderId,
+          amount: 9_600,
+        }),
+      },
+    });
+    assert.equal(upgradeReplay.status, 200);
+    assert.equal((await upgradeReplay.json()).kind, "auction_purchase");
+    assert.deepEqual(orderSaveResults, []);
+
+    winner = {
+      bidderId: "route-conflicting-order-bidder",
+      price: 95,
+      claimedAt: "2026-08-10T01:00:01.500Z",
+      paymentStatus: "pending",
+      paymentSessionId: "cs_test_route_conflicting_order",
+    };
+    orderSaveResults = [-3];
+    const conflictResponse = await invoke({
+      id: "evt_route_conflicting_order",
+      type: "checkout.session.completed",
+      data: {
+        object: checkoutSession({
+          id: winner.paymentSessionId,
+          kind: "auction_purchase",
+          auctionId,
+          runId,
+          bidderId: winner.bidderId,
+          amount: 9_500,
+        }),
+      },
+    });
+    assert.equal(conflictResponse.status, 503);
+    assert.equal((await conflictResponse.json()).outcome, "storage_error");
     assert.deepEqual(orderSaveResults, []);
 
     winner = {

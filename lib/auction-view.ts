@@ -72,8 +72,12 @@ async function readAuctionBases(auctionIdValues: string[]) {
     let record = parseStoredAuctionRecord(recordRaw);
 
     if (auctionId === LEGACY_AUCTION_ID) {
-      config ??= defaultAuctionConfig();
-      record ??= legacyAuctionRecord(config);
+      if (configRaw === null || configRaw === undefined) {
+        config = defaultAuctionConfig();
+      }
+      if ((recordRaw === null || recordRaw === undefined) && config) {
+        record = legacyAuctionRecord(config);
+      }
     }
 
     return { auctionId, record, config };

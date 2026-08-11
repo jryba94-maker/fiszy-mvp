@@ -139,15 +139,23 @@ function normalizeAuctionConfig(value: unknown): AuctionConfig | null {
     return null;
   }
 
-  const defaults = defaultAuctionDefinition();
-  const definition = parseAuctionDefinition({
-    productName: candidate.productName ?? defaults.productName,
-    productImageUrl: candidate.productImageUrl ?? defaults.productImageUrl,
-    regularPrice: candidate.regularPrice ?? defaults.regularPrice,
-    startPrice: candidate.startPrice ?? defaults.startPrice,
-    floorPrice: candidate.floorPrice ?? defaults.floorPrice,
-    durationMinutes: candidate.durationMinutes ?? defaults.durationMinutes,
-  });
+  const definitionKeys = [
+    "productName",
+    "productImageUrl",
+    "regularPrice",
+    "startPrice",
+    "floorPrice",
+    "durationMinutes",
+  ] as const;
+  const isTimingOnlyLegacyConfig =
+    candidate.schemaVersion === undefined &&
+    definitionKeys.every(
+      (key) => !Object.prototype.hasOwnProperty.call(candidate, key),
+    );
+  if (!isTimingOnlyLegacyConfig && candidate.schemaVersion !== 2) return null;
+  const definition = isTimingOnlyLegacyConfig
+    ? defaultAuctionDefinition()
+    : parseAuctionDefinition(candidate);
   if (!definition) return null;
 
   return {
@@ -221,13 +229,19 @@ export function parseStoredAuctionRecord(raw: unknown): AuctionRecord | null {
 
 async function readStoredAuctionConfig(auctionId: string) {
   const raw = await redisCommand<string>(["GET", auctionConfigKey(auctionId)]);
-  return parseStoredAuctionConfig(raw);
+  return {
+    found: raw !== null,
+    config: parseStoredAuctionConfig(raw),
+  };
 }
 
 export async function readOptionalAuctionConfig(auctionId: string) {
   const normalizedAuctionId = checkedAuctionId(auctionId);
   const stored = await readStoredAuctionConfig(normalizedAuctionId);
-  if (stored) return stored;
+  if (stored.found) {
+    if (!stored.config) throw new Error("Stored auction config is invalid.");
+    return stored.config;
+  }
   return normalizedAuctionId === LEGACY_AUCTION_ID
     ? defaultAuctionConfig()
     : null;
@@ -571,13 +585,9 @@ export async function readAuctionRunConfig(
     auctionRunConfigKey(normalizedRunId, normalizedAuctionId),
   ]);
 
-  if (raw) {
-    try {
-      const config = normalizeAuctionConfig(JSON.parse(raw) as unknown);
-      if (config?.runId === normalizedRunId) return config;
-    } catch {
-      // Fall through to the active or known legacy configuration.
-    }
+  if (raw !== null) {
+    const config = parseStoredAuctionConfig(raw);
+    return config?.runId === normalizedRunId ? config : null;
   }
 
   const activeConfig = await readOptionalAuctionConfig(normalizedAuctionId);

@@ -552,12 +552,6 @@ export async function handleCancelPost(
   if (!auctionId || (requestedRunId && !explicitRunId) || !bidderId) {
     return NextResponse.json({ outcome: "invalid_request" }, { status: 400 });
   }
-  if (!process.env.STRIPE_SECRET_KEY) {
-    return NextResponse.json(
-      { outcome: "stripe_not_configured" },
-      { status: 503 },
-    );
-  }
 
   try {
     const config = await readOptionalAuctionConfig(auctionId);
@@ -585,6 +579,13 @@ export async function handleCancelPost(
       return NextResponse.json({
         outcome: released === 1 ? "cancelled" : "nothing_to_cancel",
       });
+    }
+
+    if (!process.env.STRIPE_SECRET_KEY) {
+      return NextResponse.json(
+        { outcome: "stripe_not_configured" },
+        { status: 503 },
+      );
     }
 
     try {

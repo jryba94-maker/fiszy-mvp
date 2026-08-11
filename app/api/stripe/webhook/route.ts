@@ -182,9 +182,10 @@ async function handlePaidPurchase(session: StripeCheckoutSession) {
 
   const order: AuctionOrder = {
     orderId: `FISZY-${createHash("sha256")
-      .update(`${metadata.auctionId}\u0000${metadata.runId}`)
+      .update(
+        `${metadata.auctionId}\u0000${metadata.runId}\u0000${session.id}`,
+      )
       .digest("hex")
-      .slice(0, 24)
       .toUpperCase()}`,
     auctionId: metadata.auctionId,
     runId: metadata.runId,
@@ -208,16 +209,25 @@ async function handlePaidPurchase(session: StripeCheckoutSession) {
   };
 
   const saved = await savePaidAuctionOrder(order);
-  if (saved === 1 || saved === 0) {
+  if (saved === 1 || saved === 0 || saved === 2) {
     logEvent("auction_purchase_paid", {
       auctionId: metadata.auctionId,
       runId: metadata.runId,
       amount: winner.price,
-      duplicate: saved === 0,
+      duplicate: saved !== 1,
+      upgradedOrderIdReplay: saved === 2,
     });
     return true;
   }
   if (saved === -2) return false;
+  if (saved === -3) {
+    logEvent("auction_order_id_conflict", {
+      auctionId: metadata.auctionId,
+      runId: metadata.runId,
+      orderId: order.orderId,
+    }, "error");
+    throw new Error("Auction order id conflicts with another run.");
+  }
   throw new Error("Unable to save paid auction order atomically.");
 }
 

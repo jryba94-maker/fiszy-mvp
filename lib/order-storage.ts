@@ -82,6 +82,9 @@ export async function saveAuctionOrder(order: AuctionOrder) {
   if (!Number.isFinite(paidAtMs)) throw new Error("Invalid order paidAt.");
 
   const script = `
+local existingReference = redis.call("GET", KEYS[4])
+if existingReference and existingReference ~= ARGV[3] then return -2 end
+
 local created = redis.call("SET", KEYS[1], ARGV[1], "NX")
 local canonicalRaw = redis.call("GET", KEYS[1])
 if not canonicalRaw then return -1 end
@@ -136,6 +139,9 @@ export async function savePaidAuctionOrder(order: AuctionOrder) {
   if (!Number.isFinite(paidAtMs)) throw new Error("Invalid order paidAt.");
 
   const script = `
+local incomingOk, incoming = pcall(cjson.decode, ARGV[1])
+if not incomingOk or type(incoming) ~= "table" or type(incoming.orderId) ~= "string" or incoming.orderId == "" then return -1 end
+
 local winnerRaw = redis.call("GET", KEYS[5])
 if not winnerRaw then return -2 end
 local winnerOk, winner = pcall(cjson.decode, winnerRaw)
@@ -143,12 +149,24 @@ if not winnerOk or type(winner) ~= "table" then return -2 end
 if winner.bidderId ~= ARGV[4] or winner.paymentSessionId ~= ARGV[5] then return -2 end
 if winner.paymentStatus ~= "pending" and winner.paymentStatus ~= "paid" then return -2 end
 
-local created = redis.call("SET", KEYS[1], ARGV[1], "NX")
 local canonicalRaw = redis.call("GET", KEYS[1])
-if not canonicalRaw then return -1 end
+local created = false
+if not canonicalRaw then
+  local existingReference = redis.call("GET", KEYS[4])
+  if existingReference and existingReference ~= ARGV[3] then return -3 end
+  redis.call("SET", KEYS[1], ARGV[1])
+  canonicalRaw = ARGV[1]
+  created = true
+end
+
 local orderOk, canonical = pcall(cjson.decode, canonicalRaw)
 if not orderOk or type(canonical) ~= "table" then return -1 end
 if canonical.bidderId ~= ARGV[4] or canonical.paymentSessionId ~= ARGV[5] then return -1 end
+local sameOrderId = canonical.orderId == incoming.orderId
+if sameOrderId and not created then
+  local existingReference = redis.call("GET", KEYS[4])
+  if existingReference and existingReference ~= ARGV[3] then return -3 end
+end
 
 if winner.paymentStatus == "pending" then
   winner.paymentStatus = "paid"
@@ -171,8 +189,11 @@ if shouldUpdate then
 end
 
 redis.call("ZADD", KEYS[3], ARGV[2], ARGV[3])
-redis.call("SET", KEYS[4], ARGV[3], "NX")
+if sameOrderId then
+  redis.call("SET", KEYS[4], ARGV[3], "NX")
+end
 if created then return 1 end
+if not sameOrderId then return 2 end
 return 0
 `;
 
