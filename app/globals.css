@@ -288,6 +288,35 @@ h1 {
   opacity: .4;
 }
 
+.orderList {
+  display: grid;
+  gap: 16px;
+}
+
+.orderCard {
+  border: 1px solid #e5e5e0;
+  border-radius: 18px;
+  padding: 16px;
+  background: #fafaf8;
+}
+
+.orderCardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.orderCardHeader strong {
+  font-size: .95rem;
+}
+
+.orderCardHeader span {
+  color: #777;
+  font-size: .8rem;
+}
+
 .orderDetails {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -375,7 +404,8 @@ h1 {
     grid-column: auto;
   }
 
-  .orderHeader {
+  .orderHeader,
+  .orderCardHeader {
     align-items: stretch;
     flex-direction: column;
   }
