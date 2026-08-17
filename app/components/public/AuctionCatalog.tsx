@@ -1,5 +1,6 @@
 "use client";
 
+import { useUser } from "@clerk/nextjs";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AuctionCard } from "./AuctionCard";
@@ -73,9 +74,15 @@ function redirectStripeReturn() {
 }
 
 export function AuctionCatalog() {
+  const { isLoaded: authLoaded, isSignedIn } = useUser();
   const [catalog, setCatalog] = useState<CatalogState | null>(null);
   const [error, setError] = useState("");
   const [loadingMore, setLoadingMore] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [watchedIds, setWatchedIds] = useState<Set<string>>(() => new Set());
+  const [watchBusyId, setWatchBusyId] = useState<string | null>(null);
   const firstPageRequestRef = useRef(0);
   const loadingMoreRef = useRef(false);
 
@@ -147,6 +154,17 @@ export function AuctionCatalog() {
     };
   }, [loadInitial]);
 
+  useEffect(() => {
+    if (!authLoaded) return;
+    if (!isSignedIn) { setWatchedIds(new Set()); return; }
+    const controller = new AbortController();
+    fetch("/api/account/watchlist", { cache: "no-store", signal: controller.signal })
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error("watchlist")))
+      .then((data: { auctionIds?: string[] }) => setWatchedIds(new Set(data.auctionIds ?? [])))
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [authLoaded, isSignedIn]);
+
   const loadMore = async () => {
     const cursor = catalog?.nextCursor;
     if (!cursor || loadingMoreRef.current) return;
@@ -174,6 +192,49 @@ export function AuctionCatalog() {
       setLoadingMore(false);
     }
   };
+
+  const toggleWatch = async (auctionId: string, watched: boolean) => {
+    if (watchBusyId) return;
+    const previous = watchedIds;
+    setWatchBusyId(auctionId);
+    setWatchedIds((current) => {
+      const next = new Set(current);
+      if (watched) next.add(auctionId); else next.delete(auctionId);
+      return next;
+    });
+    try {
+      const response = await fetch("/api/account/watchlist", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ auctionId, watched }),
+      });
+      if (!response.ok) throw new Error("watchlist");
+    } catch {
+      setWatchedIds(previous);
+      setError("Nie udało się zmienić obserwowanych aukcji.");
+    } finally {
+      setWatchBusyId(null);
+    }
+  };
+
+  const categoryOf = (auction: PublicAuction) => {
+    const name = auction.product.toLocaleLowerCase("pl-PL");
+    if (/airpods|iphone|telefon|laptop|słuch|konsol|smart|tablet|elektr/.test(name)) return "electronics";
+    if (/dom|kuch|odkurz|ekspres|mebl|lampa/.test(name)) return "home";
+    if (/rower|buty|sport|fitness|zegarek/.test(name)) return "sport";
+    if (/kosmet|perfum|urod|włos/.test(name)) return "beauty";
+    return "other";
+  };
+  const filteredAuctions = (catalog?.auctions ?? []).filter((auction) => {
+    const query = searchQuery.trim().toLocaleLowerCase("pl-PL");
+    const matchesSearch = !query || auction.product.toLocaleLowerCase("pl-PL").includes(query);
+    const matchesStatus = statusFilter === "all" ||
+      (statusFilter === "available" && (auction.status === "waiting" || auction.status === "live")) ||
+      (statusFilter === "live" && auction.status === "live") ||
+      (statusFilter === "finished" && ["ended", "sold", "payment_pending"].includes(auction.status));
+    const matchesCategory = categoryFilter === "all" || categoryOf(auction) === categoryFilter;
+    return matchesSearch && matchesStatus && matchesCategory;
+  });
 
   return (
     <main className={styles.page}>
@@ -210,6 +271,34 @@ export function AuctionCatalog() {
           <p>Każda aukcja ma własny czas, cenę i jedno zwycięskie kliknięcie.</p>
         </div>
 
+        <div className={styles.catalogTools} role="search" aria-label="Wyszukiwanie i filtrowanie aukcji">
+          <label className={styles.searchField}>
+            <span className={styles.srOnly}>Szukaj produktu</span>
+            <input type="search" value={searchQuery} placeholder="Szukaj produktu…" onChange={(event) => setSearchQuery(event.target.value)} />
+          </label>
+          <label>
+            <span className={styles.srOnly}>Status aukcji</span>
+            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+              <option value="all">Wszystkie statusy</option>
+              <option value="available">Dostępne</option>
+              <option value="live">Trwają teraz</option>
+              <option value="finished">Zakończone</option>
+            </select>
+          </label>
+          <label>
+            <span className={styles.srOnly}>Kategoria produktu</span>
+            <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
+              <option value="all">Wszystkie kategorie</option>
+              <option value="electronics">Elektronika</option>
+              <option value="home">Dom</option>
+              <option value="sport">Sport</option>
+              <option value="beauty">Uroda</option>
+              <option value="other">Pozostałe</option>
+            </select>
+          </label>
+          <span className={styles.resultsCount} aria-live="polite">{filteredAuctions.length} wyników</span>
+        </div>
+
         {catalog?.fallback ? (
           <p className={styles.notice} role="status">
             Katalog jest jeszcze podłączany. Pokazujemy dostępną aukcję testową — jej mechanika działa normalnie.
@@ -225,10 +314,16 @@ export function AuctionCatalog() {
           </div>
         ) : (
           <div className={styles.auctionGrid}>
-            {catalog.auctions.map((auction) => (
-              <AuctionCard key={`${auction.auctionId}:${auction.runId}`} auction={auction} />
+            {filteredAuctions.map((auction) => (
+              <AuctionCard
+                key={`${auction.auctionId}:${auction.runId}`}
+                auction={auction}
+                watched={watchedIds.has(auction.auctionId)}
+                watchBusy={watchBusyId === auction.auctionId}
+                onWatchToggle={toggleWatch}
+              />
             ))}
-            {!catalog.auctions.length && !error ? (
+            {!filteredAuctions.length && !error ? (
               <p className={styles.emptyBox}>Nie ma teraz aktywnych aukcji. Wróć za chwilę.</p>
             ) : null}
             {error ? (
@@ -280,7 +375,13 @@ export function AuctionCatalog() {
 
       <footer className={styles.footer}>
         <span>Fiszy — aukcje, w których cena spada.</span>
-        <span>Wersja MVP · płatności obsługuje Stripe</span>
+        <nav className={styles.footerLinks} aria-label="Dokumenty">
+          <Link href="/regulamin">Regulamin</Link>
+          <Link href="/prywatnosc">Prywatność</Link>
+          <Link href="/cookies">Cookies</Link>
+          <Link href="/reklamacje">Reklamacje</Link>
+          <Link href="/faq">FAQ</Link>
+        </nav>
       </footer>
     </main>
   );

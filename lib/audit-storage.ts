@@ -10,7 +10,9 @@ export type AuditAction =
   | "order.fulfillment.updated"
   | "auction.created"
   | "auction.updated"
-  | "auction.run.scheduled";
+  | "auction.run.scheduled"
+  | "account.access.updated"
+  | "support.ticket.updated";
 
 export type AuditEvent = {
   schemaVersion: 1;
@@ -34,6 +36,8 @@ const FULFILLMENT_STATUSES = new Set([
   "shipped",
   "delivered",
 ]);
+const ACCOUNT_STATUSES = new Set(["active", "blocked"]);
+const TICKET_STATUSES = new Set(["open", "in_progress", "resolved"]);
 
 export const AUDIT_RETENTION_SECONDS = 180 * 24 * 60 * 60;
 const AUDIT_CURSOR_PURPOSE = "audit.events.v1";
@@ -43,6 +47,8 @@ const ACTION_RESOURCE_TYPES: Record<AuditAction, string> = {
   "auction.created": "auction",
   "auction.updated": "auction",
   "auction.run.scheduled": "auction",
+  "account.access.updated": "account",
+  "support.ticket.updated": "support_ticket",
 };
 
 function auditCutoffScore() {
@@ -159,6 +165,22 @@ function normalizeAuditDetails(
     ) {
       return null;
     }
+  } else if (action === "account.access.updated") {
+    if (
+      !hasExactKeys(details, ["noteChanged", "previousStatus", "revision", "status"]) ||
+      !ACCOUNT_STATUSES.has(String(details.previousStatus)) ||
+      !ACCOUNT_STATUSES.has(String(details.status)) ||
+      typeof details.noteChanged !== "boolean" ||
+      !isRevision(details.revision)
+    ) return null;
+  } else if (action === "support.ticket.updated") {
+    if (
+      !hasExactKeys(details, ["previousStatus", "responseChanged", "revision", "status"]) ||
+      !TICKET_STATUSES.has(String(details.previousStatus)) ||
+      !TICKET_STATUSES.has(String(details.status)) ||
+      typeof details.responseChanged !== "boolean" ||
+      !isRevision(details.revision)
+    ) return null;
   } else if (
     !hasExactKeys(details, ["revision", "runId", "startsAt"]) ||
     typeof details.runId !== "string" ||

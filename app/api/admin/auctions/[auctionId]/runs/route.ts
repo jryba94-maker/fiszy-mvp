@@ -19,6 +19,7 @@ import {
 } from "../../../../../../lib/auction-storage";
 import type { AuctionOrder } from "../../../../../../lib/order-storage";
 import {
+  hasAdminPermission,
   hasValidAdminRequest,
   isAdminConfigured,
   isSameOriginAdminMutation,
@@ -114,7 +115,6 @@ export async function GET(request: NextRequest, context: AuctionContext) {
   if (!hasValidAdminRequest(request)) {
     return NextResponse.json({ outcome: "unauthorized" }, { status: 401 });
   }
-
   const { auctionId: rawAuctionId } = await context.params;
   const auctionId = normalizeAuctionId(rawAuctionId);
   const cursor = request.nextUrl.searchParams.get("cursor");
@@ -191,6 +191,9 @@ export async function POST(
   }
   if (!hasValidAdminRequest(request)) {
     return NextResponse.json({ outcome: "unauthorized" }, { status: 401 });
+  }
+  if (!hasAdminPermission(request, "auctions:write")) {
+    return NextResponse.json({ outcome: "forbidden" }, { status: 403 });
   }
   if (!isSameOriginAdminMutation(request)) {
     return NextResponse.json({ outcome: "invalid_origin" }, { status: 403 });

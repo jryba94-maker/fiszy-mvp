@@ -152,6 +152,8 @@ export type AdminHealth = {
 export type AdminSession = {
   configured: boolean;
   authenticated: boolean;
+  role: "owner" | "operator" | "support" | "viewer";
+  permissions: string[];
 };
 
 export type MutationResult = {

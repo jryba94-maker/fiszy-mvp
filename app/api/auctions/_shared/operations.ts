@@ -27,15 +27,29 @@ import {
   expirePaymentSession,
   isPaymentProviderConfigured,
 } from "../../../../lib/payment-provider";
+import { ensureAccountProfile, isAccountBlocked } from "../../../../lib/portal-storage";
 
 const ENTRY_FEE_GROSZE = ENTRY_FEE * 100;
 const PURCHASE_CHECKOUT_WINDOW_SECONDS = 31 * 60;
 
 type BidderRequest = { expectedPrice?: unknown };
 
-async function authenticatedBidderId() {
+async function authenticatedBidder() {
   const { userId } = await auth();
-  return userId ? `clerk:${userId}` : null;
+  if (!userId) return null;
+  let blocked: boolean | null = null;
+  try {
+    [, blocked] = await Promise.all([
+      ensureAccountProfile(userId),
+      isAccountBlocked(userId),
+    ]);
+  } catch {
+    // Account policy must fail closed when its storage cannot be verified.
+  }
+  return {
+    bidderId: `clerk:${userId}`,
+    blocked,
+  };
 }
 
 async function activeRun(
@@ -90,10 +104,13 @@ export async function handleEntryGet(
   auctionIdValue: string,
   expectedRunId?: string | null,
 ) {
-  const bidderId = await authenticatedBidderId();
-  if (!bidderId) {
+  const bidder = await authenticatedBidder();
+  if (!bidder) {
     return NextResponse.json({ outcome: "sign_in_required" }, { status: 401 });
   }
+  if (bidder.blocked === null) return NextResponse.json({ outcome: "storage_error" }, { status: 503 });
+  if (bidder.blocked) return NextResponse.json({ outcome: "account_blocked" }, { status: 403 });
+  const { bidderId } = bidder;
 
   try {
     const active = await activeRun(auctionIdValue, expectedRunId);
@@ -135,10 +152,13 @@ export async function handleEntryPost(
   if (!bidderRequest) {
     return NextResponse.json({ outcome: "invalid_request" }, { status: 400 });
   }
-  const bidderId = await authenticatedBidderId();
-  if (!bidderId) {
+  const bidder = await authenticatedBidder();
+  if (!bidder) {
     return NextResponse.json({ outcome: "sign_in_required" }, { status: 401 });
   }
+  if (bidder.blocked === null) return NextResponse.json({ outcome: "storage_error" }, { status: 503 });
+  if (bidder.blocked) return NextResponse.json({ outcome: "account_blocked" }, { status: 403 });
+  const { bidderId } = bidder;
   if (!isPaymentProviderConfigured()) {
     return NextResponse.json(
       { outcome: "stripe_not_configured" },
@@ -235,10 +255,13 @@ export async function handleBuyPost(
   if (!bidderRequest) {
     return NextResponse.json({ outcome: "invalid_request" }, { status: 400 });
   }
-  const bidderId = await authenticatedBidderId();
-  if (!bidderId) {
+  const bidder = await authenticatedBidder();
+  if (!bidder) {
     return NextResponse.json({ outcome: "sign_in_required" }, { status: 401 });
   }
+  if (bidder.blocked === null) return NextResponse.json({ outcome: "storage_error" }, { status: 503 });
+  if (bidder.blocked) return NextResponse.json({ outcome: "account_blocked" }, { status: 403 });
+  const { bidderId } = bidder;
   const { expectedPrice } = bidderRequest;
   if (!isPaymentProviderConfigured()) {
     return NextResponse.json(
@@ -554,8 +577,14 @@ export async function handleCancelPost(
   const auctionId = normalizeAuctionId(auctionIdValue);
   const explicitRunId = requestedRunId ? normalizeRunId(requestedRunId) : null;
   const bidderRequest = await parseBidderBody(request);
-  const bidderId = await authenticatedBidderId();
-  if (!auctionId || (requestedRunId && !explicitRunId) || !bidderId) {
+  const bidder = await authenticatedBidder();
+  if (!bidder) {
+    return NextResponse.json({ outcome: "sign_in_required" }, { status: 401 });
+  }
+  if (bidder.blocked === null) return NextResponse.json({ outcome: "storage_error" }, { status: 503 });
+  if (bidder.blocked) return NextResponse.json({ outcome: "account_blocked" }, { status: 403 });
+  const { bidderId } = bidder;
+  if (!auctionId || (requestedRunId && !explicitRunId)) {
     return NextResponse.json({ outcome: "invalid_request" }, { status: 400 });
   }
 

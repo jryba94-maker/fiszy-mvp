@@ -4,8 +4,8 @@ import { fileURLToPath } from "node:url";
 import ts from "typescript";
 
 export async function resolve(specifier, context, nextResolve) {
-  if (specifier === "next/server") {
-    return nextResolve("next/server.js", context);
+  if (specifier.startsWith("next/") && !extname(specifier)) {
+    return nextResolve(`${specifier}.js`, context);
   }
 
   try {
@@ -13,18 +13,35 @@ export async function resolve(specifier, context, nextResolve) {
   } catch (error) {
     const isRelative = specifier.startsWith("./") || specifier.startsWith("../");
     if (
-      error?.code !== "ERR_MODULE_NOT_FOUND" ||
+      (error?.code !== "ERR_MODULE_NOT_FOUND" && error?.code !== "ERR_UNSUPPORTED_DIR_IMPORT") ||
       !isRelative ||
       extname(specifier)
     ) {
       throw error;
     }
 
-    return nextResolve(`${specifier}.ts`, context);
+    if (error?.code === "ERR_UNSUPPORTED_DIR_IMPORT") {
+      return nextResolve(`${specifier}/index.js`, context);
+    }
+
+    try {
+      return await nextResolve(`${specifier}.js`, context);
+    } catch (javascriptError) {
+      if (javascriptError?.code !== "ERR_MODULE_NOT_FOUND") throw javascriptError;
+      return nextResolve(`${specifier}.ts`, context);
+    }
   }
 }
 
 export async function load(url, context, nextLoad) {
+  if (url.startsWith("file:") && extname(fileURLToPath(url)) === ".json") {
+    const source = await readFile(fileURLToPath(url), "utf8");
+    return {
+      format: "module",
+      source: `export default ${source.trim()};`,
+      shortCircuit: true,
+    };
+  }
   if (!url.startsWith("file:") || extname(fileURLToPath(url)) !== ".ts") {
     return nextLoad(url, context);
   }

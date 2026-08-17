@@ -23,6 +23,7 @@ import { AuctionList } from "./components/AuctionList";
 import { HealthPanel } from "./components/HealthPanel";
 import { KpiGrid } from "./components/KpiGrid";
 import { OrdersPanel } from "./components/OrdersPanel";
+import { PortalOperationsPanel } from "./components/PortalOperationsPanel";
 import { RunHistoryPanel } from "./components/RunHistoryPanel";
 import styles from "./AdminDashboard.module.css";
 import type {
@@ -53,6 +54,7 @@ function isUnauthorized(error: unknown) {
 
 export default function AdminPage() {
   const [sessionStatus, setSessionStatus] = useState<SessionStatus>("checking");
+  const [adminRole, setAdminRole] = useState("owner");
   const [sessionError, setSessionError] = useState("");
   const [loginBusy, setLoginBusy] = useState(false);
   const [auctions, setAuctions] = useState<AdminAuction[]>([]);
@@ -83,6 +85,7 @@ export default function AdminPage() {
       try {
         const session = await getAdminSession();
         if (!active) return;
+        setAdminRole(session.role);
         setSessionStatus(
           !session.configured
             ? "unconfigured"
@@ -190,6 +193,7 @@ export default function AdminPage() {
 
     try {
       const session = await createAdminSession(secret);
+      setAdminRole(session.role);
       if (!session.configured) {
         setSessionStatus("unconfigured");
         return false;
@@ -414,6 +418,7 @@ export default function AdminPage() {
     <main className={styles.dashboardShell} aria-busy={dashboardLoading}>
       <AdminHeader
         environment={health?.environment ?? "panel"}
+        role={adminRole}
         refreshing={dashboardLoading}
         lastUpdated={lastUpdated}
         onRefresh={() => void loadDashboard()}
@@ -487,6 +492,8 @@ export default function AdminPage() {
       />
 
       <AuditPanel onSessionExpired={handleExpiredSession} />
+
+      <PortalOperationsPanel onSessionExpired={handleExpiredSession} />
 
       <footer className={styles.footer}>
         <span>Fiszy / panel operacyjny</span>

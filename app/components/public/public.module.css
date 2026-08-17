@@ -241,6 +241,52 @@
   line-height: 1.45;
 }
 
+.cardTools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.watchButton,
+.calendarLink {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(16, 18, 15, 0.18);
+  border-radius: 999px;
+  background: transparent;
+  color: #10120f;
+  cursor: pointer;
+  font-size: 0.74rem;
+  font-weight: 850;
+  padding: 0 12px;
+  text-decoration: none;
+}
+
+.watchButtonActive {
+  border-color: #7a36ff;
+  background: #eee6ff;
+  color: #5320b6;
+}
+
+.watchButton:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.watchPlaceholder {
+  min-width: 96px;
+  min-height: 38px;
+}
+
+.watchButton:focus-visible,
+.calendarLink:focus-visible {
+  outline: 3px solid #7a36ff;
+  outline-offset: 3px;
+}
+
 .cardLink {
   display: flex;
   align-items: center;

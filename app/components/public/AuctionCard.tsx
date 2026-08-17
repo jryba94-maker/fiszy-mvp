@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { PublicAuction } from "./auction-data";
 import { SafeAuctionImage } from "./SafeAuctionImage";
 import { StatusBadge } from "./StatusBadge";
+import { WatchButton } from "./WatchButton";
 import styles from "./public.module.css";
 
 function startLabel(auction: PublicAuction) {
@@ -19,7 +20,12 @@ function startLabel(auction: PublicAuction) {
   return "Ta aukcja dobiegła końca";
 }
 
-export function AuctionCard({ auction }: { auction: PublicAuction }) {
+export function AuctionCard({ auction, watched = false, watchBusy = false, onWatchToggle = () => undefined }: {
+  auction: PublicAuction;
+  watched?: boolean;
+  watchBusy?: boolean;
+  onWatchToggle?: (auctionId: string, watched: boolean) => void;
+}) {
   return (
     <article className={styles.auctionCard}>
       <SafeAuctionImage
@@ -42,6 +48,16 @@ export function AuctionCard({ auction }: { auction: PublicAuction }) {
           <span className={styles.regularPrice}>{auction.regularPrice} zł</span>
         </div>
         <div className={styles.cardMeta}>{startLabel(auction)}</div>
+        <div className={styles.cardTools}>
+          <WatchButton auctionId={auction.auctionId} watched={watched} busy={watchBusy} onToggle={onWatchToggle} />
+          <a
+            className={styles.calendarLink}
+            href={`/api/auctions/${encodeURIComponent(auction.auctionId)}/calendar`}
+            aria-label={`Dodaj start aukcji ${auction.product} do kalendarza`}
+          >
+            + Kalendarz
+          </a>
+        </div>
         <Link
           className={styles.cardLink}
           href={`/aukcje/${encodeURIComponent(auction.auctionId)}`}

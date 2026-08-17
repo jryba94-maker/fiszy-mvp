@@ -6,6 +6,31 @@ export const ADMIN_SESSION_SECONDS = 8 * 60 * 60;
 
 const SESSION_MARKER = "fiszy-admin-session-v1";
 
+export type AdminRole = "owner" | "operator" | "support" | "viewer";
+export type AdminPermission =
+  | "auctions:write"
+  | "orders:write"
+  | "users:read"
+  | "users:write"
+  | "support:write"
+  | "audit:read";
+
+const ROLE_PERMISSIONS: Record<AdminRole, AdminPermission[]> = {
+  owner: ["auctions:write", "orders:write", "users:read", "users:write", "support:write", "audit:read"],
+  operator: ["auctions:write", "orders:write", "users:read", "support:write", "audit:read"],
+  support: ["users:read", "support:write"],
+  viewer: ["users:read", "audit:read"],
+};
+
+export function configuredAdminRole(): AdminRole {
+  const value = process.env.FISZY_ADMIN_ROLE?.trim().toLowerCase();
+  return value === "operator" || value === "support" || value === "viewer" ? value : "owner";
+}
+
+export function adminPermissions(role: AdminRole = configuredAdminRole()) {
+  return [...ROLE_PERMISSIONS[role]];
+}
+
 function configuredSecret() {
   return process.env.FISZY_ADMIN_SECRET?.trim() || null;
 }
@@ -81,6 +106,10 @@ export function isValidAdminSecret(candidate: string | null | undefined) {
 
 export function hasValidAdminRequest(request: NextRequest) {
   return verifiedAdminActorType(request) !== null;
+}
+
+export function hasAdminPermission(request: NextRequest, permission: AdminPermission) {
+  return hasValidAdminRequest(request) && ROLE_PERMISSIONS[configuredAdminRole()].includes(permission);
 }
 
 export function verifiedAdminActorType(

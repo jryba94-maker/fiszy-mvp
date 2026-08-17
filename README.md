@@ -17,7 +17,7 @@ Technologia: Next.js 15 (App Router), React 19, TypeScript, Redis REST, neutraln
 - weryfikacja, że cena przesłana przez kupującego jest nadal aktualną ceną serwera;
 - osobna płatność zwycięzcy za produkt i zebranie danych dostawy;
 - idempotentny zapis opłaconego zamówienia po podpisanym webhooku Stripe;
-- lokalna historia użytkownika pod `/moje-fiszy`;
+- konto użytkownika i historia między urządzeniami pod `/moje-fiszy`;
 - panel `/admin`: logowanie, globalne wskaźniki, wyszukiwanie i filtrowanie, tworzenie, edycja, archiwizowanie i przywracanie aukcji oraz planowanie kolejnych rund;
 - automatyczne pobieranie wszystkich stron aukcji i zamówień do bezpiecznego limitu MVP 5000 rekordów na zbiór, dzięki czemu wskaźniki i filtry nie kończą się na pierwszej stronie;
 - obsługa realizacji zamówień w stanach `new`, `preparing`, `shipped` i `delivered`, z przewoźnikiem, numerem przesyłki, notatką i ochroną przed nadpisaniem nowszej zmiany;
@@ -63,7 +63,7 @@ Cena maleje całkowitą liczbą złotych od ceny startowej do minimalnej. Ostatn
 | --- | --- | --- |
 | `/` | publiczny | katalog opublikowanych aukcji |
 | `/aukcje/[auctionId]` | publiczny | udział w wybranej aukcji |
-| `/moje-fiszy` | publiczny | historia zapisana na bieżącym urządzeniu |
+| `/moje-fiszy` | konto Clerk | profil, historia, zamówienia, obserwowane i pomoc |
 | `/admin` | chroniony | panel operacyjny administratora |
 | `/api/health` | publiczny | minimalna diagnostyka dostępności magazynu danych |
 | `/api/admin/health` | administrator | diagnostyka Redis, Stripe, webhooka, sekretu i originu Checkout |
@@ -442,11 +442,34 @@ Po incydencie utwórz osobną gałąź naprawczą i nowe Preview. Nie „naprawi
 - izolacja kluczy Redis według środowiska;
 - testy destrukcyjne z blokadą na zatwierdzony Development Redis i Stripe Test Mode.
 
+## Portal użytkownika i obsługa
+
+Po zalogowaniu przez Clerk ekran `/moje-fiszy` korzysta z trwałych danych Redis przypisanych do konta. Obejmuje profil, adres, zgody, historię rund, wygrane, zamówienia i wysyłki, obserwowane aukcje, eksport danych oraz zgłoszenia. Nowe akcje aukcyjne używają identyfikatora `clerk:<userId>` wyznaczanego wyłącznie na serwerze.
+
+Panel administratora zawiera użytkowników, blokadę uczestnictwa, notatki wewnętrzne i zgłoszenia. `FISZY_ADMIN_ROLE` może przyjąć `owner`, `operator`, `support` albo `viewer`; mutacje aukcji, realizacji, kont i zgłoszeń są sprawdzane osobno. Jest to etap przejściowy: jedna wspólna sesja nadal nie identyfikuje konkretnego pracownika. Przed zaproszeniem zespołu należy zastąpić ją indywidualnymi kontami z MFA i rolami Clerk Organizations albo równoważnym systemem.
+
+Powiadomienia wymagające działania są generowane w portalu. Wysyłka e-mail pozostaje wyłączona, dopóki nie zostaną skonfigurowane `RESEND_API_KEY`, `FISZY_EMAIL_FROM`, zweryfikowana domena i szablony zaakceptowane biznesowo. Nie należy używać przypadkowego nadawcy ani klucza z innego środowiska.
+
+Strony `/regulamin`, `/zasady-aukcji`, `/prywatnosc`, `/cookies`, `/reklamacje` i `/faq` są kompletnym szkieletem operacyjnym, ale jawnie oznaczonym jako roboczy. Przed publiczną sprzedażą prawnik musi uzupełnić dane operatora, podstawy prawne, terminy, formularz odstąpienia i zasady opłaty za wejście.
+
+## Kopie danych portalu
+
+Preferowanym źródłem kopii Production jest snapshot lub eksport zarządzany przez dostawcę Redis. Repo zawiera dodatkowy, wyłącznie odczytowy eksport awaryjny:
+
+```powershell
+$env:FISZY_BACKUP_OUTPUT = "D:\bezpieczne-kopie\fiszy-preview.json"
+npm run backup:export
+```
+
+Plik może zawierać dane osobowe i nie może trafić do repozytorium, zwykłego dysku współdzielonego ani logów CI. Skrypt wymaga jawnej, absolutnej ścieżki, nie nadpisuje istniejącego pliku i dla Production dodatkowo wymaga `-- --allow-production-read`. Sam nie przywraca danych. Odtworzenie zawsze wykonujemy najpierw do odseparowanego Preview, walidujemy liczbę i typy kluczy, a dopiero potem podejmujemy osobną decyzję operacyjną.
+
+Minimalny test odzyskiwania raz w miesiącu: utworzenie snapshotu, odtworzenie do pustego zasobu testowego, uruchomienie `/api/health`, odczyt katalogu, konta testowego, zamówienia i audytu oraz usunięcie zasobu testowego po zapisaniu wyniku.
+
 ## Znane ograniczenia i dalszy rozwój
 
-- `/moje-fiszy` opiera się na identyfikatorze i historii `localStorage`; nie jest kontem użytkownika i nie synchronizuje się między urządzeniami;
-- pełne konta użytkowników i trwała historia między urządzeniami są odłożone do czasu wyboru dostawcy tożsamości; identyfikatora przeglądarki nie należy traktować jak uwierzytelnionego użytkownika;
-- administrator korzysta ze wspólnego sekretu, bez indywidualnych kont, MFA i ról. Pomocniczy dziennik zapisuje utworzenie i zmiany aukcji, planowanie rund, zmiany realizacji oraz typ dostępu (`admin_session` albo `admin_api`), ale nie potrafi wskazać konkretnej osoby i nie jest jeszcze formalnym, kompletnym audytem zgodności;
+- starsze, anonimowe wpisy zapisane przed wdrożeniem Clerk mogą pozostać wyłącznie w `localStorage`; nie są automatycznie przypisywane do nowego konta bez bezpiecznego procesu migracji;
+- profil i historia konta działają przez Clerk, ale finalna polityka retencji, eksportu i usuwania danych wymaga zatwierdzenia prawnego;
+- administrator korzysta jeszcze ze wspólnego sekretu; role ograniczają operacje, ale bez indywidualnych kont i MFA dziennik rozpoznaje typ dostępu, nie konkretną osobę. To nie jest jeszcze formalny audyt zgodności;
 - wpisy dziennika i jego indeksy mają automatyczną retencję 180 dni; polityka danych osobowych całego portalu nadal wymaga formalnego zatwierdzenia;
 - brak panelu zwrotów, faktur i automatycznych wiadomości e-mail; wysyłka wiadomości zostanie dodana dopiero po wyborze dostawcy poczty i zasad dostarczalności;
 - brak wbudowanego uploadu i optymalizacji zdjęć produktów;
@@ -456,7 +479,7 @@ Po incydencie utwórz osobną gałąź naprawczą i nowe Preview. Nie „naprawi
 - mechanika wejścia za opłatą i aukcji wymaga weryfikacji prawnej, regulaminu i zasad ochrony konsumenta;
 - przed dopuszczeniem wielu pracowników do panelu wspólny sekret należy zastąpić zarządzanym uwierzytelnianiem z MFA i rolami.
 
-Najbliższy etap rozwoju portalu powinien objąć konta użytkowników, trwałą historię między urządzeniami, zarządzane logowanie administratorów, audyt odrzuconych operacji, obsługę zwrotów, automatyczne wiadomości oraz alerty płatności i infrastruktury. Migracja płatności do Przelewy24 pozostaje osobnym etapem po ustaleniu wymagań i kosztów operatora.
+Najbliższy etap po weryfikacji Preview powinien objąć indywidualne konta administratorów z MFA, formalną obsługę zwrotów, zweryfikowaną pocztę transakcyjną, zewnętrzne alerty oraz finalną akceptację prawną. Migracja płatności do Przelewy24 pozostaje osobnym etapem po ustaleniu wymagań i kosztów operatora.
 
 ## Najczęstsze problemy
 

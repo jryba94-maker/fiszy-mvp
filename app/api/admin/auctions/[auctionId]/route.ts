@@ -13,6 +13,7 @@ import {
 } from "../../../../../lib/auction-storage";
 import { readAdminAuction } from "../../../../../lib/auction-view";
 import {
+  hasAdminPermission,
   hasValidAdminRequest,
   isAdminConfigured,
   isSameOriginAdminMutation,
@@ -64,6 +65,9 @@ export async function GET(request: NextRequest, context: Context) {
 export async function PATCH(request: NextRequest, context: Context) {
   const error = authError(request);
   if (error) return error;
+  if (!hasAdminPermission(request, "auctions:write")) {
+    return NextResponse.json({ outcome: "forbidden" }, { status: 403 });
+  }
   if (!isSameOriginAdminMutation(request)) {
     return NextResponse.json({ outcome: "invalid_origin" }, { status: 403 });
   }

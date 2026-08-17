@@ -404,6 +404,12 @@ export async function getAdminSession(): Promise<AdminSession> {
   return {
     configured: asBoolean(record.configured),
     authenticated: asBoolean(record.authenticated),
+    role: (["owner", "operator", "support", "viewer"].includes(firstString(record.role) ?? "")
+      ? firstString(record.role)
+      : "owner") as AdminSession["role"],
+    permissions: Array.isArray(record.permissions)
+      ? record.permissions.flatMap((value) => typeof value === "string" ? [value] : [])
+      : [],
   };
 }
 

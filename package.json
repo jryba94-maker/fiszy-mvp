@@ -5,10 +5,12 @@
   "scripts": {
     "dev": "next dev",
     "stripe:listen": "node scripts/stripe-listen.mjs",
+    "backup:export": "node scripts/export-environment-backup.mjs",
     "test:race": "node scripts/race-test.mjs",
     "test:portal": "node scripts/portal-smoke-test.mjs",
     "test:admin:unit": "node --no-warnings --loader ./scripts/typescript-loader.mjs --test --test-concurrency=1 scripts/fulfillment-unit-tests.mjs",
     "test:history:unit": "node --no-warnings --loader ./scripts/typescript-loader.mjs --test --test-concurrency=1 scripts/history-storage-unit-tests.mjs",
+    "test:portal:unit": "node --no-warnings --loader ./scripts/typescript-loader.mjs --test --test-concurrency=1 scripts/portal-unit-tests.mjs",
     "test:faults:unit": "node --no-warnings --loader ./scripts/typescript-loader.mjs --test --test-concurrency=1 --test-name-pattern=\"admin session|admin mutation|admin login|auction config storage|winner cancellation|stale pending winner|Stripe signatures|late-entry refund|webhook orchestration\" scripts/security-fault-tests.mjs",
     "test:faults": "node --no-warnings --loader ./scripts/typescript-loader.mjs --test --test-concurrency=1 scripts/security-fault-tests.mjs",
     "typecheck": "tsc --noEmit",

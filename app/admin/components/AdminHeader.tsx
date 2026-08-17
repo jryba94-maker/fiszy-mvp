@@ -2,6 +2,7 @@ import styles from "../AdminDashboard.module.css";
 
 type AdminHeaderProps = {
   environment: string;
+  role: string;
   refreshing: boolean;
   lastUpdated: number | null;
   onRefresh: () => void;
@@ -10,6 +11,7 @@ type AdminHeaderProps = {
 
 export function AdminHeader({
   environment,
+  role,
   refreshing,
   lastUpdated,
   onRefresh,
@@ -21,6 +23,7 @@ export function AdminHeader({
         <div className={styles.brandLine}>
           <span className={styles.brand}>Fiszy.</span>
           <span className={styles.environment}>{environment}</span>
+          <span className={styles.environment}>rola: {role}</span>
         </div>
         <p className={styles.headerSubtitle}>
           Aukcje, rundy i opłacone zamówienia

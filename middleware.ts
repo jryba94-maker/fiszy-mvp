@@ -1,8 +1,8 @@
 import { clerkMiddleware } from "@clerk/nextjs/server";
 
-// Logowanie jest dostępne w całym portalu, ale nie blokuje jeszcze aukcji ani
-// istniejącego panelu administracyjnego. Ich bezpieczne powiązanie z kontem
-// użytkownika będzie osobnym etapem migracji danych.
+// Publiczny katalog pozostaje otwarty. Prywatne API konta i każda akcja
+// aukcyjna weryfikują użytkownika po stronie serwera. Panel administracyjny
+// zachowuje oddzielną, ograniczaną rolami sesję operacyjną.
 export default clerkMiddleware();
 
 export const config = {

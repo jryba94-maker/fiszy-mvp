@@ -3,7 +3,9 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   ADMIN_SESSION_COOKIE,
   ADMIN_SESSION_SECONDS,
+  adminPermissions,
   adminSessionToken,
+  configuredAdminRole,
   hasValidAdminRequest,
   isAdminConfigured,
   isSameOriginAdminMutation,
@@ -58,6 +60,8 @@ export async function GET(request: NextRequest) {
       outcome: "ok",
       configured: isAdminConfigured(),
       authenticated: hasValidAdminRequest(request),
+      role: configuredAdminRole(),
+      permissions: adminPermissions(),
     },
     { headers: { "Cache-Control": "no-store" } },
   );

@@ -12,7 +12,7 @@ export async function recordSuccessfulAdminAudit(
   request: NextRequest,
   input: {
     action: AuditAction;
-    resourceType: "auction" | "order";
+    resourceType: "auction" | "order" | "account" | "support_ticket";
     resourceId: string;
     details: AuditDetails;
   },

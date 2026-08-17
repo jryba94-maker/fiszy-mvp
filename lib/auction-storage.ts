@@ -55,6 +55,13 @@ export type ParticipantRunRecord = {
   refundedAt?: string;
 };
 
+export type ParticipantHistoryItem = {
+  participant: ParticipantRunRecord;
+  config: AuctionConfig;
+  winner: AuctionWinner | null;
+  order: AuctionOrder | null;
+};
+
 export type AuctionRunHistoryOutcome = {
   runId: string;
   winner: AuctionWinner | null;
@@ -175,6 +182,15 @@ function auctionRunOrderKey(auctionId: string, runId: string) {
 
 function runReference(auctionId: string, runId: string) {
   return `${checkedAuctionId(auctionId)}|${checkedRunId(runId)}`;
+}
+
+function parseRunReference(value: unknown) {
+  if (typeof value !== "string") return null;
+  const separator = value.indexOf("|");
+  if (separator < 1 || separator !== value.lastIndexOf("|")) return null;
+  const auctionId = normalizeAuctionId(value.slice(0, separator));
+  const runId = normalizeRunId(value.slice(separator + 1));
+  return auctionId && runId ? { auctionId, runId } : null;
 }
 
 function normalizeAuctionConfig(value: unknown): AuctionConfig | null {
@@ -1565,6 +1581,88 @@ export async function readParticipant(
   } catch {
     return null;
   }
+}
+
+export async function listParticipantHistory(input: {
+  participantId: string;
+  cursor?: string | null;
+  limit?: number;
+}) {
+  const participantId = normalizeParticipantId(input.participantId);
+  const limit = input.limit ?? 20;
+  const purpose = participantId ? `participant-history:${participantId}` : "";
+  if (
+    !participantId ||
+    !parseHistoryCursor(input.cursor, purpose) ||
+    !Number.isInteger(limit) ||
+    limit < 1 ||
+    limit > 50
+  ) {
+    return null;
+  }
+
+  const page = await readIndexedHistoryPage<ParticipantRunRecord>({
+    indexKey: participantHistoryIndexKey(participantId),
+    cursor: input.cursor,
+    purpose,
+    limit,
+    normalizeMember: (member) => {
+      const parsed = parseRunReference(member);
+      return parsed ? runReference(parsed.auctionId, parsed.runId) : null;
+    },
+    valueKey: (member) => {
+      const parsed = parseRunReference(member);
+      if (!parsed) throw new Error("Invalid participant history reference.");
+      return participantRunKey(participantId, parsed.auctionId, parsed.runId);
+    },
+    parseValue: (raw, member) => {
+      if (typeof raw !== "string" || !raw) return null;
+      const reference = parseRunReference(member);
+      if (!reference) return null;
+      try {
+        const participant = normalizeParticipantRunRecord(JSON.parse(raw) as unknown);
+        return participant?.participantId === participantId &&
+          participant.auctionId === reference.auctionId &&
+          participant.runId === reference.runId
+          ? participant
+          : null;
+      } catch {
+        return null;
+      }
+    },
+  });
+  if (!page) return null;
+  if (page.page.length === 0) {
+    return { items: [] as ParticipantHistoryItem[], nextCursor: null };
+  }
+
+  const detailKeys = page.page.flatMap(({ value: participant }) => [
+    auctionRunConfigKey(participant.runId, participant.auctionId),
+    winnerKey(participant.runId, participant.auctionId),
+    auctionRunOrderKey(participant.auctionId, participant.runId),
+  ]);
+  const stored = await redisCommand<Array<string | null>>(["MGET", ...detailKeys]);
+  const values = stored ?? [];
+  if (values.length !== detailKeys.length) {
+    throw new Error("Stored participant history details are invalid.");
+  }
+
+  const items = page.page.flatMap(({ value: participant }, index) => {
+    const config = parseStoredAuctionConfig(values[index * 3]);
+    if (!config || config.runId !== participant.runId) return [];
+    return [{
+      participant,
+      config,
+      winner: parseStoredAuctionWinner(values[index * 3 + 1]),
+      order: parseStoredHistoryOrder(
+        values[index * 3 + 2],
+        participant.auctionId,
+        participant.runId,
+      ),
+    } satisfies ParticipantHistoryItem];
+  });
+
+  return { items, nextCursor: page.nextCursor };
 }
 
 export async function listRunParticipants(input: {

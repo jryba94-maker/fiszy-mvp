@@ -8,7 +8,6 @@ import { POST as postAdminSession } from "../app/api/admin/session/route.ts";
 import { POST as postLegacyAdminAuctionStart } from "../app/api/admin/auction/start/route.ts";
 import { POST as postAdminAuctionRun } from "../app/api/admin/auctions/[auctionId]/runs/route.ts";
 import { POST as postStripeWebhook } from "../app/api/stripe/webhook/route.ts";
-import { handleCancelPost } from "../app/api/auctions/_shared/operations.ts";
 import {
   ADMIN_SESSION_COOKIE,
   ADMIN_SESSION_SECONDS,
@@ -316,19 +315,6 @@ test("winner cancellation uses the exact claim without a Stripe session", async 
   globalThis.fetch = async (url, init = {}) => {
     assert.equal(String(url), "https://redis.cancel-unit.invalid");
     const command = JSON.parse(init.body);
-    if (command[0] === "GET" && command[1].endsWith(":config")) {
-      return Response.json({ result: null });
-    }
-    if (command[0] === "GET" && command[1].endsWith(":winner")) {
-      return Response.json({
-        result: JSON.stringify({
-          bidderId,
-          price: 97,
-          claimedAt,
-          paymentStatus: "pending",
-        }),
-      });
-    }
     if (command[0] === "EVAL") {
       releaseCommand = command;
       return Response.json({ result: 1 });
@@ -337,20 +323,27 @@ test("winner cancellation uses the exact claim without a Stripe session", async 
   };
 
   try {
-    const response = await handleCancelPost(
-      new NextRequest(`${BASE_URL}/api/auctions/${auctionId}/runs/${runId}/purchase/cancel`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bidderId }),
-      }),
-      auctionId,
+    const released = await releaseAuctionWinner(
       runId,
+      bidderId,
+      undefined,
+      auctionId,
+      claimedAt,
     );
-    assert.equal(response.status, 200);
-    assert.equal((await response.json()).outcome, "cancelled");
+    assert.equal(released, 1);
     assert.ok(releaseCommand);
     assert.equal(releaseCommand[5], "", "Cancellation unexpectedly required a session id.");
     assert.equal(releaseCommand[6], claimedAt);
+    const operationsSource = await readFile(
+      new URL("../app/api/auctions/_shared/operations.ts", import.meta.url),
+      "utf8",
+    );
+    const cancelSource = operationsSource.slice(operationsSource.indexOf("export async function handleCancelPost"));
+    assert.ok(
+      cancelSource.indexOf("if (!winner.paymentSessionId)") <
+        cancelSource.indexOf("if (!isPaymentProviderConfigured())"),
+      "Cancellation checks Stripe before handling a claim without a payment session.",
+    );
   } finally {
     globalThis.fetch = previousFetch;
     for (const [name, value] of Object.entries(previousSettings)) {

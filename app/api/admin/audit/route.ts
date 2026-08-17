@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
+  hasAdminPermission,
   hasValidAdminRequest,
   isAdminConfigured,
 } from "../../../../lib/admin-auth";
@@ -18,6 +19,9 @@ export async function GET(request: NextRequest) {
   }
   if (!hasValidAdminRequest(request)) {
     return NextResponse.json({ outcome: "unauthorized" }, { status: 401 });
+  }
+  if (!hasAdminPermission(request, "audit:read")) {
+    return NextResponse.json({ outcome: "forbidden" }, { status: 403 });
   }
 
   const cursor = request.nextUrl.searchParams.get("cursor");

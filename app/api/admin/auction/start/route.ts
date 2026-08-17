@@ -24,6 +24,7 @@ import {
   retrievePaymentSession,
 } from "../../../../../lib/payment-provider";
 import {
+  hasAdminPermission,
   hasValidAdminRequest,
   isAdminConfigured,
   isSameOriginAdminMutation,
@@ -59,6 +60,9 @@ export async function POST(request: NextRequest) {
 
   if (!hasValidAdminRequest(request)) {
     return NextResponse.json({ outcome: "unauthorized" }, { status: 401 });
+  }
+  if (!hasAdminPermission(request, "auctions:write")) {
+    return NextResponse.json({ outcome: "forbidden" }, { status: 403 });
   }
   if (!isSameOriginAdminMutation(request)) {
     return NextResponse.json({ outcome: "invalid_origin" }, { status: 403 });

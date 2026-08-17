@@ -1,0 +1,11 @@
+import type { Metadata } from "next";
+import { LegalPage } from "../components/legal/LegalPage";
+export const metadata: Metadata = { title: "Prywatność", description: "Zasady przetwarzania danych w Fiszy." };
+export default function Page() { return <LegalPage eyebrow="Dane osobowe" title="Polityka prywatności" lead="Jakie dane zbieramy, po co je wykorzystujemy i jakie prawa ma użytkownik." sections={[
+  { title: "Administrator danych", paragraphs: ["Pełne dane administratora danych i inspektora ochrony danych muszą zostać uzupełnione przed uruchomieniem sprzedaży publicznej."] },
+  { title: "Zakres danych", bullets: ["identyfikator konta, adres e-mail i informacje logowania obsługiwane przez Clerk", "profil, telefon i adres dostawy podane przez użytkownika", "historia wejść, wygranych, zamówień i zgłoszeń", "logi bezpieczeństwa, adres sieciowy w skróconej lub pseudonimizowanej postaci oraz dane urządzenia", "referencje płatności bez danych karty"] },
+  { title: "Cele i podstawy", bullets: ["wykonanie umowy i obsługa aukcji", "realizacja obowiązków prawnych i księgowych", "uzasadniony interes w ochronie serwisu i dochodzeniu roszczeń", "zgoda — wyłącznie dla opcjonalnej analityki i marketingu"] },
+  { title: "Odbiorcy i transfery", paragraphs: ["Dane mogą być powierzane dostawcom hostingu, tożsamości, płatności, poczty i logistyki. Przed startem publicznym należy uzupełnić wykaz dostawców, lokalizacje przetwarzania i mechanizmy transferu poza EOG."] },
+  { title: "Retencja i prawa", paragraphs: ["Dane konta są przechowywane przez okres korzystania z usługi, a dane zamówień tak długo, jak wymagają przepisy i obrona roszczeń. Użytkownik może pobrać eksport danych i zgłosić usunięcie w Moje Fiszy."], bullets: ["dostęp i kopia danych", "sprostowanie", "usunięcie lub ograniczenie", "sprzeciw", "przenoszenie", "cofnięcie zgody i skarga do organu nadzorczego"] },
+  { title: "Bezpieczeństwo", paragraphs: ["Portal rozdziela środowiska, ogranicza dostęp, prowadzi audyt operacji i nie zapisuje danych karty. Żaden system nie daje jednak absolutnej gwarancji; incydenty są obsługiwane według procedury bezpieczeństwa."] },
+]} />; }
