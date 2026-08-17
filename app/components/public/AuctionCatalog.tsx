@@ -73,6 +73,13 @@ function redirectStripeReturn() {
   return true;
 }
 
+function resultCountLabel(count: number) {
+  if (count === 1) return "1 wynik";
+  const lastTwoDigits = count % 100;
+  const lastDigit = count % 10;
+  return `${count} ${lastDigit >= 2 && lastDigit <= 4 && (lastTwoDigits < 12 || lastTwoDigits > 14) ? "wyniki" : "wyników"}`;
+}
+
 export function AuctionCatalog() {
   const { isLoaded: authLoaded, isSignedIn } = useUser();
   const [catalog, setCatalog] = useState<CatalogState | null>(null);
@@ -296,7 +303,7 @@ export function AuctionCatalog() {
               <option value="other">Pozostałe</option>
             </select>
           </label>
-          <span className={styles.resultsCount} aria-live="polite">{filteredAuctions.length} wyników</span>
+          <span className={styles.resultsCount} aria-live="polite">{resultCountLabel(filteredAuctions.length)}</span>
         </div>
 
         {catalog?.fallback ? (
