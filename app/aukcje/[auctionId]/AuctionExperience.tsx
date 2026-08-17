@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { useAuth } from "@clerk/nextjs";
 import {
   cancelPurchase,
   claimAuction,
@@ -12,11 +13,7 @@ import {
   type AuctionStatus,
   type PublicAuction,
 } from "../../components/public/auction-data";
-import {
-  getBidderId,
-  recordAuctionEvent,
-  refreshRecordedAuction,
-} from "../../components/public/device-history";
+import { recordAuctionEvent, refreshRecordedAuction } from "../../components/public/device-history";
 import { PublicHeader } from "../../components/public/PublicHeader";
 import { SafeAuctionImage } from "../../components/public/SafeAuctionImage";
 import { StatusBadge } from "../../components/public/StatusBadge";
@@ -147,6 +144,7 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
   const [isBuying, setIsBuying] = useState(false);
   const [entryFeedback, setEntryFeedback] = useState<Feedback>(null);
   const [purchaseFeedback, setPurchaseFeedback] = useState<Feedback>(null);
+  const { isLoaded: isAuthLoaded, isSignedIn } = useAuth();
   const cancelAttemptRef = useRef<string | null>(null);
   const pollingDelay = auction?.status === "sold" || auction?.status === "ended" ? 15_000 : 1_000;
 
@@ -200,7 +198,11 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
   }, []);
 
   useEffect(() => {
-    if (!auction?.runId) return;
+    if (!auction?.runId || !isAuthLoaded || !isSignedIn) {
+      setHasEntry(false);
+      setEntryRunId(null);
+      return;
+    }
 
     let active = true;
     let retryTimer: number | undefined;
@@ -223,7 +225,7 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
 
     const checkEntry = async (): Promise<boolean> => {
       try {
-        const data = await fetchEntryState(auctionId, runId, getBidderId());
+        const data = await fetchEntryState(auctionId, runId);
         if (!active) return false;
 
         const granted = Boolean(data.outcome === "ok" && data.hasEntry && data.runId === runId);
@@ -263,10 +265,10 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
       active = false;
       if (retryTimer) window.clearTimeout(retryTimer);
     };
-  }, [auction?.runId, auctionId]);
+  }, [auction?.runId, auctionId, isAuthLoaded, isSignedIn]);
 
   useEffect(() => {
-    if (!auction?.runId) return;
+    if (!auction?.runId || !isAuthLoaded || !isSignedIn) return;
     const purchaseState = new URLSearchParams(window.location.search).get("purchase");
     if (!purchaseState) return;
 
@@ -290,7 +292,7 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
     setPurchaseFeedback({ text: "Bezpiecznie zwalniamy rezerwację…" });
     const run = async () => {
       try {
-        const data = await cancelPurchase(auction.auctionId, auction.runId, getBidderId());
+        const data = await cancelPurchase(auction.auctionId, auction.runId);
         if (!active) return;
         if (data.outcome === "cancelled" || data.outcome === "nothing_to_cancel") {
           setPurchaseFeedback({ text: "Płatność została anulowana. Zakup nie został opłacony." });
@@ -319,7 +321,7 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
     return () => {
       active = false;
     };
-  }, [auction?.auctionId, auction?.runId, auction?.status]);
+  }, [auction?.auctionId, auction?.runId, auction?.status, isAuthLoaded, isSignedIn]);
 
   const serverNow = clock + serverOffset;
   const displayStatus = auction ? statusAt(auction, serverNow) : "waiting";
@@ -341,6 +343,10 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
       auctionMessage = "Mechanizm zakupu jest chwilowo niedostępny.";
     } else if (displayStatus === "waiting") {
       auctionMessage = `Start: ${startDateLabel(auction.startsAt)}. Wejście możesz opłacić wcześniej.`;
+    } else if (!isAuthLoaded) {
+      auctionMessage = "Sprawdzamy stan Twojego konta…";
+    } else if (!isSignedIn && displayStatus === "live") {
+      auctionMessage = "Zaloguj się, aby wejście i ewentualna wygrana zostały przypisane do Twojego konta.";
     } else if (displayStatus === "live" && !hasCurrentEntry) {
       auctionMessage = `Cena już spada. Opłać wejście ${auction.entryFee} zł, aby móc kliknąć.`;
     } else if (displayStatus === "live") {
@@ -356,17 +362,25 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
 
   const canEnter = Boolean(
     auction &&
+      isAuthLoaded &&
+      isSignedIn &&
       auction.storageReady &&
       !hasCurrentEntry &&
       (displayStatus === "waiting" || displayStatus === "live"),
   );
   const canBuy = Boolean(
-    auction && auction.storageReady && hasCurrentEntry && displayStatus === "live",
+    auction && isAuthLoaded && isSignedIn && auction.storageReady && hasCurrentEntry && displayStatus === "live",
+  );
+  const needsSignIn = Boolean(
+    auction && isAuthLoaded && !isSignedIn && auction.storageReady &&
+      (displayStatus === "waiting" || displayStatus === "live"),
   );
 
   let actionLabel = "ŁADOWANIE…";
   if (auction) {
-    if (isEntering) actionLabel = "PRZECHODZĘ DO PŁATNOŚCI…";
+    if (!isAuthLoaded) actionLabel = "SPRAWDZAMY KONTO…";
+    else if (needsSignIn) actionLabel = "ZALOGUJ SIĘ, ABY DOŁĄCZYĆ";
+    else if (isEntering) actionLabel = "PRZECHODZĘ DO PŁATNOŚCI…";
     else if (isBuying) actionLabel = "REZERWUJĘ…";
     else if (canEnter) actionLabel = `OPŁAĆ WEJŚCIE — ${auction.entryFee} ZŁ`;
     else if (canBuy) actionLabel = `KUP TERAZ — ${visiblePrice} ZŁ`;
@@ -375,14 +389,14 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
     else if (displayStatus === "sold") actionLabel = "SPRZEDANE";
     else actionLabel = "AUKCJA ZAKOŃCZONA";
   }
-  const actionDisabled = isEntering || isBuying || (!canEnter && !canBuy);
+  const actionDisabled = !isAuthLoaded || isEntering || isBuying || (!canEnter && !canBuy && !needsSignIn);
 
   const handleEntry = async () => {
     if (!auction || !canEnter || isEntering) return;
     setIsEntering(true);
     setEntryFeedback(null);
     try {
-      const data = await startEntryCheckout(auction.auctionId, auction.runId, getBidderId());
+      const data = await startEntryCheckout(auction.auctionId, auction.runId);
       if (data.outcome === "checkout" && data.checkoutUrl) {
         recordAuctionEvent(auction, { entryState: "checkout" });
         window.location.assign(data.checkoutUrl);
@@ -411,7 +425,6 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
       const data = await claimAuction(
         auction.auctionId,
         auction.runId,
-        getBidderId(),
         visiblePrice,
       );
       if (data.outcome === "checkout" && data.checkoutUrl) {
@@ -460,7 +473,10 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
   };
 
   const handleAction = () => {
-    if (canBuy) void handleBuy();
+    if (needsSignIn) {
+      const redirectUrl = `${window.location.pathname}${window.location.search}`;
+      window.location.assign(`/sign-in?redirect_url=${encodeURIComponent(redirectUrl)}`);
+    } else if (canBuy) void handleBuy();
     else if (canEnter) void handleEntry();
   };
 

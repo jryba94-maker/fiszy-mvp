@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import {
   ENTRY_FEE,
   LEGACY_AUCTION_ID,
@@ -30,12 +31,11 @@ import {
 const ENTRY_FEE_GROSZE = ENTRY_FEE * 100;
 const PURCHASE_CHECKOUT_WINDOW_SECONDS = 31 * 60;
 
-type BidderRequest = { bidderId?: string; expectedPrice?: unknown };
+type BidderRequest = { expectedPrice?: unknown };
 
-function normalizeBidderId(value?: string | null) {
-  const bidderId = value?.trim();
-  if (!bidderId || bidderId.length > 100) return null;
-  return bidderId;
+async function authenticatedBidderId() {
+  const { userId } = await auth();
+  return userId ? `clerk:${userId}` : null;
 }
 
 async function activeRun(
@@ -70,8 +70,6 @@ async function activeRun(
 async function parseBidderBody(request: NextRequest) {
   try {
     const body = (await request.json()) as BidderRequest;
-    const bidderId = normalizeBidderId(body.bidderId);
-    if (!bidderId) return null;
     if (
       body.expectedPrice !== undefined &&
       (!Number.isInteger(body.expectedPrice) ||
@@ -80,7 +78,6 @@ async function parseBidderBody(request: NextRequest) {
       return null;
     }
     return {
-      bidderId,
       expectedPrice: body.expectedPrice as number | undefined,
     };
   } catch {
@@ -93,11 +90,9 @@ export async function handleEntryGet(
   auctionIdValue: string,
   expectedRunId?: string | null,
 ) {
-  const bidderId = normalizeBidderId(
-    request.nextUrl.searchParams.get("bidderId"),
-  );
+  const bidderId = await authenticatedBidderId();
   if (!bidderId) {
-    return NextResponse.json({ outcome: "invalid_request" }, { status: 400 });
+    return NextResponse.json({ outcome: "sign_in_required" }, { status: 401 });
   }
 
   try {
@@ -140,7 +135,10 @@ export async function handleEntryPost(
   if (!bidderRequest) {
     return NextResponse.json({ outcome: "invalid_request" }, { status: 400 });
   }
-  const { bidderId } = bidderRequest;
+  const bidderId = await authenticatedBidderId();
+  if (!bidderId) {
+    return NextResponse.json({ outcome: "sign_in_required" }, { status: 401 });
+  }
   if (!isPaymentProviderConfigured()) {
     return NextResponse.json(
       { outcome: "stripe_not_configured" },
@@ -237,7 +235,11 @@ export async function handleBuyPost(
   if (!bidderRequest) {
     return NextResponse.json({ outcome: "invalid_request" }, { status: 400 });
   }
-  const { bidderId, expectedPrice } = bidderRequest;
+  const bidderId = await authenticatedBidderId();
+  if (!bidderId) {
+    return NextResponse.json({ outcome: "sign_in_required" }, { status: 401 });
+  }
+  const { expectedPrice } = bidderRequest;
   if (!isPaymentProviderConfigured()) {
     return NextResponse.json(
       { outcome: "stripe_not_configured" },
@@ -552,7 +554,7 @@ export async function handleCancelPost(
   const auctionId = normalizeAuctionId(auctionIdValue);
   const explicitRunId = requestedRunId ? normalizeRunId(requestedRunId) : null;
   const bidderRequest = await parseBidderBody(request);
-  const bidderId = bidderRequest?.bidderId ?? null;
+  const bidderId = await authenticatedBidderId();
   if (!auctionId || (requestedRunId && !explicitRunId) || !bidderId) {
     return NextResponse.json({ outcome: "invalid_request" }, { status: 400 });
   }

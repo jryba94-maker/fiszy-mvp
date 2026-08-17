@@ -250,13 +250,11 @@ async function requestWithLegacyFallback(
 export async function fetchEntryState(
   auctionId: string,
   runId: string,
-  bidderId: string,
 ) {
-  const query = `?bidderId=${encodeURIComponent(bidderId)}`;
   return (await requestWithLegacyFallback(
     auctionId,
-    `${dynamicRunPath(auctionId, runId, "entry")}${query}`,
-    `/api/auction/entry${query}`,
+    dynamicRunPath(auctionId, runId, "entry"),
+    "/api/auction/entry",
     { cache: "no-store" },
   )) as EntryResponse;
 }
@@ -269,39 +267,36 @@ const JSON_POST: RequestInit = {
 export async function startEntryCheckout(
   auctionId: string,
   runId: string,
-  bidderId: string,
 ) {
   return (await requestWithLegacyFallback(
     auctionId,
     dynamicRunPath(auctionId, runId, "entry"),
     "/api/auction/entry",
-    { ...JSON_POST, body: JSON.stringify({ bidderId }) },
+    { ...JSON_POST, body: JSON.stringify({}) },
   )) as EntryResponse;
 }
 
 export async function claimAuction(
   auctionId: string,
   runId: string,
-  bidderId: string,
   expectedPrice: number,
 ) {
   return (await requestWithLegacyFallback(
     auctionId,
     dynamicRunPath(auctionId, runId, "buy"),
     "/api/auction/buy",
-    { ...JSON_POST, body: JSON.stringify({ bidderId, expectedPrice }) },
+    { ...JSON_POST, body: JSON.stringify({ expectedPrice }) },
   )) as BuyResponse;
 }
 
 export async function cancelPurchase(
   auctionId: string,
   runId: string,
-  bidderId: string,
 ) {
   return (await requestWithLegacyFallback(
     auctionId,
     dynamicRunPath(auctionId, runId, "purchase/cancel"),
     "/api/auction/purchase/cancel",
-    { ...JSON_POST, body: JSON.stringify({ bidderId }) },
+    { ...JSON_POST, body: JSON.stringify({}) },
   )) as CancelPurchaseResponse;
 }
