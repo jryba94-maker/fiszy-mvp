@@ -27,6 +27,39 @@
   gap: 8px;
 }
 
+.authControl {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+}
+
+.signInButton {
+  border: 1px solid rgba(16, 18, 15, 0.2);
+  border-radius: 999px;
+  background: #fffdf7;
+  color: #10120f;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 800;
+  padding: 9px 13px;
+}
+
+.signInButton:hover {
+  border-color: #7a36ff;
+  color: #7a36ff;
+}
+
+.signInButton:focus-visible {
+  outline: 3px solid #7a36ff;
+  outline-offset: 3px;
+}
+
+.userAvatar {
+  width: 34px;
+  height: 34px;
+}
+
 .navLink {
   border-radius: 999px;
   color: inherit;
@@ -240,6 +273,11 @@
 
   .navLink {
     padding: 9px 11px;
+    font-size: 0.75rem;
+  }
+
+  .signInButton {
+    padding: 8px 10px;
     font-size: 0.75rem;
   }
 

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AuthControl } from "./AuthControl";
 import styles from "./public.module.css";
 
 export function PublicHeader({ profileActive = false }: { profileActive?: boolean }) {
@@ -18,6 +19,7 @@ export function PublicHeader({ profileActive = false }: { profileActive?: boolea
         >
           Moje Fiszy
         </Link>
+        <AuthControl />
       </nav>
     </header>
   );
