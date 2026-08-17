@@ -17,6 +17,7 @@ import {
   isAdminConfigured,
   isSameOriginAdminMutation,
 } from "../../../../../lib/admin-auth";
+import { recordSuccessfulAdminAudit } from "../../../../../lib/admin-audit";
 import { errorDetails, logEvent } from "../../../../../lib/observability";
 
 export const dynamic = "force-dynamic";
@@ -168,7 +169,22 @@ export async function PATCH(request: NextRequest, context: Context) {
       state: nextRecord.state,
       revision: nextRecord.revision,
     });
-    return NextResponse.json({ outcome: "updated", record: nextRecord });
+    const auditEventId = await recordSuccessfulAdminAudit(request, {
+      action: "auction.updated",
+      resourceType: "auction",
+      resourceId: auctionId,
+      details: {
+        previousState: record.state,
+        state: nextRecord.state,
+        revision: nextRecord.revision,
+        definitionChanged,
+      },
+    });
+    return NextResponse.json({
+      outcome: "updated",
+      record: nextRecord,
+      auditEventId,
+    });
   } catch (caught) {
     logEvent("admin_auction_update_failed", errorDetails(caught), "error");
     return NextResponse.json({ outcome: "storage_error" }, { status: 503 });

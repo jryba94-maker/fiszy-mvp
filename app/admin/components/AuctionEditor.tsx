@@ -232,16 +232,23 @@ export function AuctionEditor({
                   type="text"
                   value={draft.slug}
                   onChange={(event) => {
+                    if (editingAuction) return;
                     setSlugTouched(true);
                     update("slug", slugify(event.target.value));
                   }}
+                  readOnly={Boolean(editingAuction)}
+                  aria-readonly={Boolean(editingAuction)}
                   maxLength={60}
                   pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
                   placeholder="playstation-5"
                   required
                 />
               </div>
-              <small>Krótki identyfikator bez spacji i polskich znaków.</small>
+              <small>
+                {editingAuction
+                  ? "Slug jest stałym identyfikatorem i nie można go zmienić po utworzeniu aukcji."
+                  : "Krótki identyfikator bez spacji i polskich znaków."}
+              </small>
             </label>
 
             <label className={`${styles.field} ${styles.fieldWide}`} htmlFor="product-image">

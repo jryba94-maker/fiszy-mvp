@@ -6,6 +6,14 @@ import {
 } from "./auction";
 import { redisCommand } from "./redis";
 import { winnerKey } from "./auction-storage";
+import { listSortedSetPage } from "./sorted-set-pagination";
+import {
+  normalizePaymentProvider,
+  storedPaymentProvider,
+  type PaymentProviderName,
+} from "./payment-types";
+
+const ORDERS_CURSOR_PURPOSE = "orders.v1";
 
 export type OrderAddress = {
   city: string | null;
@@ -24,6 +32,8 @@ export type AuctionOrder = {
   product: string;
   amount: number;
   currency: "pln";
+  paymentProvider?: PaymentProviderName;
+  paymentReference?: string;
   paymentSessionId: string;
   paidAt: string;
   customer: {
@@ -52,6 +62,51 @@ function checkedRunId(value: string) {
   const runId = normalizeRunId(value);
   if (!runId) throw new Error("Invalid auction run id.");
   return runId;
+}
+
+export function normalizeOrderId(value: unknown) {
+  if (typeof value !== "string") return null;
+  const orderId = value.trim();
+  if (
+    !orderId ||
+    orderId.length > 200 ||
+    /[\u0000-\u001f\u007f]/.test(orderId)
+  ) {
+    return null;
+  }
+  return orderId;
+}
+
+function normalizeStoredOrderPayment(value: unknown): AuctionOrder | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const order = value as AuctionOrder;
+  if (
+    typeof order.paymentSessionId !== "string" ||
+    !order.paymentSessionId ||
+    order.paymentSessionId.length > 200 ||
+    /[\u0000-\u001f\u007f]/.test(order.paymentSessionId)
+  ) {
+    return null;
+  }
+  const explicitProvider = order.paymentProvider === undefined
+    ? undefined
+    : normalizePaymentProvider(order.paymentProvider);
+  if (order.paymentProvider !== undefined && !explicitProvider) return null;
+  const paymentReference = order.paymentReference ?? order.paymentSessionId;
+  if (
+    typeof paymentReference !== "string" ||
+    !paymentReference ||
+    paymentReference.length > 200 ||
+    /[\u0000-\u001f\u007f]/.test(paymentReference)
+  ) {
+    return null;
+  }
+  const paymentProvider = explicitProvider ?? storedPaymentProvider(
+    order.paymentProvider,
+    true,
+  );
+  if (!paymentProvider) return null;
+  return { ...order, paymentProvider, paymentReference };
 }
 
 function latestOrderKey(auctionId: string = AUCTION_ID) {
@@ -225,10 +280,39 @@ export async function readAuctionOrder(
   if (!raw) return null;
 
   try {
-    return JSON.parse(raw) as AuctionOrder;
+    return normalizeStoredOrderPayment(JSON.parse(raw) as unknown);
   } catch {
     return null;
   }
+}
+
+export async function readAuctionOrderById(
+  orderIdValue: string,
+): Promise<AuctionOrder | null> {
+  const orderId = normalizeOrderId(orderIdValue);
+  if (!orderId) return null;
+
+  let rawReference = await redisCommand<string>([
+    "GET",
+    orderReferenceKey(orderId),
+  ]);
+  if (!rawReference) {
+    // Older single-auction records may predate the order-id reference index.
+    await ensureLegacyOrderIndexed();
+    rawReference = await redisCommand<string>([
+      "GET",
+      orderReferenceKey(orderId),
+    ]);
+  }
+  if (!rawReference) return null;
+
+  const [auctionIdValue, runIdValue, extra] = rawReference.split("|");
+  const auctionId = normalizeAuctionId(auctionIdValue);
+  const runId = normalizeRunId(runIdValue);
+  if (extra || !auctionId || !runId) return null;
+
+  const order = await readAuctionOrder(runId, auctionId);
+  return order?.orderId === orderId ? order : null;
 }
 
 export async function readLatestAuctionOrder(
@@ -266,22 +350,24 @@ export async function listAuctionOrders(input: {
   cursor?: string | null;
   limit?: number;
 }) {
-  const cursor = input.cursor ?? "0";
-  if (!/^\d+$/.test(cursor)) return null;
-  const offset = Number(cursor);
   const limit = input.limit ?? 20;
-  if (!Number.isSafeInteger(offset) || limit < 1 || limit > 50) return null;
+  if (!Number.isInteger(limit) || limit < 1 || limit > 50) return null;
 
-  await ensureLegacyOrderIndexed();
-  const [references, total] = await Promise.all([
-    redisCommand<string[]>([
-      "ZREVRANGE",
-      ordersIndexKey(),
-      offset,
-      offset + limit - 1,
-    ]),
-    redisCommand<number>(["ZCARD", ordersIndexKey()]),
-  ]);
+  if (
+    input.cursor === undefined ||
+    input.cursor === null ||
+    (/^\d+$/.test(input.cursor) && Number(input.cursor) === 0)
+  ) {
+    await ensureLegacyOrderIndexed();
+  }
+  const page = await listSortedSetPage({
+    indexKey: ordersIndexKey(),
+    purpose: ORDERS_CURSOR_PURPOSE,
+    cursor: input.cursor,
+    limit,
+  });
+  if (!page) return null;
+  const references = page.members;
 
   const parsed = (references ?? []).map((reference) => {
     const [auctionId, runId, extra] = reference.split("|");
@@ -295,18 +381,35 @@ export async function listAuctionOrders(input: {
     (reference): reference is { auctionId: string; runId: string } =>
       Boolean(reference),
   );
-  const orders = (
-    await Promise.all(
-      validReferences.map(({ auctionId, runId }) =>
-        readAuctionOrder(runId, auctionId),
-      ),
-    )
-  ).filter((order): order is AuctionOrder => Boolean(order));
+  const rawOrders = validReferences.length > 0
+    ? ((await redisCommand<Array<string | null>>([
+        "MGET",
+        ...validReferences.map(({ auctionId, runId }) =>
+          orderKey(runId, auctionId),
+        ),
+      ])) ?? [])
+    : [];
+  const orders = rawOrders
+    .map((raw, index) => {
+      if (!raw) return null;
+      try {
+        const order = normalizeStoredOrderPayment(JSON.parse(raw) as unknown);
+        const reference = validReferences[index];
+        return order &&
+          order.auctionId === reference.auctionId &&
+          order.runId === reference.runId &&
+          normalizeOrderId(order.orderId)
+          ? order
+          : null;
+      } catch {
+        return null;
+      }
+    })
+    .filter((order): order is AuctionOrder => Boolean(order));
 
-  const nextOffset = offset + (references?.length ?? 0);
   return {
     orders,
-    nextCursor: nextOffset < (total ?? 0) ? String(nextOffset) : null,
+    nextCursor: page.nextCursor,
   };
 }
 

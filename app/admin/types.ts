@@ -1,22 +1,28 @@
-export type AuctionStatus =
-  | "draft"
+export type AuctionRecordState = "draft" | "published" | "archived";
+
+export type AuctionRunStatus =
   | "waiting"
   | "live"
   | "payment_pending"
   | "sold"
   | "ended";
 
+export type AuctionDisplayStatus =
+  | AuctionRecordState
+  | AuctionRunStatus;
+
 export type AdminAuction = {
   auctionId: string;
   slug: string;
   revision: number | null;
+  recordState: AuctionRecordState;
   productName: string;
   productImageUrl: string | null;
   regularPrice: number;
   startPrice: number;
   floorPrice: number;
   durationMinutes: number;
-  status: AuctionStatus;
+  status: AuctionRunStatus | null;
   currentPrice: number | null;
   runId: string | null;
   startsAt: string | null;
@@ -34,6 +40,29 @@ export type AuctionDefinitionInput = {
   floorPrice: number;
   durationMinutes: number;
   startsAt?: string;
+};
+
+export type FulfillmentStatus =
+  | "new"
+  | "preparing"
+  | "shipped"
+  | "delivered";
+
+export type OrderFulfillment = {
+  status: FulfillmentStatus;
+  revision: number;
+  carrier: string | null;
+  trackingNumber: string | null;
+  note: string | null;
+  updatedAt: string;
+};
+
+export type FulfillmentUpdateInput = {
+  expectedRevision: number;
+  status: FulfillmentStatus;
+  carrier: string | null;
+  trackingNumber: string | null;
+  note: string | null;
 };
 
 export type AdminOrder = {
@@ -59,6 +88,51 @@ export type AdminOrder = {
     postalCode: string | null;
     state: string | null;
   } | null;
+  fulfillment: OrderFulfillment;
+};
+
+export type AdminAuctionRun = {
+  auctionId: string;
+  runId: string;
+  status: AuctionRunStatus | null;
+  startsAt: string | null;
+  endsAt: string | null;
+  startPrice: number | null;
+  floorPrice: number | null;
+  soldPrice: number | null;
+  participantCount: number | null;
+  winnerParticipantId: string | null;
+  winnerClaimedAt: string | null;
+  paidAt: string | null;
+};
+
+export type AdminParticipant = {
+  participantId: string;
+  auctionId: string | null;
+  runId: string | null;
+  entryStatus: "granted" | "refunded" | "unknown";
+  entryFee: number | null;
+  grantedAt: string | null;
+  refundedAt: string | null;
+  isWinner: boolean;
+  winnerPrice: number | null;
+};
+
+export type AuditDetail = string | number | boolean | null;
+
+export type AdminAuditEvent = {
+  eventId: string;
+  event: string;
+  timestamp: string;
+  actor: string | null;
+  entityType: string | null;
+  entityId: string | null;
+  details: Record<string, AuditDetail>;
+};
+
+export type CursorPage<T> = {
+  items: T[];
+  nextCursor: string | null;
 };
 
 export type AdminHealth = {
@@ -68,9 +142,10 @@ export type AdminHealth = {
   redisConfigured: boolean;
   redisReachable: boolean;
   redisLatencyMs: number | null;
-  stripeConfigured: boolean;
-  stripeTestMode: boolean;
-  webhookConfigured: boolean;
+  paymentProvider: string;
+  paymentConfigured: boolean;
+  paymentTestMode: boolean;
+  paymentWebhookConfigured: boolean;
   degraded: boolean;
 };
 
@@ -89,4 +164,5 @@ export type AuctionFilter =
   | "live"
   | "waiting"
   | "finished"
-  | "draft";
+  | "draft"
+  | "archived";

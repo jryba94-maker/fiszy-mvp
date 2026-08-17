@@ -80,20 +80,26 @@ export function isValidAdminSecret(candidate: string | null | undefined) {
 }
 
 export function hasValidAdminRequest(request: NextRequest) {
+  return verifiedAdminActorType(request) !== null;
+}
+
+export function verifiedAdminActorType(
+  request: NextRequest,
+): "admin_session" | "admin_api" | null {
   const secret = configuredSecret();
-  if (!secret) return false;
+  if (!secret) return null;
 
   const cookieToken = request.cookies.get(ADMIN_SESSION_COOKIE)?.value;
   if (cookieToken && isValidAdminSessionToken(cookieToken, secret)) {
-    return true;
+    return "admin_session";
   }
 
   const authorization = request.headers.get("authorization") ?? "";
   const prefix = "Bearer ";
-  return (
-    authorization.startsWith(prefix) &&
+  return authorization.startsWith(prefix) &&
     isValidAdminSecret(authorization.slice(prefix.length))
-  );
+    ? "admin_api"
+    : null;
 }
 
 export function isSameOriginAdminMutation(request: NextRequest) {

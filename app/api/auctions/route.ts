@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { listPublicAuctions } from "../../../lib/auction-view";
+import { looksLikeSortedSetCursor } from "../../../lib/sorted-set-pagination";
 
 export const dynamic = "force-dynamic";
 
@@ -9,7 +10,7 @@ export async function GET(request: NextRequest) {
   const limit = limitValue === null ? 20 : Number(limitValue);
 
   if (
-    (cursor !== null && !/^\d+$/.test(cursor)) ||
+    (cursor !== null && !looksLikeSortedSetCursor(cursor)) ||
     !Number.isInteger(limit) ||
     limit < 1 ||
     limit > 50

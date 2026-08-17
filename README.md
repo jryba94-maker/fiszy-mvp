@@ -4,7 +4,7 @@ Fiszy to portal aukcji ze spadającą ceną. Użytkownik opłaca wejście za 5 z
 
 Repozytorium: `jryba94-maker/fiszy-mvp`
 
-Technologia: Next.js 15 (App Router), React 19, TypeScript, Redis REST, Stripe Checkout i Vercel.
+Technologia: Next.js 15 (App Router), React 19, TypeScript, Redis REST, neutralna warstwa dostawcy płatności z bieżącym adapterem Stripe Checkout i Vercel.
 
 > To jest rozbudowane MVP przygotowane do dalszego rozwoju, a nie jeszcze kompletny system sprzedażowy. Wdrożenie na Production wymaga spełnienia wszystkich warunków opisanych w sekcji [Bramki Production](#bramki-production).
 
@@ -18,7 +18,11 @@ Technologia: Next.js 15 (App Router), React 19, TypeScript, Redis REST, Stripe C
 - osobna płatność zwycięzcy za produkt i zebranie danych dostawy;
 - idempotentny zapis opłaconego zamówienia po podpisanym webhooku Stripe;
 - lokalna historia użytkownika pod `/moje-fiszy`;
-- panel `/admin`: logowanie, wskaźniki, filtrowanie aukcji, tworzenie, edycja, planowanie kolejnych rund, zamówienia i diagnostyka;
+- panel `/admin`: logowanie, globalne wskaźniki, wyszukiwanie i filtrowanie, tworzenie, edycja, archiwizowanie i przywracanie aukcji oraz planowanie kolejnych rund;
+- automatyczne pobieranie wszystkich stron aukcji i zamówień do bezpiecznego limitu MVP 5000 rekordów na zbiór, dzięki czemu wskaźniki i filtry nie kończą się na pierwszej stronie;
+- obsługa realizacji zamówień w stanach `new`, `preparing`, `shipped` i `delivered`, z przewoźnikiem, numerem przesyłki, notatką i ochroną przed nadpisaniem nowszej zmiany;
+- eksport aktualnie przefiltrowanego widoku zamówień do CSV z neutralizacją wartości mogących zostać zinterpretowanych przez arkusz jako formuły;
+- historia rund i uczestników oraz pomocniczy dziennik utworzenia i zmian aukcji, planowania rund i realizacji zamówień;
 - zgodność ze starszymi trasami jednej aukcji podczas migracji MVP;
 - Vercel Analytics, Speed Insights, publiczny health check i strukturalne logi serwera.
 
@@ -29,7 +33,8 @@ flowchart LR
   U["Portal użytkownika"] --> API["Next.js — strony i API"]
   A["Panel administratora"] --> API
   API --> R["Redis REST — aukcje, rundy, wejścia, zwycięzcy, zamówienia"]
-  API --> S["Stripe Checkout"]
+  API --> P["Warstwa payment-provider"]
+  P --> S["Stripe Checkout — bieżący adapter"]
   S --> W["Podpisany webhook /api/stripe/webhook"]
   W --> R
   API --> O["Vercel Logs, Analytics i Speed Insights"]
@@ -41,9 +46,14 @@ Najważniejsze elementy modelu:
 - `AuctionConfig` jest migawką parametrów konkretnej rundy: `runId`, start, ceny i czas;
 - wpis wejściowy potwierdza prawo danego identyfikatora uczestnika do udziału w konkretnej rundzie;
 - zwycięzca jest zapisywany atomowo w Redisie, więc dwie instancje serwera nie mogą sprzedać tego samego produktu dwóm osobom;
-- zamówienie jest powiązane z `auctionId`, `runId`, zwycięzcą i sesją Stripe;
+- stan rekordu aukcji (`draft`, `published`, `archived`) jest niezależny od stanu jej rundy (`waiting`, `live`, `payment_pending`, `sold`, `ended`);
+- zamówienie jest powiązane z `auctionId`, `runId`, zwycięzcą, operatorem i referencją płatności; stare rekordy bez pola operatora są interpretowane jako legacy Stripe;
+- realizacja zamówienia ma własny numer rewizji; zapis compare-and-set (CAS) odrzuca próbę nadpisania zmiany wykonanej wcześniej w innym oknie;
+- każda skuteczna zmiana realizacji tworzy trwały wpis audytowy bez danych kontaktowych i adresowych klienta;
 - indeksy Redis umożliwiają stronicowanie katalogu, rund i zamówień bez przeszukiwania całej bazy;
 - prefiks kluczy zawiera `VERCEL_ENV`, dzięki czemu dane `development`, `preview` i `production` mają osobne przestrzenie nazw. Każde środowisko powinno dodatkowo korzystać z osobnego zasobu Redis.
+
+Moduły `lib/payment-provider.ts` i `lib/payment-types.ts` oddzielają konfigurację oraz trwałą własność referencji płatności od reszty domeny. Obecnie operacje delegują do Stripe bez zmiany dotychczasowego zachowania Checkout i webhooka. Jest to punkt integracji przygotowany pod przyszły adapter Przelewy24, a nie ukończona migracja do Przelewy24.
 
 Cena maleje całkowitą liczbą złotych od ceny startowej do minimalnej. Ostatni fragment czasu jest oknem ceny minimalnej. Czas i cena autorytatywna zawsze pochodzą z serwera, nie z zegara przeglądarki.
 
@@ -66,8 +76,11 @@ Cena maleje całkowitą liczbą złotych od ceny startowej do minimalnej. Ostatn
 | `/api/admin/session` | administrator | utworzenie, sprawdzenie i usunięcie sesji |
 | `/api/admin/auctions` | administrator | lista i tworzenie aukcji |
 | `/api/admin/auctions/[auctionId]` | administrator | odczyt i edycja aukcji |
-| `/api/admin/auctions/[auctionId]/runs` | administrator | zaplanowanie kolejnej rundy |
+| `/api/admin/auctions/[auctionId]/runs` | administrator | stronicowana historia rund (`GET`) i zaplanowanie kolejnej rundy (`POST`) |
+| `/api/admin/auctions/[auctionId]/runs/[runId]/participants` | administrator | stronicowana lista uczestników rundy z prawem wejścia i oznaczeniem zwycięzcy |
 | `/api/admin/orders` | administrator | stronicowana lista opłaconych zamówień |
+| `/api/admin/orders/[orderId]/fulfillment` | administrator | odczyt stanu i historii realizacji (`GET`) oraz zmiana statusu, trackingu i notatki z kontrolą rewizji (`PATCH`) |
+| `/api/admin/audit` | administrator | stronicowany pomocniczy dziennik zapisanych zmian, opcjonalnie filtrowany po typie i identyfikatorze zasobu |
 
 Trasy `/api/auction/**` i `/api/admin/auction/start` są adapterami zgodności dla wcześniejszej, pojedynczej aukcji. Nowe funkcje powinny korzystać z tras `/api/auctions/**`.
 
@@ -165,6 +178,7 @@ Skrypt:
 | `STRIPE_SECRET_KEY` | `sk_test_...` | `sk_test_...` | `sk_live_...` | serwerowy klucz Stripe |
 | `STRIPE_WEBHOOK_SECRET` | sekret lokalnego listenera | sekret endpointu Preview, jeśli jest używany | sekret live endpointu Production | weryfikacja podpisu webhooka |
 | `FISZY_ADMIN_SECRET` | osobny, co najmniej 32 losowe znaki | inny sekret Preview | inny sekret Production | podpis sesji i awaryjne uwierzytelnienie API |
+| `FISZY_RATE_LIMIT_SECRET` | co najmniej 32 losowe bajty | inny sekret Preview | inny sekret Production | niezależna sól HMAC dla kluczy limitu publicznych żądań |
 | `FISZY_DEFAULT_CHECKOUT_ORIGIN` | `http://127.0.0.1:3000` | stały HTTPS alias Preview albo automatyczny `VERCEL_URL` | wymagany kanoniczny adres HTTPS | bazowy powrót ze Stripe Checkout |
 | `FISZY_ALLOWED_CHECKOUT_ORIGINS` | oba lokalne originy | wyłącznie zatwierdzone originy Preview | kanoniczna domena i tylko potrzebne aliasy HTTPS | lista dokładnych originów dopuszczonych do powrotu |
 | `FISZY_RACE_TEST_REDIS_URL_SHA256` | wymagany przez testy mutujące | nie ustawiaj | nie ustawiaj | odcisk zatwierdzonego Development Redis |
@@ -211,27 +225,49 @@ Chronionego Vercel Preview nie należy otwierać publicznie tylko po to, aby prz
 
 Panel działa pod `/admin`. Sekret jest wysyłany tylko podczas logowania i zamieniany na podpisaną sesję w ciasteczku `HttpOnly`, `SameSite=Strict`; sesja trwa maksymalnie 8 godzin. Logowanie ma limit 10 prób na 15 minut dla jednego źródła.
 
+Po zalogowaniu panel pobiera kolejne strony aukcji i zamówień po 50 rekordów. Bezpieczny limit MVP wynosi 100 stron, czyli 5000 rekordów na zbiór. Jeżeli API zwróci zapętlony kursor albo limit zostanie osiągnięty, panel przerywa operację z widocznym błędem zamiast pokazywać niepełne wskaźniki jako kompletne dane.
+
 Typowy proces pracy:
 
 1. Sprawdź sekcję „Stan systemu”. Degradacja Redis, Stripe lub webhooka oznacza zakaz uruchamiania płatnej aukcji.
 2. Utwórz aukcję jako szkic albo podaj przyszły termin i od razu ją zaplanuj.
 3. Sprawdź nazwę, slug, zdjęcie, cenę regularną, startową, minimalną oraz czas trwania.
 4. Opublikuj pierwszą lub kolejną rundę. Bez podanego czasu serwer planuje start z bezpiecznym opóźnieniem.
-5. Nie edytuj parametrów ani nie archiwizuj aktywnej aukcji. API blokuje taką zmianę konfliktem `409`.
-6. Po opłaceniu produktu sprawdź zamówienie, dane kontaktowe i adres dostawy; można skopiować dane wysyłkowe.
-7. Po pracy wyloguj sesję administratora.
+5. Nie edytuj parametrów ani nie archiwizuj aktywnej aukcji. API blokuje taką zmianę konfliktem `409`. Zakończoną aukcję można archiwizować i później przywrócić bez usuwania historii.
+6. W historii aukcji sprawdź wcześniejsze rundy, ich uczestników, zwycięzcę i powiązane zamówienie.
+7. Po opłaceniu produktu sprawdź zamówienie, dane kontaktowe i adres dostawy; można skopiować dane wysyłkowe albo wyeksportować aktualnie widoczny zestaw do CSV.
+8. Prowadź realizację od `new` przez `preparing` i `shipped` do `delivered`. Status wysłany lub doręczony wymaga przewoźnika i numeru przesyłki. Konflikt rewizji `409` oznacza, że dane zmieniono w innym oknie i trzeba je odświeżyć.
+9. W pomocniczym dzienniku działań sprawdź utworzenie i zmiany aukcji, planowanie rund oraz zmiany realizacji. Wspólny sekret administratora pozwala rozpoznać typ sesji, ale nie konkretną osobę. Zdarzenia są przechowywane przez 180 dni. Zmiana realizacji i jej wpis powstają atomowo; wpisy dotyczące aukcji są dopisywane po udanej operacji i przy awarii tego drugiego zapisu mogą wymagać odtworzenia z logów.
+10. Po pracy wyloguj sesję administratora.
 
-Stany administracyjne:
+Stan rekordu aukcji jest niezależny od stanu rundy. Stany rekordu:
 
 - `draft` — aukcja nie jest widoczna w katalogu;
+- `published` — aukcja może być widoczna i przyjmować kolejne rundy;
+- `archived` — rekord pozostaje w danych, ale nie jest publiczny i nie przyjmuje nowej rundy.
+
+Stany rundy:
+
 - `waiting` — runda opublikowana, start w przyszłości;
 - `live` — trwa spadek ceny;
 - `payment_pending` — zwycięzca ma czas na płatność;
 - `sold` — płatność produktu potwierdzona i zamówienie zapisane;
-- `ended` — czas minął bez sprzedaży;
-- `archived` — rekord pozostaje w danych, ale nie jest publiczny i nie przyjmuje nowej rundy.
+- `ended` — czas minął bez sprzedaży.
+
+Stany realizacji zamówienia:
+
+- `new` — nowe opłacone zamówienie czeka na obsługę;
+- `preparing` — zamówienie jest przygotowywane;
+- `shipped` — przesyłka wysłana; wymagany jest przewoźnik i numer przesyłki;
+- `delivered` — przesyłka doręczona; dane śledzenia pozostają wymagane.
 
 Slug powinien być stabilny, małymi literami, bez polskich znaków, np. `playstation-5`. Zdjęcie może być ścieżką lokalną zaczynającą się od `/` albo publicznym HTTPS. Backend odrzuca adresy prywatne, lokalne, uwierzytelnione i nie-HTTPS.
+
+## Status bieżącej iteracji
+
+Ta iteracja rozbudowuje lokalny panel administratora i przygotowuje neutralną granicę integracji płatności. Zgodnie z decyzją projektową nie wykonywano w niej testów płatności Stripe ani webhooka. Stripe pozostaje dostawcą działającym w piaskownicy, a migracja do Przelewy24 jest odłożona do osobnego etapu wraz z projektem nowego adaptera i pełną weryfikacją płatności.
+
+W tej iteracji nie zmieniano, nie wdrażano ani nie konfigurowano Production.
 
 ## Weryfikacja przed wysłaniem zmian
 
@@ -241,12 +277,16 @@ Najpierw testy niemutujące:
 npm ci
 npm run check:security
 npm run typecheck
+npm run test:admin:unit
+npm run test:history:unit
 npm run build
 ```
 
 `npm run build` uruchamiaj po zatrzymaniu `npm run dev`, ponieważ oba procesy korzystają z katalogu `.next`.
 
-Następnie uruchom ponownie serwer Development oraz testy integracyjne:
+Testy `test:admin:unit` i `test:history:unit` są deterministyczne, nie łączą się z operatorem płatności ani z zewnętrznym Redis i są wykonywane w CI.
+
+Przed ponownym wdrożeniem przepływu płatności lub decyzją o Production uruchom osobno odłożone testy integracyjne płatności w zatwierdzonym Development:
 
 ```powershell
 npm run dev
@@ -291,6 +331,7 @@ GitHub Actions uruchamia na PR i na `main`:
 - `npm ci`;
 - audyt zależności produkcyjnych;
 - kontrolę TypeScript;
+- deterministyczne testy bezpieczeństwa, realizacji zamówień i historii;
 - produkcyjny build Next.js.
 
 Nie commituj `.env*`, `.vercel/`, logów ani sekretów. PR powinien opisywać zmianę zachowania, ryzyko, wykonane testy i plan wycofania. Merge do gałęzi uruchamiającej Production jest zmianą produkcyjną i wymaga osobnej, świadomej zgody.
@@ -404,15 +445,18 @@ Po incydencie utwórz osobną gałąź naprawczą i nowe Preview. Nie „naprawi
 ## Znane ograniczenia i dalszy rozwój
 
 - `/moje-fiszy` opiera się na identyfikatorze i historii `localStorage`; nie jest kontem użytkownika i nie synchronizuje się między urządzeniami;
-- administrator korzysta ze wspólnego sekretu, bez indywidualnych kont, MFA, ról i pełnego audytu działań;
-- brak panelu zwrotów, statusów realizacji przesyłki, faktur i automatycznych wiadomości;
+- pełne konta użytkowników i trwała historia między urządzeniami są odłożone do czasu wyboru dostawcy tożsamości; identyfikatora przeglądarki nie należy traktować jak uwierzytelnionego użytkownika;
+- administrator korzysta ze wspólnego sekretu, bez indywidualnych kont, MFA i ról. Pomocniczy dziennik zapisuje utworzenie i zmiany aukcji, planowanie rund, zmiany realizacji oraz typ dostępu (`admin_session` albo `admin_api`), ale nie potrafi wskazać konkretnej osoby i nie jest jeszcze formalnym, kompletnym audytem zgodności;
+- wpisy dziennika i jego indeksy mają automatyczną retencję 180 dni; polityka danych osobowych całego portalu nadal wymaga formalnego zatwierdzenia;
+- brak panelu zwrotów, faktur i automatycznych wiadomości e-mail; wysyłka wiadomości zostanie dodana dopiero po wyborze dostawcy poczty i zasad dostarczalności;
 - brak wbudowanego uploadu i optymalizacji zdjęć produktów;
 - przed publiczną sprzedażą trzeba formalnie wdrożyć zasady retencji i usuwania danych osobowych;
-- alerty zewnętrzne oraz system śledzenia błędów wymagają konfiguracji operacyjnej;
+- automatyczne alerty zewnętrzne oraz system śledzenia błędów są odłożone i wymagają wyboru oraz konfiguracji usługi operacyjnej;
+- warstwa `payment-provider` nadal deleguje do Stripe; rzeczywista integracja Przelewy24, migracja danych referencyjnych i testy nowego przepływu są odłożone;
 - mechanika wejścia za opłatą i aukcji wymaga weryfikacji prawnej, regulaminu i zasad ochrony konsumenta;
 - przed dopuszczeniem wielu pracowników do panelu wspólny sekret należy zastąpić zarządzanym uwierzytelnianiem z MFA i rolami.
 
-Najbliższy etap rozwoju portalu powinien objąć konta użytkowników, trwałą historię między urządzeniami, zarządzane logowanie administratorów, statusy realizacji zamówień, obsługę zwrotów oraz alerty płatności i infrastruktury.
+Najbliższy etap rozwoju portalu powinien objąć konta użytkowników, trwałą historię między urządzeniami, zarządzane logowanie administratorów, audyt odrzuconych operacji, obsługę zwrotów, automatyczne wiadomości oraz alerty płatności i infrastruktury. Migracja płatności do Przelewy24 pozostaje osobnym etapem po ustaleniu wymagań i kosztów operatora.
 
 ## Najczęstsze problemy
 

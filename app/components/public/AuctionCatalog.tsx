@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AuctionCard } from "./AuctionCard";
 import {
   fetchAuctionIndex,
@@ -17,7 +17,47 @@ type CatalogState = {
   auctions: PublicAuction[];
   nextCursor: string | null;
   fallback: boolean;
+  hasLoadedMore: boolean;
 };
+
+function uniqueAuctions(
+  primary: PublicAuction[],
+  secondary: PublicAuction[] = [],
+) {
+  const seen = new Set<string>();
+  return [...primary, ...secondary].filter((auction) => {
+    if (seen.has(auction.auctionId)) return false;
+    seen.add(auction.auctionId);
+    return true;
+  });
+}
+
+function refreshedCatalog(
+  current: CatalogState | null,
+  firstPage: PublicAuction[],
+  firstPageNextCursor: string | null,
+  fallback: boolean,
+): CatalogState {
+  if (!current?.hasLoadedMore) {
+    return {
+      auctions: uniqueAuctions(firstPage),
+      nextCursor: firstPageNextCursor,
+      fallback,
+      hasLoadedMore: false,
+    };
+  }
+
+  return {
+    // The refreshed first page wins for matching IDs, while every auction the
+    // user has already loaded remains visible if it moved to a later page.
+    auctions: uniqueAuctions(firstPage, current.auctions),
+    // Once another page has been loaded, its cursor is the tail of the list.
+    // A first-page poll must not move that tail back to page one.
+    nextCursor: current.nextCursor,
+    fallback,
+    hasLoadedMore: true,
+  };
+}
 
 function redirectStripeReturn() {
   const query = new URLSearchParams(window.location.search);
@@ -36,28 +76,56 @@ export function AuctionCatalog() {
   const [catalog, setCatalog] = useState<CatalogState | null>(null);
   const [error, setError] = useState("");
   const [loadingMore, setLoadingMore] = useState(false);
+  const firstPageRequestRef = useRef(0);
+  const loadingMoreRef = useRef(false);
 
   const loadInitial = useCallback(async (signal?: AbortSignal) => {
+    const requestId = ++firstPageRequestRef.current;
+    const isCurrentRequest = () =>
+      !signal?.aborted && requestId === firstPageRequestRef.current;
     setError("");
     try {
       const result = await fetchAuctionIndex(null, signal);
       if (result.auctions.length) {
-        setCatalog({ ...result, fallback: false });
+        if (!isCurrentRequest()) return;
+        setCatalog((current) => refreshedCatalog(
+          current,
+          result.auctions,
+          result.nextCursor,
+          false,
+        ));
         return;
       }
 
       const legacy = await fetchLegacyAuction(signal);
-      setCatalog({ auctions: [legacy], nextCursor: null, fallback: true });
+      if (!isCurrentRequest()) return;
+      setCatalog((current) => refreshedCatalog(
+        current,
+        [legacy],
+        null,
+        true,
+      ));
       return;
     } catch (indexError) {
-      if (signal?.aborted) return;
+      if (!isCurrentRequest()) return;
       try {
         const legacy = await fetchLegacyAuction(signal);
-        setCatalog({ auctions: [legacy], nextCursor: null, fallback: true });
+        if (!isCurrentRequest()) return;
+        setCatalog((current) => refreshedCatalog(
+          current,
+          [legacy],
+          null,
+          true,
+        ));
         return;
       } catch {
-        if (signal?.aborted) return;
-        setCatalog({ auctions: [], nextCursor: null, fallback: false });
+        if (!isCurrentRequest()) return;
+        setCatalog((current) => current ?? refreshedCatalog(
+          null,
+          [],
+          null,
+          false,
+        ));
         setError(
           indexError instanceof Error
             ? indexError.message
@@ -80,25 +148,29 @@ export function AuctionCatalog() {
   }, [loadInitial]);
 
   const loadMore = async () => {
-    if (!catalog?.nextCursor || loadingMore) return;
+    const cursor = catalog?.nextCursor;
+    if (!cursor || loadingMoreRef.current) return;
+    loadingMoreRef.current = true;
     setLoadingMore(true);
     try {
-      const result = await fetchAuctionIndex(catalog.nextCursor);
+      const result = await fetchAuctionIndex(cursor);
       setCatalog((current) => current
         ? {
-            auctions: [
-              ...current.auctions,
-              ...result.auctions.filter(
-                (auction) => !current.auctions.some((item) => item.auctionId === auction.auctionId),
-              ),
-            ],
+            auctions: uniqueAuctions(current.auctions, result.auctions),
             nextCursor: result.nextCursor,
             fallback: false,
+            hasLoadedMore: true,
           }
-        : { ...result, fallback: false });
+        : refreshedCatalog(
+            null,
+            result.auctions,
+            result.nextCursor,
+            false,
+          ));
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Nie udało się pobrać kolejnych aukcji.");
     } finally {
+      loadingMoreRef.current = false;
       setLoadingMore(false);
     }
   };

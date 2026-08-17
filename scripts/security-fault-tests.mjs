@@ -15,6 +15,7 @@ import {
   adminSessionToken,
   hasValidAdminRequest,
   isSameOriginAdminMutation,
+  verifiedAdminActorType,
 } from "../lib/admin-auth.ts";
 import {
   attachAuctionWinnerCheckout,
@@ -184,6 +185,21 @@ test("admin session rejects expired, future and tampered cookies", () => {
     assert.equal(
       hasValidAdminRequest(fakeAdminRequest({ authorization: "Bearer wrong" })),
       false,
+    );
+    assert.equal(
+      verifiedAdminActorType(
+        fakeAdminRequest({
+          token: "stale-or-forged-cookie",
+          authorization: `Bearer ${secret}`,
+        }),
+      ),
+      "admin_api",
+    );
+    assert.equal(
+      verifiedAdminActorType(
+        fakeAdminRequest({ token, authorization: `Bearer ${secret}` }),
+      ),
+      "admin_session",
     );
   } finally {
     Date.now = originalNow;

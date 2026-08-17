@@ -8,7 +8,9 @@ const BIDDER_LIMIT = 6;
 
 function digest(value: string) {
   const salt =
+    process.env.FISZY_RATE_LIMIT_SECRET ||
     process.env.FISZY_ADMIN_SECRET ||
+    // Compatibility fallback until every environment has a dedicated salt.
     process.env.STRIPE_SECRET_KEY ||
     "fiszy-local-rate-limit";
   return createHmac("sha256", salt).update(value).digest("hex").slice(0, 24);

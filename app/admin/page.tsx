@@ -10,16 +10,20 @@ import {
   loadAuctions,
   loadHealth,
   loadOrders,
+  setAuctionRecordState,
   startAuctionRun,
   updateAuction,
+  updateOrderFulfillment,
 } from "./api";
 import { AdminGate } from "./components/AdminGate";
 import { AdminHeader } from "./components/AdminHeader";
+import { AuditPanel } from "./components/AuditPanel";
 import { AuctionEditor } from "./components/AuctionEditor";
 import { AuctionList } from "./components/AuctionList";
 import { HealthPanel } from "./components/HealthPanel";
 import { KpiGrid } from "./components/KpiGrid";
 import { OrdersPanel } from "./components/OrdersPanel";
+import { RunHistoryPanel } from "./components/RunHistoryPanel";
 import styles from "./AdminDashboard.module.css";
 import type {
   AdminAuction,
@@ -27,6 +31,7 @@ import type {
   AdminOrder,
   AuctionDefinitionInput,
   AuctionFilter,
+  FulfillmentUpdateInput,
 } from "./types";
 
 type SessionStatus = "checking" | "signed_out" | "authenticated" | "unconfigured";
@@ -54,15 +59,22 @@ export default function AdminPage() {
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [health, setHealth] = useState<AdminHealth | null>(null);
   const [filter, setFilter] = useState<AuctionFilter>("all");
+  const [auctionSearch, setAuctionSearch] = useState("");
   const [editingAuction, setEditingAuction] = useState<AdminAuction | null>(null);
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [dashboardError, setDashboardError] = useState("");
   const [savingEditor, setSavingEditor] = useState(false);
   const [busyAuctionId, setBusyAuctionId] = useState<string | null>(null);
+  const [busyOrderId, setBusyOrderId] = useState<string | null>(null);
+  const [orderUpdateError, setOrderUpdateError] = useState<{
+    orderId: string;
+    message: string;
+  } | null>(null);
   const [lastUpdated, setLastUpdated] = useState<number | null>(null);
   const [notice, setNotice] = useState<Notice>(null);
   const [legacyMode, setLegacyMode] = useState(false);
   const loadingRef = useRef(false);
+  const busyOrderRef = useRef<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -97,6 +109,9 @@ export default function AdminPage() {
     setAuctions([]);
     setOrders([]);
     setHealth(null);
+    setBusyAuctionId(null);
+    setBusyOrderId(null);
+    busyOrderRef.current = null;
   }, []);
 
   const loadDashboard = useCallback(async (silent = false) => {
@@ -164,7 +179,7 @@ export default function AdminPage() {
 
     const timer = window.setInterval(() => {
       if (document.visibilityState === "visible") void loadDashboard(true);
-    }, 12_000);
+    }, 30_000);
 
     return () => window.clearInterval(timer);
   }, [sessionStatus, loadDashboard]);
@@ -211,6 +226,10 @@ export default function AdminPage() {
       setHealth(null);
       setNotice(null);
       setEditingAuction(null);
+      setAuctionSearch("");
+      setFilter("all");
+      setOrderUpdateError(null);
+      busyOrderRef.current = null;
     }
   };
 
@@ -234,8 +253,10 @@ export default function AdminPage() {
       setNotice({
         tone: result.legacy ? "info" : "success",
         message: result.legacy
-          ? "Aukcja została uruchomiona przez zgodny endpoint MVP. Nowe API nie jest jeszcze dostępne."
-          : result.message ?? (editingAuctionId ? "Zmiany aukcji zostały zapisane." : "Nowa aukcja została utworzona."),
+          ? "Aukcja została uruchomiona przez zgodny endpoint MVP."
+          : result.message ?? (editingAuctionId
+              ? "Zmiany aukcji zostały zapisane."
+              : "Nowa aukcja została utworzona."),
       });
       setEditingAuction(null);
       await loadDashboard();
@@ -250,6 +271,7 @@ export default function AdminPage() {
   };
 
   const handleStartRun = async (auction: AdminAuction) => {
+    if (auction.recordState === "archived") return;
     const confirmed = window.confirm(
       `Uruchomić kolejną rundę aukcji „${auction.productName}”? Serwer wyznaczy najbliższy bezpieczny start.`,
     );
@@ -272,6 +294,95 @@ export default function AdminPage() {
       else setNotice({ tone: "error", message: errorMessage(error) });
     } finally {
       setBusyAuctionId(null);
+    }
+  };
+
+  const handleArchiveToggle = async (auction: AdminAuction) => {
+    const restoring = auction.recordState === "archived";
+    const confirmed = window.confirm(
+      restoring
+        ? `Przywrócić aukcję „${auction.productName}”?`
+        : `Przenieść aukcję „${auction.productName}” do archiwum?`,
+    );
+    if (!confirmed) return;
+
+    setBusyAuctionId(auction.auctionId);
+    setNotice(null);
+    try {
+      const nextState = restoring
+        ? auction.runId ? "published" as const : "draft" as const
+        : "archived" as const;
+      const result = await setAuctionRecordState(
+        auction.auctionId,
+        nextState,
+        auction.revision ?? undefined,
+      );
+      setNotice({
+        tone: "success",
+        message: result.message ?? (restoring
+          ? "Aukcja została przywrócona."
+          : "Aukcja została przeniesiona do archiwum."),
+      });
+      if (!restoring && editingAuction?.auctionId === auction.auctionId) {
+        setEditingAuction(null);
+      }
+      await loadDashboard();
+    } catch (error) {
+      if (isUnauthorized(error)) handleExpiredSession();
+      else setNotice({ tone: "error", message: errorMessage(error) });
+    } finally {
+      setBusyAuctionId(null);
+    }
+  };
+
+  const handleFulfillmentUpdate = async (
+    order: AdminOrder,
+    input: FulfillmentUpdateInput,
+  ) => {
+    if (busyOrderRef.current) return false;
+    const previousFulfillment = order.fulfillment;
+    const optimisticFulfillment = {
+      status: input.status,
+      revision: input.expectedRevision,
+      carrier: input.carrier,
+      trackingNumber: input.trackingNumber,
+      note: input.note,
+      updatedAt: new Date().toISOString(),
+    };
+
+    busyOrderRef.current = order.orderId;
+    setBusyOrderId(order.orderId);
+    setOrderUpdateError(null);
+    setOrders((current) => current.map((item) =>
+      item.orderId === order.orderId
+        ? { ...item, fulfillment: optimisticFulfillment }
+        : item,
+    ));
+
+    try {
+      const fulfillment = await updateOrderFulfillment(order.orderId, input);
+      setOrders((current) => current.map((item) =>
+        item.orderId === order.orderId ? { ...item, fulfillment } : item,
+      ));
+      return true;
+    } catch (error) {
+      setOrders((current) => current.map((item) =>
+        item.orderId === order.orderId
+          ? { ...item, fulfillment: previousFulfillment }
+          : item,
+      ));
+      if (isUnauthorized(error)) {
+        handleExpiredSession();
+      } else {
+        setOrderUpdateError({
+          orderId: order.orderId,
+          message: errorMessage(error),
+        });
+      }
+      return false;
+    } finally {
+      busyOrderRef.current = null;
+      setBusyOrderId(null);
     }
   };
 
@@ -335,19 +446,22 @@ export default function AdminPage() {
 
       {legacyMode ? (
         <div className={styles.compatibilityBanner} role="status">
-          Tryb zgodności MVP: panel pokazuje dane ze starszych endpointów do czasu pełnego uruchomienia nowego API.
+          Tryb zgodności MVP: część danych pochodzi ze starszych endpointów.
         </div>
       ) : null}
 
-      <KpiGrid auctions={auctions} />
+      <KpiGrid auctions={auctions} orders={orders} />
 
       <AuctionList
         auctions={auctions}
         filter={filter}
+        searchQuery={auctionSearch}
         busyAuctionId={busyAuctionId}
         onFilterChange={setFilter}
+        onSearchChange={setAuctionSearch}
         onEdit={handleEdit}
         onStart={(auction) => void handleStartRun(auction)}
+        onArchiveToggle={(auction) => void handleArchiveToggle(auction)}
       />
 
       <AuctionEditor
@@ -358,13 +472,25 @@ export default function AdminPage() {
       />
 
       <div className={styles.lowerGrid}>
-        <OrdersPanel orders={orders} />
+        <OrdersPanel
+          orders={orders}
+          busyOrderId={busyOrderId}
+          updateError={orderUpdateError}
+          onUpdateFulfillment={handleFulfillmentUpdate}
+        />
         <HealthPanel health={health} />
       </div>
 
+      <RunHistoryPanel
+        auctions={auctions}
+        onSessionExpired={handleExpiredSession}
+      />
+
+      <AuditPanel onSessionExpired={handleExpiredSession} />
+
       <footer className={styles.footer}>
         <span>Fiszy / panel operacyjny</span>
-        <span>Brakujące lub niedostępne akcje nie są symulowane.</span>
+        <span>Dane list są stronicowane, a historia szczegółowa ładowana na żądanie.</span>
       </footer>
     </main>
   );

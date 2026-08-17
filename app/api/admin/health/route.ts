@@ -7,6 +7,7 @@ import {
 } from "../../../../lib/admin-auth";
 import { redisCommand } from "../../../../lib/redis";
 import { logEvent } from "../../../../lib/observability";
+import { paymentProviderHealth } from "../../../../lib/payment-provider";
 import { checkoutOriginConfiguration } from "../../../../lib/request-origin";
 
 export const dynamic = "force-dynamic";
@@ -24,15 +25,7 @@ export async function GET(request: NextRequest) {
   }
 
   const environment = process.env.VERCEL_ENV ?? "local";
-  const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
-  const stripeConfigured = Boolean(stripeSecretKey);
-  const stripeTestMode = stripeSecretKey?.startsWith("sk_test_") ?? false;
-  const stripeLiveMode = stripeSecretKey?.startsWith("sk_live_") ?? false;
-  const stripeWebhookConfigured = Boolean(process.env.STRIPE_WEBHOOK_SECRET);
-  const stripeModeMatchesEnvironment =
-    environment === "production"
-      ? stripeConfigured && stripeLiveMode
-      : stripeConfigured && stripeTestMode;
+  const payment = paymentProviderHealth(environment);
   const checkoutOrigin = checkoutOriginConfiguration();
   const redisUrl =
     process.env.STORAGE_KV_REST_API_URL ||
@@ -67,9 +60,9 @@ export async function GET(request: NextRequest) {
 
   const healthy =
     redisReachable &&
-    stripeConfigured &&
-    stripeModeMatchesEnvironment &&
-    stripeWebhookConfigured &&
+    payment.configured &&
+    payment.modeMatchesEnvironment &&
+    payment.webhookConfigured &&
     checkoutOrigin.productionReady &&
     isAdminSecretStrong();
 
@@ -79,8 +72,9 @@ export async function GET(request: NextRequest) {
       {
         environment,
         redisReachable,
-        stripeConfigured,
-        stripeWebhookConfigured,
+        paymentProvider: payment.provider,
+        paymentConfigured: payment.configured,
+        paymentWebhookConfigured: payment.webhookConfigured,
         checkoutOriginReady: checkoutOrigin.productionReady,
       },
       "warning",
@@ -97,11 +91,18 @@ export async function GET(request: NextRequest) {
       redisConfigured: Boolean(redisUrl && redisTokenConfigured),
       redisReachable,
       redisLatencyMs,
-      stripeConfigured,
-      stripeTestMode,
-      stripeLiveMode,
-      stripeModeMatchesEnvironment,
-      stripeWebhookConfigured,
+      paymentProvider: payment.provider,
+      paymentConfigured: payment.configured,
+      paymentTestMode: payment.testMode,
+      paymentLiveMode: payment.liveMode,
+      paymentModeMatchesEnvironment: payment.modeMatchesEnvironment,
+      paymentWebhookConfigured: payment.webhookConfigured,
+      // Legacy aliases stay during the Stripe-to-provider-neutral migration.
+      stripeConfigured: payment.configured,
+      stripeTestMode: payment.testMode,
+      stripeLiveMode: payment.liveMode,
+      stripeModeMatchesEnvironment: payment.modeMatchesEnvironment,
+      stripeWebhookConfigured: payment.webhookConfigured,
       checkoutOriginReady: checkoutOrigin.productionReady,
       checkoutOriginExplicit: Boolean(checkoutOrigin.configuredDefault),
       raceTestStorageReady,

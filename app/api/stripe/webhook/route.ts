@@ -100,6 +100,7 @@ async function handlePaidEntry(session: StripeCheckoutSession) {
     fee: ENTRY_FEE,
     grantedAt: new Date(now).toISOString(),
     provider: "stripe",
+    paymentReference: session.id,
     paymentSessionId: session.id,
   };
 
@@ -136,6 +137,8 @@ async function handlePaidEntry(session: StripeCheckoutSession) {
       runId: paidEntry.runId,
       entryStatus: "refunded",
       entryFee: ENTRY_FEE,
+      entryPaymentProvider: "stripe",
+      entryPaymentReference: session.id,
       entryPaymentSessionId: session.id,
       refundedAt: new Date().toISOString(),
     });
@@ -193,6 +196,8 @@ async function handlePaidPurchase(session: StripeCheckoutSession) {
     product: runConfig.productName,
     amount: winner.price,
     currency: "pln",
+    paymentProvider: "stripe",
+    paymentReference: session.id,
     paymentSessionId: session.id,
     paidAt,
     customer: {

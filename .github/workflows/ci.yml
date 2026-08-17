@@ -34,5 +34,9 @@ jobs:
         run: npm run typecheck
       - name: Run deterministic security tests
         run: npm run test:faults:unit
+      - name: Run deterministic admin operations tests
+        run: npm run test:admin:unit
+      - name: Run deterministic history storage tests
+        run: npm run test:history:unit
       - name: Build application
         run: npm run build

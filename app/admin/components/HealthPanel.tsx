@@ -12,6 +12,13 @@ type HealthItem = {
 };
 
 export function HealthPanel({ health }: HealthPanelProps) {
+  const providerName = health
+    ? health.paymentProvider.toLowerCase() === "stripe"
+      ? "Stripe"
+      : health.paymentProvider.toLowerCase() === "przelewy24"
+        ? "Przelewy24"
+        : health.paymentProvider
+    : "operator";
   const items: HealthItem[] = health
     ? [
         {
@@ -25,18 +32,20 @@ export function HealthPanel({ health }: HealthPanelProps) {
                 : "Brak połączenia",
         },
         {
-          label: "Stripe",
-          ready: health.stripeConfigured,
-          detail: health.stripeConfigured
-            ? health.stripeTestMode
-              ? "Tryb testowy"
-              : "Tryb płatności aktywny"
-            : "Brak klucza",
+          label: "Operator płatności",
+          ready: health.paymentConfigured,
+          detail: health.paymentConfigured
+            ? health.paymentTestMode
+              ? `${providerName} · piaskownica`
+              : `${providerName} · aktywny`
+            : `${providerName} · brak konfiguracji`,
         },
         {
-          label: "Webhook",
-          ready: health.webhookConfigured,
-          detail: health.webhookConfigured ? "Sekret skonfigurowany" : "Brak sekretu",
+          label: "Potwierdzenia operatora",
+          ready: health.paymentWebhookConfigured,
+          detail: health.paymentWebhookConfigured
+            ? "Kanał potwierdzeń skonfigurowany"
+            : "Brak konfiguracji potwierdzeń",
         },
         {
           label: "Administrator",

@@ -19,9 +19,10 @@ import {
   saveAuctionOrder,
 } from "../../../../../lib/order-storage";
 import {
-  expireCheckoutSession,
-  retrieveCheckoutSession,
-} from "../../../../../lib/stripe";
+  expirePaymentSession,
+  isPaymentProviderConfigured,
+  retrievePaymentSession,
+} from "../../../../../lib/payment-provider";
 import {
   hasValidAdminRequest,
   isAdminConfigured,
@@ -108,14 +109,14 @@ export async function POST(request: NextRequest) {
       }
 
       if (currentWinner.paymentSessionId) {
-        if (!process.env.STRIPE_SECRET_KEY) {
+        if (!isPaymentProviderConfigured()) {
           return NextResponse.json(
             { outcome: "pending_payment_recovery_unavailable" },
             { status: 409 },
           );
         }
 
-        const session = await retrieveCheckoutSession(
+        const session = await retrievePaymentSession(
           currentWinner.paymentSessionId,
         );
         if (session.payment_status === "paid" || session.status === "complete") {
@@ -125,7 +126,7 @@ export async function POST(request: NextRequest) {
           );
         }
         if (session.status === "open") {
-          const expired = await expireCheckoutSession(
+          const expired = await expirePaymentSession(
             currentWinner.paymentSessionId,
           );
           if (expired.status !== "expired") {

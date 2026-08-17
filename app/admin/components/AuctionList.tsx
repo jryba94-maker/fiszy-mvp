@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import type { AdminAuction, AuctionFilter } from "../types";
 import {
   STATUS_LABELS,
@@ -8,6 +8,7 @@ import {
   formatDateTime,
   formatMoney,
   isAuctionActive,
+  matchesAuctionSearch,
   matchesFilter,
   sortAuctions,
 } from "../utils";
@@ -20,15 +21,19 @@ const FILTERS: Array<{ value: AuctionFilter; label: string }> = [
   { value: "waiting", label: "Oczekujące" },
   { value: "finished", label: "Zakończone" },
   { value: "draft", label: "Szkice" },
+  { value: "archived", label: "Archiwum" },
 ];
 
 type AuctionListProps = {
   auctions: AdminAuction[];
   filter: AuctionFilter;
+  searchQuery: string;
   busyAuctionId: string | null;
   onFilterChange: (filter: AuctionFilter) => void;
+  onSearchChange: (query: string) => void;
   onEdit: (auction: AdminAuction) => void;
   onStart: (auction: AdminAuction) => void;
+  onArchiveToggle: (auction: AdminAuction) => void;
 };
 
 function filterCount(auctions: AdminAuction[], filter: AuctionFilter) {
@@ -38,12 +43,16 @@ function filterCount(auctions: AdminAuction[], filter: AuctionFilter) {
 export function AuctionList({
   auctions,
   filter,
+  searchQuery,
   busyAuctionId,
   onFilterChange,
+  onSearchChange,
   onEdit,
   onStart,
+  onArchiveToggle,
 }: AuctionListProps) {
   const [now, setNow] = useState(() => Date.now());
+  const deferredSearch = useDeferredValue(searchQuery);
   const hasTimedAuction = auctions.some(
     (auction) => auction.status === "waiting" || auction.status === "live",
   );
@@ -55,8 +64,11 @@ export function AuctionList({
   }, [hasTimedAuction]);
 
   const filteredAuctions = useMemo(
-    () => sortAuctions(auctions).filter((auction) => matchesFilter(auction, filter)),
-    [auctions, filter],
+    () => sortAuctions(auctions).filter(
+      (auction) =>
+        matchesFilter(auction, filter) && matchesAuctionSearch(auction, deferredSearch),
+    ),
+    [auctions, deferredSearch, filter],
   );
 
   return (
@@ -66,7 +78,27 @@ export function AuctionList({
           <p className={styles.eyebrow}>Katalog</p>
           <h2 id="auctions-heading">Wszystkie aukcje</h2>
         </div>
-        <span className={styles.sectionCount}>{auctions.length}</span>
+        <span className={styles.sectionCount} aria-label={`${auctions.length} aukcji`}>
+          {auctions.length}
+        </span>
+      </div>
+
+      <div className={styles.listToolbar}>
+        <label className={styles.searchField} htmlFor="auction-search">
+          <span className={styles.srOnly}>Szukaj aukcji</span>
+          <input
+            id="auction-search"
+            className={styles.input}
+            type="search"
+            value={searchQuery}
+            onChange={(event) => onSearchChange(event.target.value)}
+            placeholder="Szukaj po nazwie, slugu lub ID…"
+            autoComplete="off"
+          />
+        </label>
+        <span className={styles.resultCount} aria-live="polite">
+          Wyniki: {filteredAuctions.length}
+        </span>
       </div>
 
       <div className={styles.filterBar} role="group" aria-label="Filtruj aukcje">
@@ -91,7 +123,9 @@ export function AuctionList({
         <div className={styles.auctionGrid}>
           {filteredAuctions.map((auction) => {
             const active = isAuctionActive(auction.status);
-            const starting = busyAuctionId === auction.auctionId;
+            const archived = auction.recordState === "archived";
+            const busy = busyAuctionId === auction.auctionId;
+            const disabledReasonId = `auction-disabled-${auction.auctionId}`;
 
             return (
               <article className={styles.auctionCard} key={auction.auctionId}>
@@ -99,10 +133,18 @@ export function AuctionList({
                   <ProductThumb name={auction.productName} imageUrl={auction.productImageUrl} />
                   <div className={styles.auctionIdentity}>
                     <div className={styles.auctionStatusLine}>
-                      <span className={`${styles.statusPill} ${styles[`status_${auction.status}`]}`}>
-                        <span aria-hidden="true" />
-                        {STATUS_LABELS[auction.status]}
-                      </span>
+                      <div className={styles.statusGroup}>
+                        <span className={`${styles.statusPill} ${styles[`status_${auction.recordState}`]}`}>
+                          <span aria-hidden="true" />
+                          {STATUS_LABELS[auction.recordState]}
+                        </span>
+                        {auction.status ? (
+                          <span className={`${styles.statusPill} ${styles[`status_${auction.status}`]}`}>
+                            <span aria-hidden="true" />
+                            {STATUS_LABELS[auction.status]}
+                          </span>
+                        ) : null}
+                      </div>
                       <span className={styles.slug}>/{auction.slug}</span>
                     </div>
                     <h3>{auction.productName}</h3>
@@ -134,29 +176,41 @@ export function AuctionList({
                     className={styles.secondaryButton}
                     type="button"
                     onClick={() => onEdit(auction)}
-                    disabled={starting}
+                    disabled={busy}
                   >
                     Edytuj
+                  </button>
+                  <button
+                    className={styles.secondaryButton}
+                    type="button"
+                    onClick={() => onArchiveToggle(auction)}
+                    disabled={busy || active}
+                    aria-busy={busy}
+                    aria-describedby={active ? disabledReasonId : undefined}
+                  >
+                    {archived ? "Przywróć" : "Archiwizuj"}
                   </button>
                   <button
                     className={styles.cardPrimaryButton}
                     type="button"
                     onClick={() => onStart(auction)}
-                    disabled={active || starting}
-                    aria-busy={starting}
-                    aria-describedby={active ? `active-reason-${auction.auctionId}` : undefined}
+                    disabled={active || archived || busy}
+                    aria-busy={busy}
+                    aria-describedby={active || archived ? disabledReasonId : undefined}
                   >
-                    {starting
-                      ? "URUCHAMIAM…"
-                      : auction.status === "draft"
-                        ? "URUCHOM PIERWSZĄ RUNDĘ"
-                        : "URUCHOM KOLEJNĄ RUNDĘ"}
+                    {busy
+                      ? "PRACUJĘ…"
+                      : auction.runId
+                        ? "URUCHOM KOLEJNĄ RUNDĘ"
+                        : "URUCHOM PIERWSZĄ RUNDĘ"}
                   </button>
                 </div>
 
-                {active ? (
-                  <p className={styles.disabledReason} id={`active-reason-${auction.auctionId}`}>
-                    Nową rundę uruchomisz po zakończeniu bieżącej.
+                {active || archived ? (
+                  <p className={styles.disabledReason} id={disabledReasonId}>
+                    {archived
+                      ? "Przywróć aukcję, aby uruchomić nową rundę."
+                      : "Archiwizacja i nowa runda będą dostępne po zakończeniu bieżącej rundy."}
                   </p>
                 ) : null}
               </article>
@@ -166,7 +220,7 @@ export function AuctionList({
       ) : (
         <div className={styles.emptyState}>
           <strong>Brak aukcji w tym widoku</strong>
-          <span>Zmień filtr albo utwórz nową aukcję poniżej.</span>
+          <span>Zmień filtr lub wyszukiwanie albo utwórz nową aukcję poniżej.</span>
         </div>
       )}
     </section>

@@ -16,7 +16,9 @@ import {
   isAdminConfigured,
   isSameOriginAdminMutation,
 } from "../../../../lib/admin-auth";
+import { recordSuccessfulAdminAudit } from "../../../../lib/admin-audit";
 import { errorDetails, logEvent } from "../../../../lib/observability";
+import { looksLikeSortedSetCursor } from "../../../../lib/sorted-set-pagination";
 
 export const dynamic = "force-dynamic";
 
@@ -43,7 +45,7 @@ export async function GET(request: NextRequest) {
   const limitValue = request.nextUrl.searchParams.get("limit");
   const limit = limitValue === null ? 20 : Number(limitValue);
   if (
-    (cursor !== null && !/^\d+$/.test(cursor)) ||
+    (cursor !== null && !looksLikeSortedSetCursor(cursor)) ||
     !Number.isInteger(limit) ||
     limit < 1 ||
     limit > 50
@@ -153,9 +155,19 @@ export async function POST(request: NextRequest) {
       state: record.state,
       scheduled: Boolean(config),
     });
+    const auditEventId = await recordSuccessfulAdminAudit(request, {
+      action: "auction.created",
+      resourceType: "auction",
+      resourceId: auctionId,
+      details: {
+        state: record.state,
+        scheduled: Boolean(config),
+        revision: record.revision,
+      },
+    });
 
     return NextResponse.json(
-      { outcome: "created", record, config },
+      { outcome: "created", record, config, auditEventId },
       { status: 201 },
     );
   } catch (error) {

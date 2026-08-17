@@ -20,10 +20,12 @@ import {
 import { getCheckoutOrigin } from "../../../../lib/request-origin";
 import { consumeEntryCheckoutRateLimit } from "../../../../lib/public-rate-limit";
 import {
-  createEntryCheckoutSession,
-  createPurchaseCheckoutSession,
-  expireCheckoutSession,
-} from "../../../../lib/stripe";
+  createEntryPaymentSession,
+  createPurchasePaymentSession,
+  configuredPaymentProvider,
+  expirePaymentSession,
+  isPaymentProviderConfigured,
+} from "../../../../lib/payment-provider";
 
 const ENTRY_FEE_GROSZE = ENTRY_FEE * 100;
 const PURCHASE_CHECKOUT_WINDOW_SECONDS = 31 * 60;
@@ -139,7 +141,7 @@ export async function handleEntryPost(
     return NextResponse.json({ outcome: "invalid_request" }, { status: 400 });
   }
   const { bidderId } = bidderRequest;
-  if (!process.env.STRIPE_SECRET_KEY) {
+  if (!isPaymentProviderConfigured()) {
     return NextResponse.json(
       { outcome: "stripe_not_configured" },
       { status: 503 },
@@ -205,7 +207,7 @@ export async function handleEntryPost(
       );
     }
 
-    const session = await createEntryCheckoutSession({
+    const session = await createEntryPaymentSession({
       origin: getCheckoutOrigin(request),
       auctionId: active.auctionId,
       runId: active.config.runId,
@@ -236,7 +238,7 @@ export async function handleBuyPost(
     return NextResponse.json({ outcome: "invalid_request" }, { status: 400 });
   }
   const { bidderId, expectedPrice } = bidderRequest;
-  if (!process.env.STRIPE_SECRET_KEY) {
+  if (!isPaymentProviderConfigured()) {
     return NextResponse.json(
       { outcome: "stripe_not_configured" },
       { status: 503 },
@@ -301,6 +303,7 @@ export async function handleBuyPost(
       price: timedState.currentPrice,
       claimedAt: new Date(now).toISOString(),
       paymentStatus: "pending",
+      paymentProvider: configuredPaymentProvider(),
     };
 
     const checkoutResponse = (claimedWinner: AuctionWinner, checkoutUrl: string) =>
@@ -315,7 +318,7 @@ export async function handleBuyPost(
 
     const expireUnreturnedCheckout = async (sessionId: string) => {
       try {
-        await expireCheckoutSession(sessionId);
+        await expirePaymentSession(sessionId);
       } catch (error) {
         console.error("Unable to expire unattached Checkout Session.", error);
       }
@@ -390,7 +393,7 @@ export async function handleBuyPost(
       let session;
 
       try {
-        session = await createPurchaseCheckoutSession({
+        session = await createPurchasePaymentSession({
           origin: getCheckoutOrigin(request),
           auctionId: active.auctionId,
           runId: active.config.runId,
@@ -427,6 +430,7 @@ export async function handleBuyPost(
           new Date(expiresAt * 1000).toISOString(),
           active.auctionId,
           claimedWinner.claimedAt,
+          claimedWinner.paymentProvider ?? configuredPaymentProvider(),
         );
       } catch (error) {
         console.error("Checkout attachment returned an ambiguous error.", error);
@@ -581,7 +585,7 @@ export async function handleCancelPost(
       });
     }
 
-    if (!process.env.STRIPE_SECRET_KEY) {
+    if (!isPaymentProviderConfigured()) {
       return NextResponse.json(
         { outcome: "stripe_not_configured" },
         { status: 503 },
@@ -589,7 +593,7 @@ export async function handleCancelPost(
     }
 
     try {
-      await expireCheckoutSession(winner.paymentSessionId);
+      await expirePaymentSession(winner.paymentSessionId);
     } catch (error) {
       console.error("Unable to expire cancelled Checkout Session.", error);
       return NextResponse.json({ outcome: "cannot_cancel" }, { status: 409 });
