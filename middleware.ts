@@ -3,9 +3,7 @@ import { clerkMiddleware } from "@clerk/nextjs/server";
 // Logowanie jest dostępne w całym portalu, ale nie blokuje jeszcze aukcji ani
 // istniejącego panelu administracyjnego. Ich bezpieczne powiązanie z kontem
 // użytkownika będzie osobnym etapem migracji danych.
-export default clerkMiddleware({
-  frontendApiProxy: { enabled: true },
-});
+export default clerkMiddleware();
 
 export const config = {
   matcher: [
