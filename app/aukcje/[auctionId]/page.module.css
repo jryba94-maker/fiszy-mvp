@@ -61,6 +61,14 @@
   font-weight: 800;
 }
 
+.toplineActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .title {
   margin: 0;
   font-size: clamp(2.5rem, 5vw, 4.5rem);
@@ -452,6 +460,12 @@
   .priceTopline {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .toplineActions {
+    width: 100%;
+    align-items: flex-start;
+    justify-content: space-between;
   }
 
   .clockBox {

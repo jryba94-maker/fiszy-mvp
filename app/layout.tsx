@@ -4,6 +4,7 @@ import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { ClerkProvider } from "@clerk/nextjs";
 import { siteUrl } from "../lib/site";
+import { PwaManager } from "./components/pwa/PwaManager";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -14,6 +15,11 @@ export const metadata: Metadata = {
   },
   description: "Wejdź do aukcji, obserwuj spadającą cenę i kup jednym kliknięciem.",
   applicationName: "Fiszy",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Fiszy",
+  },
   alternates: { canonical: "/" },
   openGraph: {
     type: "website",
@@ -38,7 +44,10 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
   return (
     <html lang="pl">
       <body>
-        <ClerkProvider>{children}</ClerkProvider>
+        <ClerkProvider>
+          {children}
+          <PwaManager />
+        </ClerkProvider>
         <Analytics />
         <SpeedInsights />
       </body>

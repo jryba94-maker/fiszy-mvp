@@ -1,0 +1,26 @@
+.toast {
+  position: fixed;
+  z-index: 90;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  display: flex;
+  width: min(460px, calc(100% - 32px));
+  align-items: center;
+  gap: 14px;
+  border: 1px solid rgba(255,255,255,.16);
+  border-radius: 18px;
+  padding: 15px;
+  background: #10120f;
+  color: #fff;
+  box-shadow: 0 18px 50px rgba(16,18,15,.24);
+}
+.toast > div { min-width: 0; flex: 1; }
+.toast strong, .toast span { display: block; }
+.toast strong { margin-bottom: 4px; font-size: .9rem; }
+.toast span { color: rgba(255,255,255,.68); font-size: .74rem; line-height: 1.4; }
+.toast button { min-height: 40px; border: 0; border-radius: 999px; padding: 0 14px; background: #d8ff63; color: #10120f; cursor: pointer; font: inherit; font-size: .75rem; font-weight: 900; }
+.toast .dismiss { width: 36px; min-height: 36px; padding: 0; background: transparent; color: #fff; font-size: 1.3rem; }
+.toast button:focus-visible { outline: 3px solid #a97cff; outline-offset: 3px; }
+@media (max-width: 720px) {
+  .toast { right: 14px; bottom: calc(104px + env(safe-area-inset-bottom)); left: 14px; width: auto; }
+}

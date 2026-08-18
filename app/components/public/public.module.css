@@ -305,6 +305,21 @@
   color: #5320b6;
 }
 
+.watchControl {
+  display: grid;
+  justify-items: end;
+  gap: 5px;
+}
+
+.watchControl > span {
+  max-width: 190px;
+  color: #8a2b1a;
+  font-size: .67rem;
+  font-weight: 750;
+  line-height: 1.35;
+  text-align: right;
+}
+
 .watchButton:disabled {
   cursor: wait;
   opacity: 0.55;

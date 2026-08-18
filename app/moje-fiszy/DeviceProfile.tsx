@@ -6,6 +6,8 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { fetchAuctionDetail, type PublicAuction } from "../components/public/auction-data";
 import { PublicHeader } from "../components/public/PublicHeader";
 import { SafeAuctionImage } from "../components/public/SafeAuctionImage";
+import { announceWatchlistChange } from "../components/pwa/browser-notifications";
+import { DeviceNotifications } from "./DeviceNotifications";
 import styles from "./page.module.css";
 
 type Preferences = {
@@ -36,6 +38,7 @@ type Activity = {
   runId: string;
   product: string;
   productImageUrl: string | null;
+  startsAt: string;
   entryStatus: "granted" | "refunded";
   entryFee: number;
   enteredAt: string;
@@ -56,6 +59,8 @@ type Activity = {
     orderId: string | null;
   } | null;
 };
+
+type HistoryFilter = "all" | "active" | "wins" | "orders";
 
 type Ticket = {
   ticketId: string;
@@ -122,6 +127,20 @@ function deliveryLabel(status?: Fulfillment["status"]) {
   return "Zamówienie przyjęte";
 }
 
+function watchStatus(auction: PublicAuction) {
+  if (auction.status === "live") return "Trwa teraz";
+  if (auction.status === "waiting") return `Start ${dateLabel(auction.startsAt)}`;
+  if (auction.status === "sold") return "Sprzedana";
+  return "Zakończona";
+}
+
+function fulfillmentStep(status?: Fulfillment["status"]) {
+  if (status === "delivered") return 4;
+  if (status === "shipped") return 3;
+  if (status === "preparing") return 2;
+  return 1;
+}
+
 async function accountRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     cache: "no-store",
@@ -160,6 +179,7 @@ export function DeviceProfile() {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [historyFilter, setHistoryFilter] = useState<HistoryFilter>("all");
   const [ticketDraft, setTicketDraft] = useState({ category: "other" as Ticket["category"], subject: "", message: "", orderId: "" });
 
   const loadPortal = useCallback(async () => {
@@ -213,7 +233,15 @@ export function DeviceProfile() {
       return [];
     }),
     ...tickets.filter((ticket) => ticket.adminNote).map((ticket) => ({ id: ticket.ticketId, title: "Odpowiedź na zgłoszenie", text: ticket.subject })),
-  ], [activity, tickets]);
+    ...watchedAuctions.flatMap((auction) => {
+      const startsIn = Date.parse(auction.startsAt) - Date.now();
+      if (auction.status === "live") return [{ id: `watch-live-${auction.runId}`, title: "Obserwowana aukcja trwa", text: auction.product }];
+      if (auction.status === "waiting" && startsIn > 0 && startsIn <= 24 * 60 * 60 * 1000) {
+        return [{ id: `watch-start-${auction.runId}`, title: "Obserwowana aukcja startuje wkrótce", text: `${auction.product} · ${dateLabel(auction.startsAt)}` }];
+      }
+      return [];
+    }),
+  ], [activity, tickets, watchedAuctions]);
 
   const notifications = useMemo(
     () => allNotifications.filter((item) => !readNotificationIds.has(item.id)),
@@ -229,6 +257,27 @@ export function DeviceProfile() {
       Date.parse(right.issuedAt) - Date.parse(left.issuedAt),
     );
   }, [activity]);
+
+  const visibleActivity = useMemo(() => activity.filter((item) => {
+    if (historyFilter === "active") return item.outcome === "participating" || item.outcome === "won_payment_pending";
+    if (historyFilter === "wins") return item.outcome.startsWith("won_");
+    if (historyFilter === "orders") return Boolean(item.order || item.discount?.state === "redeemed");
+    return true;
+  }), [activity, historyFilter]);
+
+  const nextWatched = useMemo(() => [...watchedAuctions]
+    .filter((auction) => auction.status === "waiting" || auction.status === "live")
+    .sort((left, right) => Date.parse(left.startsAt) - Date.parse(right.startsAt))[0] ?? null, [watchedAuctions]);
+
+  const priorityAction = useMemo(() => {
+    const pendingWin = activity.find((item) => item.outcome === "won_payment_pending");
+    if (pendingWin) return { label: "Wygrana czeka na płatność", detail: pendingWin.product, href: `/aukcje/${encodeURIComponent(pendingWin.auctionId)}` };
+    const activeDiscount = discounts.find((discount) => discount.state === "available");
+    if (activeDiscount) return { label: "Masz rabat do wykorzystania", detail: `${activeDiscount.product} · do ${dateLabel(activeDiscount.expiresAt)}`, href: "#rabaty" };
+    const shipment = activity.find((item) => item.order?.fulfillment?.status === "shipped");
+    if (shipment) return { label: "Przesyłka jest w drodze", detail: shipment.product, href: "#historia" };
+    return null;
+  }, [activity, discounts]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -319,6 +368,7 @@ export function DeviceProfile() {
       await accountRequest("/api/account/watchlist", { method: "PATCH", body: JSON.stringify({ auctionId, watched: false }) });
       setWatchedIds((current) => current.filter((id) => id !== auctionId));
       setWatchedAuctions((current) => current.filter((item) => item.auctionId !== auctionId));
+      announceWatchlistChange();
     } catch (watchError) { setError(watchError instanceof Error ? watchError.message : "Nie udało się zmienić listy."); }
     finally { setBusy(""); }
   };
@@ -377,21 +427,36 @@ export function DeviceProfile() {
               <div className={styles.stat}><span className={styles.statValue}>{stats.watched}</span><span className={styles.statLabel}>obserwowane</span></div>
             </div>
 
+            <nav className={styles.accountNav} aria-label="Sekcje konta">
+              <a href="#powiadomienia">Powiadomienia</a>
+              <a href="#obserwowane">Obserwowane</a>
+              <a href="#rabaty">Rabaty</a>
+              <a href="#historia">Historia i zamówienia</a>
+              <a href="#profil">Dane dostawy</a>
+              <a href="#pomoc">Pomoc</a>
+            </nav>
+
+            {(nextWatched || priorityAction) ? <section className={styles.quickGrid} aria-label="Najbliższe działania">
+              {nextWatched ? <Link className={styles.quickCard} href={`/aukcje/${encodeURIComponent(nextWatched.auctionId)}`}><span>Najbliższa obserwowana</span><strong>{nextWatched.product}</strong><small>{watchStatus(nextWatched)}</small></Link> : null}
+              {priorityAction ? <a className={styles.quickCard} href={priorityAction.href}><span>Wymaga uwagi</span><strong>{priorityAction.label}</strong><small>{priorityAction.detail}</small></a> : null}
+            </section> : null}
+
             <section className={styles.portalGrid} aria-label="Najważniejsze informacje">
-              <article className={styles.panel}>
+              <article className={styles.panel} id="powiadomienia">
                 <div className={styles.panelHeading}><div><p className={styles.eyebrow}>Teraz</p><h2>Powiadomienia</h2></div><span className={styles.counter}>{notifications.length}</span></div>
                 {notifications.length ? <><div className={styles.notificationList}>{notifications.map((item) => <div className={styles.notification} key={item.id}><div><strong>{item.title}</strong><span>{item.text}</span></div></div>)}</div><button className={styles.notificationButton} type="button" disabled={busy === "notifications"} onClick={() => void markNotificationsRead()}>{busy === "notifications" ? "Zapisuję…" : "Oznacz wszystkie jako przeczytane"}</button></> : <p className={styles.muted}>Nie masz teraz nowych spraw wymagających działania.</p>}
-                <p className={styles.integrationNote}>Powiadomienia w portalu działają. E-mail wymaga jeszcze zweryfikowanej domeny nadawczej.</p>
+                <DeviceNotifications />
+                <p className={styles.integrationNote}>Powiadomienia w portalu działają. Automatyczny e-mail wymaga jeszcze zweryfikowanej domeny nadawczej.</p>
               </article>
-              <article className={styles.panel}>
+              <article className={styles.panel} id="obserwowane">
                 <div className={styles.panelHeading}><div><p className={styles.eyebrow}>Lista</p><h2>Obserwowane</h2></div><span className={styles.counter}>{watchedIds.length}</span></div>
-                {watchedAuctions.length ? <div className={styles.watchList}>{watchedAuctions.map((auction) => <div className={styles.watchItem} key={auction.auctionId}><div><strong>{auction.product}</strong><span>{dateLabel(auction.startsAt)}</span></div><div className={styles.watchActions}><Link href={`/aukcje/${encodeURIComponent(auction.auctionId)}`}>Otwórz</Link><button type="button" disabled={busy === `watch-${auction.auctionId}`} onClick={() => void removeWatch(auction.auctionId)}>Usuń</button></div></div>)}</div> : <p className={styles.muted}>Dodaj aukcje do obserwowanych w katalogu.</p>}
+                {watchedAuctions.length ? <div className={styles.watchList}>{watchedAuctions.map((auction) => <div className={styles.watchItem} key={auction.auctionId}><div><strong>{auction.product}</strong><span>{watchStatus(auction)}</span></div><div className={styles.watchActions}><Link href={`/aukcje/${encodeURIComponent(auction.auctionId)}`}>Otwórz</Link><a href={`/api/auctions/${encodeURIComponent(auction.auctionId)}/calendar`}>Kalendarz</a><button type="button" disabled={busy === `watch-${auction.auctionId}`} onClick={() => void removeWatch(auction.auctionId)}>Usuń</button></div></div>)}</div> : <p className={styles.muted}>Dodaj aukcje do obserwowanych w katalogu.</p>}
                 <Link className={styles.inlineLink} href="/#aukcje">Przejdź do katalogu</Link>
               </article>
             </section>
 
             {discounts.length ? (
-              <section className={styles.section} aria-labelledby="discount-title">
+              <section className={styles.section} id="rabaty" aria-labelledby="discount-title">
                 <div className={styles.sectionHeading}><div><p className={styles.eyebrow}>Dla uczestników</p><h2 id="discount-title">Oferty po aukcji</h2></div><p>Po przegranej odzyskujesz wartość wejścia jako jednorazowy rabat na ten sam produkt.</p></div>
                 <div className={styles.discountGrid}>
                   {discounts.map((discount) => {
@@ -424,19 +489,22 @@ export function DeviceProfile() {
               </section>
             ) : null}
 
-            <section className={styles.section} aria-labelledby="activity-title">
+            <section className={styles.section} id="historia" aria-labelledby="activity-title">
               <div className={styles.sectionHeading}><div><p className={styles.eyebrow}>Historia konta</p><h2 id="activity-title">Aukcje i zamówienia</h2></div><p>Dane są przypisane do konta, nie do przeglądarki.</p></div>
-              {activity.length ? <div className={styles.list}>{activity.map((item) => <article className={styles.record} key={`${item.auctionId}:${item.runId}`}>
+              <div className={styles.historyFilters} role="group" aria-label="Filtr historii">
+                {([['all', 'Wszystko'], ['active', 'Aktywne'], ['wins', 'Wygrane'], ['orders', 'Zamówienia']] as const).map(([value, label]) => <button type="button" key={value} aria-pressed={historyFilter === value} onClick={() => setHistoryFilter(value)}>{label}</button>)}
+              </div>
+              {visibleActivity.length ? <div className={styles.list}>{visibleActivity.map((item) => <article className={styles.record} key={`${item.auctionId}:${item.runId}`}>
                 <SafeAuctionImage src={item.productImageUrl} alt={item.product} sizes="(max-width: 680px) 100vw, 180px" frameClassName={styles.recordImage} />
                 <div className={styles.recordBody}><div className={styles.recordTop}><div><span className={styles.outcome}>{activityLabel(item)}</span><h3>{item.product}</h3></div><span className={styles.updated}>{dateLabel(item.enteredAt)}</span></div>
                   <div className={styles.recordDetails}><span>Wejście: {money(item.entryFee)}</span>{item.winnerPrice !== null ? <span>Cena wygranej: {money(item.winnerPrice)}</span> : null}{item.order ? <span>{deliveryLabel(item.order.fulfillment?.status)}</span> : null}</div>
-                  {item.order ? <div className={styles.orderLine}><span>Zamówienie {item.order.orderId} · {money(item.order.amount, item.order.currency)}</span>{item.order.fulfillment?.trackingNumber ? <strong>{item.order.fulfillment.carrier}: {item.order.fulfillment.trackingNumber}</strong> : null}</div> : null}
+                  {item.order ? <><div className={styles.orderLine}><span>Zamówienie {item.order.orderId} · {money(item.order.amount, item.order.currency)}</span>{item.order.fulfillment?.trackingNumber ? <strong>{item.order.fulfillment.carrier}: {item.order.fulfillment.trackingNumber}</strong> : null}</div><div className={styles.deliveryProgress} aria-label={`Status dostawy: ${deliveryLabel(item.order.fulfillment?.status)}`}>{["Przyjęte", "Przygotowanie", "Nadane", "Dostarczone"].map((label, index) => <span className={index < fulfillmentStep(item.order?.fulfillment?.status) ? styles.deliveryDone : ""} key={label}>{label}</span>)}</div></> : null}
                   <Link className={styles.recordLink} href={`/aukcje/${encodeURIComponent(item.auctionId)}`}>Zobacz aukcję</Link>
-                </div></article>)}</div> : <div className={styles.emptyCompact}><h3>Jeszcze tu pusto</h3><p>Twoje pierwsze wejście do aukcji pojawi się tutaj automatycznie.</p></div>}
+                </div></article>)}</div> : <div className={styles.emptyCompact}><h3>{activity.length ? "Brak pozycji w tym widoku" : "Jeszcze tu pusto"}</h3><p>{activity.length ? "Wybierz inny filtr historii." : "Twoje pierwsze wejście do aukcji pojawi się tutaj automatycznie."}</p></div>}
               {historyCursor ? <button className={styles.moreButton} type="button" disabled={busy === "history"} onClick={() => void loadMoreHistory()}>{busy === "history" ? "Pobieram…" : "Pokaż starsze"}</button> : null}
             </section>
 
-            <section className={styles.section} aria-labelledby="profile-edit-title">
+            <section className={styles.section} id="profil" aria-labelledby="profile-edit-title">
               <div className={styles.sectionHeading}><div><p className={styles.eyebrow}>Dane i prywatność</p><h2 id="profile-edit-title">Twój profil</h2></div><p>Adres wykorzystamy dopiero przy realizacji wygranej.</p></div>
               {draft && profile ? <form className={styles.profileForm} onSubmit={saveProfile}>
                 <label><span>Imię i nazwisko</span><input value={draft.fullName} maxLength={100} autoComplete="name" onChange={(event) => setDraft({ ...draft, fullName: event.target.value })} /></label>

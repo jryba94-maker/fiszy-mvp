@@ -1,0 +1,9 @@
+.page { display: grid; min-height: 100vh; place-items: center; padding: 24px; background: #f3f0e8; color: #10120f; }
+.card { width: min(620px, 100%); border: 1px solid rgba(16,18,15,.14); border-radius: 28px; padding: clamp(30px, 7vw, 64px); background: #fffdf7; text-align: center; box-shadow: 0 24px 70px rgba(29,25,20,.09); }
+.logo { display: grid; width: 64px; height: 64px; place-items: center; margin: 0 auto 28px; border-radius: 20px; background: #10120f; color: #fff; font-size: 2rem; font-weight: 950; }
+.logo span { color: #d8ff63; }
+.eyebrow { margin: 0 0 10px; color: #6a6c65; font-size: .72rem; font-weight: 900; letter-spacing: .11em; text-transform: uppercase; }
+.card h1 { margin: 0 0 18px; font-size: clamp(2.5rem, 8vw, 4.8rem); line-height: .92; letter-spacing: -.07em; }
+.card p:not(.eyebrow) { max-width: 470px; margin: 0 auto 28px; color: #5d6059; line-height: 1.6; }
+.card a { display: inline-flex; min-height: 48px; align-items: center; border-radius: 999px; padding: 0 20px; background: #10120f; color: #fff; font-weight: 900; text-decoration: none; }
+.card a:focus-visible { outline: 3px solid #7a36ff; outline-offset: 3px; }

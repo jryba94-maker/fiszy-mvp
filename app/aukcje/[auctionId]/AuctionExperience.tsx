@@ -18,6 +18,7 @@ import { recordAuctionEvent, refreshRecordedAuction } from "../../components/pub
 import { PublicHeader } from "../../components/public/PublicHeader";
 import { SafeAuctionImage } from "../../components/public/SafeAuctionImage";
 import { StatusBadge } from "../../components/public/StatusBadge";
+import { AuctionWatchControl } from "../../components/public/AuctionWatchControl";
 import styles from "./page.module.css";
 
 type Feedback = { text: string; error?: boolean } | null;
@@ -532,7 +533,10 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
           <div className={styles.panel}>
             <div className={styles.topline}>
               <StatusBadge status={displayStatus} />
-              <span className={styles.duration}>{auctionCategoryLabel(auction.category)} · {auction.durationMinutes} min</span>
+              <div className={styles.toplineActions}>
+                <AuctionWatchControl auctionId={auction.auctionId} />
+                <span className={styles.duration}>{auctionCategoryLabel(auction.category)} · {auction.durationMinutes} min</span>
+              </div>
             </div>
             <h1 className={styles.title} id="auction-title">{auction.product}</h1>
 
