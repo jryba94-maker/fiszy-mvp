@@ -22,7 +22,6 @@ import { AuctionWatchControl } from "../../components/public/AuctionWatchControl
 import styles from "./page.module.css";
 
 type Feedback = { text: string; error?: boolean } | null;
-const ENTRY_WINDOW_MS = 60_000;
 
 function clearQueryParam(name: string) {
   const url = new URL(window.location.href);
@@ -331,11 +330,9 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
   const visiblePrice = auction ? priceAt(auction, displayStatus, serverNow) : 0;
   const hasCurrentEntry = Boolean(auction && hasEntry && entryRunId === auction.runId);
   const startsAtMs = auction ? Date.parse(auction.startsAt) : Number.NaN;
-  const entryOpensAtMs = startsAtMs - ENTRY_WINDOW_MS;
   const entryWindowOpen = Boolean(
     auction &&
       displayStatus === "waiting" &&
-      serverNow >= entryOpensAtMs &&
       serverNow < startsAtMs,
   );
 
@@ -353,9 +350,7 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
     if (!auction.storageReady) {
       auctionMessage = "Mechanizm zakupu jest chwilowo niedostępny.";
     } else if (displayStatus === "waiting") {
-      auctionMessage = entryWindowOpen
-        ? `Wejście jest otwarte do startu o ${startDateLabel(auction.startsAt)}.`
-        : `Wejście otworzy się minutę przed startem: ${startDateLabel(auction.startsAt)}.`;
+      auctionMessage = `Wejście jest otwarte do startu o ${startDateLabel(auction.startsAt)}.`;
     } else if (!isAuthLoaded) {
       auctionMessage = "Sprawdzamy stan Twojego konta…";
     } else if (!isSignedIn && displayStatus === "live") {
@@ -398,7 +393,7 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
     else if (canEnter) actionLabel = `OPŁAĆ WEJŚCIE — ${auction.entryFee} ZŁ`;
     else if (canBuy) actionLabel = `KUP TERAZ — ${visiblePrice} ZŁ`;
     else if (displayStatus === "waiting" && hasCurrentEntry) actionLabel = "WEJŚCIE OPŁACONE — CZEKAMY";
-    else if (displayStatus === "waiting") actionLabel = "WEJŚCIE OTWORZY SIĘ MINUTĘ PRZED STARTEM";
+    else if (displayStatus === "waiting") actionLabel = "WEJŚCIE DOSTĘPNE DO STARTU";
     else if (displayStatus === "payment_pending") actionLabel = "PRODUKT ZAREZERWOWANY";
     else if (displayStatus === "sold") actionLabel = "SPRZEDANE";
     else actionLabel = "AUKCJA ZAKOŃCZONA";

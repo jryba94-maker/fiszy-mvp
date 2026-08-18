@@ -204,7 +204,7 @@ Zasady środowisk:
 
 ## Przepływ Stripe
 
-1. Użytkownik inicjuje opłatę wejściową. Serwer ogranicza liczbę prób i tworzy Stripe Checkout za 5 zł.
+1. Od publikacji zaplanowanej rundy do chwili jej startu użytkownik może zainicjować opłatę wejściową. Serwer ogranicza liczbę prób i tworzy Stripe Checkout za kwotę ustawioną dla aukcji; po starcie nie pozwala już dołączyć.
 2. Dopiero podpisany webhook `checkout.session.completed` lub `checkout.session.async_payment_succeeded` zapisuje prawo wejścia.
 3. Podczas aukcji serwer ponownie sprawdza rundę, prawo wejścia, czas i cenę.
 4. Atomowa operacja Redis wybiera dokładnie jednego zwycięzcę.

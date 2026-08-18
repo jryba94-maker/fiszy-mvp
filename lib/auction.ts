@@ -11,7 +11,6 @@ export const DEFAULT_POST_AUCTION_OFFER_VALIDITY_DAYS = 7;
 export const MAX_POST_AUCTION_OFFER_VALIDITY_DAYS = 90;
 export const MIN_PRODUCT_PRICE = 2;
 export const DROP_INTERVAL_MS = 12_000;
-export const ENTRY_WINDOW_MS = 60_000;
 export const DEFAULT_AUCTION_RUN_ID = "run-2026-08-10-1010";
 export const DEFAULT_AUCTION_STARTS_AT = new Date("2026-08-10T08:10:00.000Z");
 
@@ -440,11 +439,7 @@ export function isAuctionEntryWindowOpen(
   config: Pick<AuctionConfig, "startsAt">,
 ) {
   const startsAt = Date.parse(config.startsAt);
-  return (
-    Number.isFinite(startsAt) &&
-    now >= startsAt - ENTRY_WINDOW_MS &&
-    now < startsAt
-  );
+  return Number.isFinite(startsAt) && now < startsAt;
 }
 
 export function getTimedAuctionState(

@@ -69,12 +69,14 @@ test("stored runs stay immutable while new definitions use the current pricing r
   assert.equal(stored?.entryFee, 5);
 });
 
-test("entry checkout is available only during the final minute before start", () => {
+test("entry checkout is available from publication until the exact auction start", () => {
   const config = { startsAt: "2026-08-18T10:01:00.000Z" };
-  assert.equal(isAuctionEntryWindowOpen(Date.parse("2026-08-18T09:59:59.999Z"), config), false);
-  assert.equal(isAuctionEntryWindowOpen(Date.parse("2026-08-18T10:00:00.000Z"), config), true);
+  assert.equal(isAuctionEntryWindowOpen(Date.parse("2026-08-11T10:01:00.000Z"), config), true);
+  assert.equal(isAuctionEntryWindowOpen(Date.parse("2026-08-18T09:59:59.999Z"), config), true);
   assert.equal(isAuctionEntryWindowOpen(Date.parse("2026-08-18T10:00:59.999Z"), config), true);
   assert.equal(isAuctionEntryWindowOpen(Date.parse("2026-08-18T10:01:00.000Z"), config), false);
+  assert.equal(isAuctionEntryWindowOpen(Date.parse("2026-08-18T10:01:00.001Z"), config), false);
+  assert.equal(isAuctionEntryWindowOpen(Date.now(), { startsAt: "invalid" }), false);
 });
 
 test("post-auction discount belongs only to an eligible loser and expires deterministically", () => {
