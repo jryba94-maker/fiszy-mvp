@@ -1,0 +1,482 @@
+.page {
+  min-height: 100vh;
+  padding-bottom: 70px;
+  background: #f3f0e8;
+  color: #10120f;
+}
+
+.content {
+  width: min(1180px, calc(100% - 40px));
+  margin: 0 auto;
+}
+
+.backLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 18px 0 22px;
+  color: #545750;
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.backLink:hover {
+  color: #7a36ff;
+}
+
+.auctionShell {
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(390px, 0.92fr);
+  overflow: hidden;
+  border: 1px solid rgba(16, 18, 15, 0.14);
+  border-radius: 32px;
+  background: #fffdf7;
+  box-shadow: 0 24px 70px rgba(29, 25, 20, 0.09);
+}
+
+.visual {
+  min-height: 680px;
+  border-right: 1px solid rgba(16, 18, 15, 0.12);
+}
+
+.panel {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  padding: clamp(30px, 5vw, 62px);
+}
+
+.topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.duration {
+  color: #71736e;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.title {
+  margin: 0;
+  font-size: clamp(2.5rem, 5vw, 4.5rem);
+  font-weight: 950;
+  letter-spacing: -0.075em;
+  line-height: 0.92;
+}
+
+.priceArea {
+  margin: 38px 0 26px;
+  padding: 26px 0;
+  border-top: 1px solid rgba(16, 18, 15, 0.13);
+  border-bottom: 1px solid rgba(16, 18, 15, 0.13);
+}
+
+.priceTopline {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 10px;
+}
+
+.priceLabel {
+  color: #6c6e68;
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.regularPrice {
+  color: #757871;
+  font-size: 0.85rem;
+  text-decoration: line-through;
+}
+
+.currentPrice {
+  display: block;
+  color: #10120f;
+  font-size: clamp(4.4rem, 9vw, 7.4rem);
+  font-variant-numeric: tabular-nums;
+  font-weight: 950;
+  letter-spacing: -0.1em;
+  line-height: 0.82;
+  white-space: nowrap;
+}
+
+.progressTrack {
+  position: relative;
+  height: 5px;
+  margin-top: 24px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #dedbd2;
+}
+
+.progressBar {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #7a36ff, #db371f);
+  transition: width 250ms linear;
+}
+
+.clockBox {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 20px;
+  border-radius: 17px;
+  background: #10120f;
+  color: #fff;
+  padding: 17px 18px;
+}
+
+.clockLabel {
+  display: block;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 0.68rem;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.clock {
+  font-variant-numeric: tabular-nums;
+  font-size: 1.65rem;
+  font-weight: 950;
+  letter-spacing: -0.04em;
+}
+
+.sync {
+  max-width: 125px;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 0.67rem;
+  line-height: 1.35;
+  text-align: right;
+}
+
+.message {
+  min-height: 44px;
+  margin: 0 0 18px;
+  color: #545750;
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.offerNote {
+  margin: -5px 0 18px;
+  border-left: 3px solid #7a36ff;
+  border-radius: 0 10px 10px 0;
+  background: #f2edff;
+  color: #443760;
+  font-size: 0.78rem;
+  font-weight: 750;
+  line-height: 1.5;
+  padding: 10px 12px;
+}
+
+.feedback {
+  margin: 0 0 16px;
+  border: 1px solid rgba(16, 18, 15, 0.14);
+  border-radius: 13px;
+  background: #f3f0e8;
+  color: #363832;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  padding: 12px 14px;
+}
+
+.feedbackError {
+  border-color: rgba(184, 40, 28, 0.4);
+  background: #fff0eb;
+  color: #852116;
+}
+
+.actionArea {
+  margin-top: auto;
+}
+
+.primaryButton {
+  width: 100%;
+  min-height: 58px;
+  border: 0;
+  border-radius: 16px;
+  background: #d8ff63;
+  color: #10120f;
+  cursor: pointer;
+  font-size: 0.93rem;
+  font-weight: 950;
+  letter-spacing: -0.01em;
+  padding: 12px 18px;
+  transition: background 160ms ease, transform 160ms ease;
+}
+
+.primaryButton:hover:not(:disabled) {
+  background: #c6f23f;
+  transform: translateY(-1px);
+}
+
+.primaryButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.entryNote {
+  margin: 11px 0 0;
+  color: #6b6d67;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.entryActive {
+  color: #36740a;
+  font-weight: 850;
+}
+
+.storageWarning {
+  margin-bottom: 16px;
+  border: 1px solid #ae7c2f;
+  border-radius: 13px;
+  background: #fff4d9;
+  color: #684a1c;
+  font-size: 0.82rem;
+  padding: 12px 14px;
+}
+
+.proof {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.proofItem {
+  min-height: 104px;
+  border: 1px solid rgba(16, 18, 15, 0.13);
+  border-radius: 18px;
+  background: rgba(255, 253, 247, 0.65);
+  padding: 18px;
+}
+
+.proofItem strong {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 0.88rem;
+}
+
+.proofItem span {
+  color: #666963;
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+
+.mobileAction {
+  display: none;
+}
+
+.stateShell {
+  display: grid;
+  min-height: 58vh;
+  place-items: center;
+  width: min(720px, calc(100% - 32px));
+  margin: 40px auto;
+  border: 1px solid rgba(16, 18, 15, 0.14);
+  border-radius: 28px;
+  background: #fffdf7;
+  padding: 40px;
+  text-align: center;
+}
+
+.stateShell h1 {
+  margin: 0 0 14px;
+  font-size: clamp(2.3rem, 7vw, 4.2rem);
+  letter-spacing: -0.07em;
+}
+
+.stateShell p {
+  max-width: 480px;
+  margin: 0 auto 24px;
+  color: #62645e;
+  line-height: 1.55;
+}
+
+.stateActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+.stateButton,
+.stateLink {
+  display: inline-flex;
+  min-height: 46px;
+  align-items: center;
+  border: 1px solid #10120f;
+  border-radius: 999px;
+  background: #10120f;
+  color: #fff;
+  cursor: pointer;
+  font-weight: 850;
+  padding: 0 18px;
+  text-decoration: none;
+}
+
+.stateLink {
+  background: transparent;
+  color: #10120f;
+}
+
+.backLink:focus-visible,
+.primaryButton:focus-visible,
+.stateButton:focus-visible,
+.stateLink:focus-visible {
+  outline: 3px solid #7a36ff;
+  outline-offset: 3px;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  margin: -1px;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.loadingShell {
+  display: grid;
+  width: min(1180px, calc(100% - 40px));
+  min-height: 660px;
+  grid-template-columns: 1fr 0.85fr;
+  gap: 1px;
+  margin: 100px auto 0;
+  overflow: hidden;
+  border-radius: 30px;
+  background: #d8d5cc;
+}
+
+.loadingBlock {
+  background: linear-gradient(100deg, #e2ded5 30%, #f6f2e9 50%, #e2ded5 70%);
+  background-size: 260% 100%;
+  animation: shimmer 1.4s infinite linear;
+}
+
+@keyframes shimmer {
+  to { background-position-x: -260%; }
+}
+
+@media (max-width: 900px) {
+  .auctionShell {
+    grid-template-columns: 1fr;
+  }
+
+  .visual {
+    min-height: min(74vw, 570px);
+    border-right: 0;
+    border-bottom: 1px solid rgba(16, 18, 15, 0.12);
+  }
+}
+
+@media (max-width: 720px) {
+  .page {
+    padding-bottom: 112px;
+  }
+
+  .content {
+    width: min(100% - 28px, 1180px);
+  }
+
+  .auctionShell {
+    border-radius: 24px;
+  }
+
+  .visual {
+    min-height: 92vw;
+  }
+
+  .panel {
+    padding: 25px 20px 28px;
+  }
+
+  .title {
+    font-size: clamp(2.45rem, 13vw, 3.8rem);
+  }
+
+  .currentPrice {
+    font-size: clamp(4.6rem, 23vw, 6.4rem);
+  }
+
+  .desktopAction {
+    display: none;
+  }
+
+  .mobileAction {
+    position: fixed;
+    z-index: 50;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    display: block;
+    border-top: 1px solid rgba(16, 18, 15, 0.16);
+    background: rgba(255, 253, 247, 0.94);
+    padding: 12px 14px calc(12px + env(safe-area-inset-bottom));
+    box-shadow: 0 -14px 36px rgba(16, 18, 15, 0.11);
+    backdrop-filter: blur(14px);
+  }
+
+  .mobileAction .entryNote {
+    margin-top: 7px;
+  }
+
+  .proof {
+    grid-template-columns: 1fr;
+  }
+
+  .proofItem {
+    min-height: 0;
+  }
+}
+
+@media (max-width: 430px) {
+  .topline,
+  .priceTopline {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .clockBox {
+    align-items: flex-start;
+  }
+
+  .sync {
+    max-width: 95px;
+  }
+
+  .currentPrice {
+    font-size: clamp(3.35rem, 18vw, 5rem);
+    letter-spacing: -0.08em;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .primaryButton,
+  .progressBar,
+  .loadingBlock {
+    transition: none;
+    animation: none;
+  }
+
+  .primaryButton:hover:not(:disabled) {
+    transform: none;
+  }
+}

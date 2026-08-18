@@ -4,18 +4,37 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "stripe:listen": "node scripts/stripe-listen.mjs",
+    "backup:export": "node scripts/export-environment-backup.mjs",
+    "test:race": "node scripts/race-test.mjs",
+    "test:portal": "node scripts/portal-smoke-test.mjs",
+    "test:admin:unit": "node --no-warnings --loader ./scripts/typescript-loader.mjs --test --test-concurrency=1 scripts/fulfillment-unit-tests.mjs",
+    "test:history:unit": "node --no-warnings --loader ./scripts/typescript-loader.mjs --test --test-concurrency=1 scripts/history-storage-unit-tests.mjs",
+    "test:portal:unit": "node --no-warnings --loader ./scripts/typescript-loader.mjs --test --test-concurrency=1 scripts/portal-unit-tests.mjs",
+    "test:faults:unit": "node --no-warnings --loader ./scripts/typescript-loader.mjs --test --test-concurrency=1 --test-name-pattern=\"admin session|admin mutation|admin login|auction config storage|winner cancellation|stale pending winner|Stripe signatures|late-entry refund|webhook orchestration\" scripts/security-fault-tests.mjs",
+    "test:faults": "node --no-warnings --loader ./scripts/typescript-loader.mjs --test --test-concurrency=1 scripts/security-fault-tests.mjs",
+    "typecheck": "tsc --noEmit",
+    "check:security": "npm audit --omit=dev --audit-level=high",
     "build": "next build",
     "start": "next start"
   },
   "dependencies": {
-    "next": "15.5.9",
-    "react": "19.1.0",
-    "react-dom": "19.1.0"
+    "@clerk/nextjs": "^7.7.6",
+    "@vercel/analytics": "^2.0.1",
+    "@vercel/speed-insights": "^2.0.0",
+    "next": "15.5.23",
+    "react": "^19.1.4",
+    "react-dom": "^19.1.4"
   },
   "devDependencies": {
+    "@stripe/cli": "1.45.2",
     "@types/node": "24.3.0",
     "@types/react": "19.1.12",
     "@types/react-dom": "19.1.9",
     "typescript": "5.9.2"
+  },
+  "overrides": {
+    "postcss": "8.5.26",
+    "sharp": "0.35.3"
   }
 }

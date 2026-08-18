@@ -1,0 +1,38 @@
+import Link from "next/link";
+import { PublicHeader } from "../public/PublicHeader";
+import styles from "./legal.module.css";
+
+export type LegalSection = { title: string; paragraphs?: string[]; bullets?: string[] };
+
+export function LegalPage({ eyebrow, title, lead, sections }: {
+  eyebrow: string;
+  title: string;
+  lead: string;
+  sections: LegalSection[];
+}) {
+  return (
+    <main className={styles.page}>
+      <PublicHeader />
+      <div className={styles.main}>
+        <header className={styles.hero}>
+          <p className={styles.eyebrow}>{eyebrow}</p>
+          <h1>{title}</h1>
+          <p>{lead}</p>
+          <div className={styles.draft}>Wersja robocza portalu · wymaga zatwierdzenia prawnego przed uruchomieniem sprzedaży publicznej</div>
+        </header>
+        <article className={styles.article}>
+          {sections.map((section) => (
+            <section key={section.title}>
+              <h2>{section.title}</h2>
+              {section.paragraphs?.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
+              {section.bullets ? <ul>{section.bullets.map((item) => <li key={item}>{item}</li>)}</ul> : null}
+            </section>
+          ))}
+        </article>
+        <nav className={styles.legalNav} aria-label="Dokumenty i pomoc">
+          <Link href="/regulamin">Regulamin</Link><Link href="/zasady-aukcji">Zasady aukcji</Link><Link href="/prywatnosc">Prywatność</Link><Link href="/cookies">Cookies</Link><Link href="/reklamacje">Reklamacje</Link><Link href="/faq">FAQ</Link>
+        </nav>
+      </div>
+    </main>
+  );
+}

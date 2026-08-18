@@ -1,40 +1,40 @@
 import { NextRequest, NextResponse } from "next/server";
+import { hasValidAdminRequest, isAdminConfigured } from "../../../../lib/admin-auth";
+import { LEGACY_AUCTION_ID } from "../../../../lib/auction";
 import { readAuctionConfig } from "../../../../lib/auction-storage";
-import { readAuctionOrder } from "../../../../lib/order-storage";
+import {
+  readAuctionOrder,
+  readLatestGlobalAuctionOrder,
+  saveAuctionOrder,
+} from "../../../../lib/order-storage";
 
 export const dynamic = "force-dynamic";
 
-function hasValidAdminKey(request: NextRequest) {
-  const configuredKey = process.env.FISZY_ADMIN_SECRET;
-  if (!configuredKey) return false;
-
-  const authorization = request.headers.get("authorization") ?? "";
-  return authorization === `Bearer ${configuredKey}`;
-}
-
 export async function GET(request: NextRequest) {
-  if (!process.env.FISZY_ADMIN_SECRET) {
+  if (!isAdminConfigured()) {
     return NextResponse.json(
       { outcome: "admin_not_configured" },
       { status: 503 },
     );
   }
-
-  if (!hasValidAdminKey(request)) {
+  if (!hasValidAdminRequest(request)) {
     return NextResponse.json({ outcome: "unauthorized" }, { status: 401 });
   }
 
   try {
-    const config = await readAuctionConfig();
-    const order = await readAuctionOrder(config.runId);
+    let order = await readLatestGlobalAuctionOrder();
+    if (!order) {
+      const config = await readAuctionConfig(LEGACY_AUCTION_ID);
+      order = await readAuctionOrder(config.runId, LEGACY_AUCTION_ID);
+      if (order) await saveAuctionOrder(order);
+    }
 
-    return NextResponse.json({
-      outcome: "ok",
-      runId: config.runId,
-      order,
-    });
+    return NextResponse.json(
+      { outcome: "ok", runId: order?.runId ?? null, order },
+      { headers: { "Cache-Control": "no-store" } },
+    );
   } catch (error) {
-    console.error("Unable to read auction order from Redis.", error);
+    console.error("Unable to read latest auction order.", error);
     return NextResponse.json({ outcome: "storage_error" }, { status: 503 });
   }
 }

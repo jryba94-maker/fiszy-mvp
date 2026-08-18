@@ -1,50 +1,53 @@
 import { NextRequest, NextResponse } from "next/server";
-import { readAuctionConfig } from "../../../../lib/auction-storage";
+import { hasValidAdminRequest, isAdminConfigured } from "../../../../lib/admin-auth";
 import {
-  ensureAuctionOrderIndexed,
-  readAuctionOrder,
-  readRecentAuctionOrders,
-} from "../../../../lib/order-storage";
+  fulfillmentResponse,
+  readOrderFulfillments,
+} from "../../../../lib/fulfillment-storage";
+import { listAuctionOrders } from "../../../../lib/order-storage";
+import { looksLikeSortedSetCursor } from "../../../../lib/sorted-set-pagination";
 
 export const dynamic = "force-dynamic";
 
-function hasValidAdminKey(request: NextRequest) {
-  const configuredKey = process.env.FISZY_ADMIN_SECRET;
-  if (!configuredKey) return false;
-
-  const authorization = request.headers.get("authorization") ?? "";
-  return authorization === `Bearer ${configuredKey}`;
-}
-
 export async function GET(request: NextRequest) {
-  if (!process.env.FISZY_ADMIN_SECRET) {
+  if (!isAdminConfigured()) {
     return NextResponse.json(
       { outcome: "admin_not_configured" },
       { status: 503 },
     );
   }
-
-  if (!hasValidAdminKey(request)) {
+  if (!hasValidAdminRequest(request)) {
     return NextResponse.json({ outcome: "unauthorized" }, { status: 401 });
   }
 
+  const cursor = request.nextUrl.searchParams.get("cursor");
+  const limitValue = request.nextUrl.searchParams.get("limit");
+  const limit = limitValue === null ? 20 : Number(limitValue);
+  if (
+    (cursor !== null && !looksLikeSortedSetCursor(cursor)) ||
+    !Number.isInteger(limit) ||
+    limit < 1 ||
+    limit > 50
+  ) {
+    return NextResponse.json({ outcome: "invalid_request" }, { status: 400 });
+  }
+
   try {
-    // Backfill the currently visible order once so an order created before
-    // the history index rollout is not lost after the next auction starts.
-    const config = await readAuctionConfig();
-    const currentOrder = await readAuctionOrder(config.runId);
-    if (currentOrder) {
-      await ensureAuctionOrderIndexed(currentOrder);
+    const page = await listAuctionOrders({ cursor, limit });
+    if (!page) {
+      return NextResponse.json({ outcome: "invalid_request" }, { status: 400 });
     }
-
-    const orders = await readRecentAuctionOrders(50);
-
-    return NextResponse.json({
-      outcome: "ok",
-      orders,
-    });
+    const fulfillments = await readOrderFulfillments(page.orders);
+    const orders = page.orders.map((order, index) => ({
+      ...order,
+      fulfillment: fulfillmentResponse(fulfillments[index]),
+    }));
+    return NextResponse.json(
+      { outcome: "ok", ...page, orders },
+      { headers: { "Cache-Control": "no-store" } },
+    );
   } catch (error) {
-    console.error("Unable to read auction order history from Redis.", error);
+    console.error("Unable to list auction orders.", error);
     return NextResponse.json({ outcome: "storage_error" }, { status: 503 });
   }
 }

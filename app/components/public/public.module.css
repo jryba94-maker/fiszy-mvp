@@ -1,0 +1,383 @@
+.header {
+  position: relative;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: min(1180px, calc(100% - 40px));
+  margin: 0 auto;
+  padding: 24px 0;
+}
+
+.brand {
+  color: inherit;
+  font-size: 1.65rem;
+  font-weight: 950;
+  letter-spacing: -0.075em;
+  text-decoration: none;
+}
+
+.brandDot {
+  color: #7a36ff;
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.authControl {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+}
+
+.signInButton {
+  border: 1px solid rgba(16, 18, 15, 0.2);
+  border-radius: 999px;
+  background: #fffdf7;
+  color: #10120f;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 800;
+  padding: 9px 13px;
+}
+
+.signInButton:hover {
+  border-color: #7a36ff;
+  color: #7a36ff;
+}
+
+.signInButton:focus-visible {
+  outline: 3px solid #7a36ff;
+  outline-offset: 3px;
+}
+
+.userAvatar {
+  width: 34px;
+  height: 34px;
+}
+
+.navLink {
+  border-radius: 999px;
+  color: inherit;
+  font-size: 0.82rem;
+  font-weight: 800;
+  padding: 10px 14px;
+  text-decoration: none;
+  transition: background 160ms ease, transform 160ms ease;
+}
+
+.navLink:hover {
+  background: rgba(16, 18, 15, 0.08);
+  transform: translateY(-1px);
+}
+
+.navLinkPrimary {
+  background: #10120f;
+  color: #fff;
+}
+
+.navLinkPrimary:hover {
+  background: #7a36ff;
+}
+
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  width: fit-content;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: 7px 10px;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.065em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.statusBadge::before {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  content: "";
+}
+
+.statusLive {
+  color: #db371f;
+}
+
+.statusWaiting {
+  color: #65419b;
+}
+
+.statusPending {
+  color: #9b6500;
+}
+
+.statusFinal {
+  color: #62665f;
+}
+
+.imageFrame {
+  position: relative;
+  min-height: 260px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 24% 25%, rgba(255, 255, 255, 0.92), transparent 28%),
+    linear-gradient(135deg, #e2ddd2, #f6f2e9);
+}
+
+.image {
+  object-fit: contain;
+  padding: clamp(22px, 5vw, 48px);
+}
+
+.imageFallback {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 28px;
+  color: #10120f;
+  font-size: clamp(2rem, 7vw, 4rem);
+  font-weight: 950;
+  letter-spacing: -0.07em;
+  line-height: 0.88;
+  text-align: center;
+}
+
+.auctionCard {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(16, 18, 15, 0.14);
+  border-radius: 26px;
+  background: #fffdf7;
+  box-shadow: 0 16px 45px rgba(28, 24, 19, 0.07);
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.auctionCard:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 22px 55px rgba(28, 24, 19, 0.12);
+}
+
+.cardImage {
+  min-height: 250px;
+}
+
+.cardBody {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 16px;
+  padding: 22px;
+}
+
+.cardTopline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.cardBadges {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.categoryBadge {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  border-radius: 999px;
+  padding: 4px 8px;
+  background: #f1eee6;
+  color: #565852;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.offerBadge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 6px 9px;
+  background: #f0e8ff;
+  color: #5420b4;
+  font-size: 0.67rem;
+  font-weight: 900;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+.duration {
+  color: #6e706b;
+  font-size: 0.76rem;
+  font-weight: 750;
+}
+
+.cardTitle {
+  margin: 0;
+  color: #10120f;
+  font-size: clamp(1.45rem, 4vw, 2rem);
+  letter-spacing: -0.05em;
+  line-height: 1;
+}
+
+.priceRow {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: auto;
+  padding-top: 4px;
+}
+
+.priceLabel {
+  display: block;
+  margin-bottom: 4px;
+  color: #71736d;
+  font-size: 0.72rem;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.price {
+  color: #10120f;
+  font-size: clamp(2.1rem, 6vw, 3rem);
+  font-weight: 950;
+  letter-spacing: -0.075em;
+  line-height: 0.9;
+}
+
+.regularPrice {
+  color: #71736d;
+  font-size: 0.86rem;
+  text-decoration: line-through;
+}
+
+.cardMeta {
+  min-height: 20px;
+  color: #565852;
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.cardTools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.watchButton,
+.calendarLink {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(16, 18, 15, 0.18);
+  border-radius: 999px;
+  background: transparent;
+  color: #10120f;
+  cursor: pointer;
+  font-size: 0.74rem;
+  font-weight: 850;
+  padding: 0 12px;
+  text-decoration: none;
+}
+
+.watchButtonActive {
+  border-color: #7a36ff;
+  background: #eee6ff;
+  color: #5320b6;
+}
+
+.watchButton:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.watchPlaceholder {
+  min-width: 96px;
+  min-height: 38px;
+}
+
+.watchButton:focus-visible,
+.calendarLink:focus-visible {
+  outline: 3px solid #7a36ff;
+  outline-offset: 3px;
+}
+
+.cardLink {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: 14px;
+  background: #10120f;
+  color: #fff;
+  font-size: 0.86rem;
+  font-weight: 900;
+  padding: 14px 16px;
+  text-decoration: none;
+}
+
+.cardLink:hover {
+  background: #7a36ff;
+}
+
+.cardLink:focus-visible,
+.navLink:focus-visible,
+.brand:focus-visible {
+  outline: 3px solid #7a36ff;
+  outline-offset: 3px;
+}
+
+@media (max-width: 560px) {
+  .header {
+    width: min(100% - 28px, 1180px);
+    padding: 18px 0;
+  }
+
+  .navLink {
+    padding: 9px 11px;
+    font-size: 0.75rem;
+  }
+
+  .signInButton {
+    padding: 8px 10px;
+    font-size: 0.75rem;
+  }
+
+  .navLink:first-child {
+    display: none;
+  }
+
+  .cardBody {
+    padding: 19px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auctionCard,
+  .navLink {
+    transition: none;
+  }
+
+  .auctionCard:hover,
+  .navLink:hover {
+    transform: none;
+  }
+}

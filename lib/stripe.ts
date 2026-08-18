@@ -1,4 +1,5 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { LEGACY_AUCTION_ID } from "./auction";
 
 const STRIPE_API_BASE = "https://api.stripe.com/v1";
 const WEBHOOK_TOLERANCE_SECONDS = 300;
@@ -20,6 +21,7 @@ export type StripeCheckoutSession = {
   amount_total: number | null;
   currency: string | null;
   metadata: Record<string, string> | null;
+  payment_intent?: string | { id?: string } | null;
   status?: string | null;
   customer_details?: {
     address: StripeAddress | null;
@@ -57,12 +59,27 @@ export function stripeWebhookSecret() {
   return secret;
 }
 
-async function createCheckoutSession(body: URLSearchParams) {
+function idempotencyKey(kind: string, values: string[]) {
+  const digest = createHash("sha256").update(values.join("\u0000")).digest("hex");
+  return `fiszy-${kind}-${digest}`;
+}
+
+function auctionReturnPath(auctionId: string) {
+  return auctionId === LEGACY_AUCTION_ID
+    ? "/"
+    : `/aukcje/${encodeURIComponent(auctionId)}`;
+}
+
+async function createCheckoutSession(
+  body: URLSearchParams,
+  requestIdempotencyKey: string,
+) {
   const response = await fetch(`${STRIPE_API_BASE}/checkout/sessions`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${stripeSecretKey()}`,
       "Content-Type": "application/x-www-form-urlencoded",
+      "Idempotency-Key": requestIdempotencyKey,
     },
     body,
     cache: "no-store",
@@ -85,17 +102,19 @@ export async function createEntryCheckoutSession(input: {
   runId: string;
   bidderId: string;
   amount: number;
+  productName: string;
 }) {
   const body = new URLSearchParams();
+  const returnPath = auctionReturnPath(input.auctionId);
   body.set("mode", "payment");
-  body.set("success_url", `${input.origin}/?payment=success`);
-  body.set("cancel_url", `${input.origin}/?payment=cancelled`);
+  body.set("success_url", `${input.origin}${returnPath}?payment=success`);
+  body.set("cancel_url", `${input.origin}${returnPath}?payment=cancelled`);
   body.set("payment_method_types[0]", "card");
   body.set("line_items[0][price_data][currency]", "pln");
   body.set("line_items[0][price_data][unit_amount]", String(input.amount));
   body.set(
     "line_items[0][price_data][product_data][name]",
-    "Wejście do aukcji Fiszy",
+    `Wejście do aukcji: ${input.productName}`,
   );
   body.set("line_items[0][quantity]", "1");
   body.set("metadata[kind]", "auction_entry");
@@ -103,7 +122,15 @@ export async function createEntryCheckoutSession(input: {
   body.set("metadata[runId]", input.runId);
   body.set("metadata[bidderId]", input.bidderId);
 
-  return createCheckoutSession(body);
+  return createCheckoutSession(
+    body,
+    idempotencyKey("entry", [
+      input.auctionId,
+      input.runId,
+      input.bidderId,
+      String(Math.floor(Date.now() / 60_000)),
+    ]),
+  );
 }
 
 export async function createPurchaseCheckoutSession(input: {
@@ -113,11 +140,14 @@ export async function createPurchaseCheckoutSession(input: {
   bidderId: string;
   amount: number;
   expiresAt: number;
+  productName: string;
+  claimToken?: string;
 }) {
   const body = new URLSearchParams();
+  const returnPath = auctionReturnPath(input.auctionId);
   body.set("mode", "payment");
-  body.set("success_url", `${input.origin}/?purchase=success`);
-  body.set("cancel_url", `${input.origin}/?purchase=cancelled`);
+  body.set("success_url", `${input.origin}${returnPath}?purchase=success`);
+  body.set("cancel_url", `${input.origin}${returnPath}?purchase=cancelled`);
   body.set("payment_method_types[0]", "card");
   body.set("expires_at", String(input.expiresAt));
   body.set("shipping_address_collection[allowed_countries][0]", "PL");
@@ -127,7 +157,7 @@ export async function createPurchaseCheckoutSession(input: {
   body.set("line_items[0][price_data][unit_amount]", String(input.amount));
   body.set(
     "line_items[0][price_data][product_data][name]",
-    "AirPods Pro — wygrana aukcji Fiszy",
+    `${input.productName} — wygrana aukcji Fiszy`,
   );
   body.set("line_items[0][quantity]", "1");
   body.set("metadata[kind]", "auction_purchase");
@@ -135,7 +165,60 @@ export async function createPurchaseCheckoutSession(input: {
   body.set("metadata[runId]", input.runId);
   body.set("metadata[bidderId]", input.bidderId);
 
-  return createCheckoutSession(body);
+  return createCheckoutSession(
+    body,
+    idempotencyKey("purchase", [
+      input.auctionId,
+      input.runId,
+      input.bidderId,
+      input.claimToken ?? String(input.expiresAt),
+    ]),
+  );
+}
+
+export async function createDiscountPurchaseCheckoutSession(input: {
+  origin: string;
+  auctionId: string;
+  runId: string;
+  bidderId: string;
+  accountId: string;
+  discountId: string;
+  reservationToken: string;
+  amount: number;
+  expiresAt: number;
+  productName: string;
+}) {
+  const body = new URLSearchParams();
+  body.set("mode", "payment");
+  body.set("success_url", `${input.origin}/moje-fiszy?discount=success`);
+  body.set("cancel_url", `${input.origin}/moje-fiszy?discount=cancelled`);
+  body.set("payment_method_types[0]", "card");
+  body.set("expires_at", String(input.expiresAt));
+  body.set("shipping_address_collection[allowed_countries][0]", "PL");
+  body.set("phone_number_collection[enabled]", "true");
+  body.set("name_collection[individual][enabled]", "true");
+  body.set("line_items[0][price_data][currency]", "pln");
+  body.set("line_items[0][price_data][unit_amount]", String(input.amount));
+  body.set(
+    "line_items[0][price_data][product_data][name]",
+    `${input.productName} — oferta po aukcji Fiszy`,
+  );
+  body.set("line_items[0][quantity]", "1");
+  body.set("metadata[kind]", "post_auction_purchase");
+  body.set("metadata[auctionId]", input.auctionId);
+  body.set("metadata[runId]", input.runId);
+  body.set("metadata[bidderId]", input.bidderId);
+  body.set("metadata[accountId]", input.accountId);
+  body.set("metadata[discountId]", input.discountId);
+  body.set("metadata[reservationToken]", input.reservationToken);
+
+  return createCheckoutSession(
+    body,
+    idempotencyKey("post-auction-discount", [
+      input.discountId,
+      input.reservationToken,
+    ]),
+  );
 }
 
 export async function expireCheckoutSession(sessionId: string) {
@@ -161,6 +244,61 @@ export async function expireCheckoutSession(sessionId: string) {
   }
 
   return data;
+}
+
+export async function retrieveCheckoutSession(sessionId: string) {
+  const response = await fetch(
+    `${STRIPE_API_BASE}/checkout/sessions/${encodeURIComponent(sessionId)}`,
+    {
+      headers: { Authorization: `Bearer ${stripeSecretKey()}` },
+      cache: "no-store",
+    },
+  );
+  const data = (await response.json()) as StripeCheckoutSession & {
+    error?: { message?: string };
+  };
+
+  if (!response.ok || !data.id) {
+    throw new Error(
+      data.error?.message ?? "Unable to retrieve Stripe Checkout Session.",
+    );
+  }
+
+  return data;
+}
+
+export async function refundCheckoutSessionPayment(
+  session: StripeCheckoutSession,
+) {
+  const paymentIntentId =
+    typeof session.payment_intent === "string"
+      ? session.payment_intent
+      : session.payment_intent?.id;
+
+  if (!paymentIntentId) {
+    throw new Error("Paid Checkout Session has no PaymentIntent to refund.");
+  }
+
+  const response = await fetch(`${STRIPE_API_BASE}/refunds`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${stripeSecretKey()}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+      "Idempotency-Key": `fiszy-entry-refund-${session.id}`,
+    },
+    body: new URLSearchParams({ payment_intent: paymentIntentId }),
+    cache: "no-store",
+  });
+
+  const data = (await response.json()) as {
+    id?: string;
+    error?: { code?: string; message?: string };
+  };
+
+  if (response.ok && data.id) return;
+  if (data.error?.code === "charge_already_refunded") return;
+
+  throw new Error(data.error?.message ?? "Unable to refund late auction entry.");
 }
 
 function parseStripeSignature(header: string) {

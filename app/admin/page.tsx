@@ -1,266 +1,504 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  ApiError,
+  createAdminSession,
+  createAuction,
+  deleteAdminSession,
+  getAdminSession,
+  loadAuctions,
+  loadHealth,
+  loadOrders,
+  setAuctionRecordState,
+  startAuctionRun,
+  updateAuction,
+  updateOrderFulfillment,
+} from "./api";
+import { AdminGate } from "./components/AdminGate";
+import { AdminHeader } from "./components/AdminHeader";
+import { AuditPanel } from "./components/AuditPanel";
+import { AuctionEditor } from "./components/AuctionEditor";
+import { AuctionList } from "./components/AuctionList";
+import { HealthPanel } from "./components/HealthPanel";
+import { KpiGrid } from "./components/KpiGrid";
+import { OrdersPanel } from "./components/OrdersPanel";
+import { PortalOperationsPanel } from "./components/PortalOperationsPanel";
+import { RunHistoryPanel } from "./components/RunHistoryPanel";
+import styles from "./AdminDashboard.module.css";
+import type {
+  AdminAuction,
+  AdminHealth,
+  AdminOrder,
+  AuctionDefinitionInput,
+  AuctionFilter,
+  FulfillmentUpdateInput,
+} from "./types";
 
-type AuctionState = {
-  runId: string;
-  status: "waiting" | "live" | "ended" | "payment_pending" | "sold";
-  currentPrice: number;
-  startsAt: string;
-  endsAt: string;
-};
+type SessionStatus = "checking" | "signed_out" | "authenticated" | "unconfigured";
 
-type StartResponse = {
-  outcome:
-    | "scheduled"
-    | "unauthorized"
-    | "admin_not_configured"
-    | "pending_payment"
-    | "storage_error";
-  startsAt?: string;
-};
+type Notice = {
+  tone: "success" | "info" | "error";
+  message: string;
+} | null;
 
-type Order = {
-  orderId: string;
-  runId: string;
-  bidderId: string;
-  product: string;
-  amount: number;
-  currency: "pln";
-  paymentSessionId: string;
-  paidAt: string;
-  customer: {
-    name: string | null;
-    email: string | null;
-    phone: string | null;
-  };
-  shippingAddress: {
-    city: string | null;
-    country: string | null;
-    line1: string | null;
-    line2: string | null;
-    postalCode: string | null;
-    state: string | null;
-  } | null;
-};
-
-type OrdersResponse = {
-  outcome: "ok" | "unauthorized" | "admin_not_configured" | "storage_error";
-  orders?: Order[];
-};
-
-function formatDateTime(value?: string) {
-  if (!value) return "—";
-
-  return new Date(value).toLocaleString("pl-PL", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    day: "2-digit",
-    month: "2-digit",
-  });
+function errorMessage(error: unknown) {
+  return error instanceof Error
+    ? error.message
+    : "Wystąpił nieoczekiwany błąd. Spróbuj ponownie.";
 }
 
-function formatAddress(order: Order) {
-  const address = order.shippingAddress;
-  if (!address) return "—";
-
-  const street = [address.line1, address.line2].filter(Boolean).join(", ");
-  const city = [address.postalCode, address.city].filter(Boolean).join(" ");
-  return [street, city, address.country].filter(Boolean).join(" · ") || "—";
+function isUnauthorized(error: unknown) {
+  return error instanceof ApiError && error.status === 401;
 }
 
 export default function AdminPage() {
-  const [auction, setAuction] = useState<AuctionState | null>(null);
-  const [adminKey, setAdminKey] = useState("");
-  const [isStarting, setIsStarting] = useState(false);
-  const [message, setMessage] = useState("");
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [isLoadingOrders, setIsLoadingOrders] = useState(false);
-  const [ordersMessage, setOrdersMessage] = useState("");
-
-  const loadAuction = async () => {
-    try {
-      const response = await fetch("/api/auction", { cache: "no-store" });
-      if (!response.ok) return;
-      setAuction((await response.json()) as AuctionState);
-    } catch {
-      // Status is informational only; starting the auction still has its own error handling.
-    }
-  };
+  const [sessionStatus, setSessionStatus] = useState<SessionStatus>("checking");
+  const [adminRole, setAdminRole] = useState("owner");
+  const [sessionError, setSessionError] = useState("");
+  const [loginBusy, setLoginBusy] = useState(false);
+  const [auctions, setAuctions] = useState<AdminAuction[]>([]);
+  const [orders, setOrders] = useState<AdminOrder[]>([]);
+  const [health, setHealth] = useState<AdminHealth | null>(null);
+  const [filter, setFilter] = useState<AuctionFilter>("all");
+  const [auctionSearch, setAuctionSearch] = useState("");
+  const [editingAuction, setEditingAuction] = useState<AdminAuction | null>(null);
+  const [dashboardLoading, setDashboardLoading] = useState(false);
+  const [dashboardError, setDashboardError] = useState("");
+  const [savingEditor, setSavingEditor] = useState(false);
+  const [busyAuctionId, setBusyAuctionId] = useState<string | null>(null);
+  const [busyOrderId, setBusyOrderId] = useState<string | null>(null);
+  const [orderUpdateError, setOrderUpdateError] = useState<{
+    orderId: string;
+    message: string;
+  } | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<number | null>(null);
+  const [notice, setNotice] = useState<Notice>(null);
+  const [legacyMode, setLegacyMode] = useState(false);
+  const loadingRef = useRef(false);
+  const busyOrderRef = useRef<string | null>(null);
 
   useEffect(() => {
-    void loadAuction();
-    const timer = window.setInterval(() => void loadAuction(), 1000);
-    return () => window.clearInterval(timer);
+    let active = true;
+
+    const checkSession = async () => {
+      try {
+        const session = await getAdminSession();
+        if (!active) return;
+        setAdminRole(session.role);
+        setSessionStatus(
+          !session.configured
+            ? "unconfigured"
+            : session.authenticated
+              ? "authenticated"
+              : "signed_out",
+        );
+      } catch (error) {
+        if (!active) return;
+        setSessionStatus("signed_out");
+        setSessionError(errorMessage(error));
+      }
+    };
+
+    void checkSession();
+    return () => {
+      active = false;
+    };
   }, []);
 
-  const loadOrders = async () => {
-    if (!adminKey || isLoadingOrders) return;
+  const handleExpiredSession = useCallback(() => {
+    setSessionStatus("signed_out");
+    setSessionError("Sesja administratora wygasła. Zaloguj się ponownie.");
+    setAuctions([]);
+    setOrders([]);
+    setHealth(null);
+    setBusyAuctionId(null);
+    setBusyOrderId(null);
+    busyOrderRef.current = null;
+  }, []);
 
-    setIsLoadingOrders(true);
-    setOrdersMessage("");
+  const loadDashboard = useCallback(async (silent = false) => {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
+    if (!silent) setDashboardLoading(true);
 
     try {
-      const response = await fetch("/api/admin/orders", {
-        cache: "no-store",
-        headers: {
-          Authorization: `Bearer ${adminKey}`,
-        },
-      });
-      const data = (await response.json()) as OrdersResponse;
+      const [auctionResult, orderResult, healthResult] = await Promise.allSettled([
+        loadAuctions(),
+        loadOrders(),
+        loadHealth(),
+      ]);
+      const failures: string[] = [];
+      let anySuccess = false;
+      let usedLegacy = false;
 
-      if (data.outcome === "ok") {
-        const nextOrders = data.orders ?? [];
-        setOrders(nextOrders);
-        setOrdersMessage(
-          nextOrders.length
-            ? `Pobrano ${nextOrders.length} zamówień.`
-            : "Brak opłaconych zamówień w historii.",
-        );
-      } else if (data.outcome === "unauthorized") {
-        setOrders([]);
-        setOrdersMessage("Nieprawidłowy sekret administratora.");
+      if (auctionResult.status === "fulfilled") {
+        setAuctions(auctionResult.value.auctions);
+        usedLegacy ||= auctionResult.value.legacy;
+        anySuccess = true;
       } else {
-        setOrders([]);
-        setOrdersMessage("Nie udało się pobrać historii zamówień.");
+        if (isUnauthorized(auctionResult.reason)) {
+          handleExpiredSession();
+          return;
+        }
+        failures.push(`Aukcje: ${errorMessage(auctionResult.reason)}`);
       }
+
+      if (orderResult.status === "fulfilled") {
+        setOrders(orderResult.value.orders);
+        usedLegacy ||= orderResult.value.legacy;
+        anySuccess = true;
+      } else {
+        if (isUnauthorized(orderResult.reason)) {
+          handleExpiredSession();
+          return;
+        }
+        failures.push(`Zamówienia: ${errorMessage(orderResult.reason)}`);
+      }
+
+      if (healthResult.status === "fulfilled") {
+        setHealth(healthResult.value);
+        anySuccess = true;
+      } else {
+        if (isUnauthorized(healthResult.reason)) {
+          handleExpiredSession();
+          return;
+        }
+        failures.push(`System: ${errorMessage(healthResult.reason)}`);
+      }
+
+      setLegacyMode(usedLegacy);
+      setDashboardError(failures.join(" "));
+      if (anySuccess) setLastUpdated(Date.now());
+    } finally {
+      loadingRef.current = false;
+      if (!silent) setDashboardLoading(false);
+    }
+  }, [handleExpiredSession]);
+
+  useEffect(() => {
+    if (sessionStatus !== "authenticated") return;
+    void loadDashboard();
+
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") void loadDashboard(true);
+    }, 30_000);
+
+    return () => window.clearInterval(timer);
+  }, [sessionStatus, loadDashboard]);
+
+  const handleLogin = async (secret: string) => {
+    setLoginBusy(true);
+    setSessionError("");
+
+    try {
+      const session = await createAdminSession(secret);
+      setAdminRole(session.role);
+      if (!session.configured) {
+        setSessionStatus("unconfigured");
+        return false;
+      }
+      if (!session.authenticated) {
+        setSessionError("Nieprawidłowy sekret administratora.");
+        return false;
+      }
+
+      setSessionStatus("authenticated");
+      return true;
+    } catch (error) {
+      setSessionError(
+        error instanceof ApiError && error.status === 401
+          ? "Nieprawidłowy sekret administratora."
+          : errorMessage(error),
+      );
+      return false;
+    } finally {
+      setLoginBusy(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await deleteAdminSession();
     } catch {
+      // Local state is cleared even if the server cannot acknowledge logout.
+    } finally {
+      setSessionStatus("signed_out");
+      setSessionError("");
+      setAuctions([]);
       setOrders([]);
-      setOrdersMessage("Nie udało się połączyć z endpointem historii zamówień.");
-    } finally {
-      setIsLoadingOrders(false);
+      setHealth(null);
+      setNotice(null);
+      setEditingAuction(null);
+      setAuctionSearch("");
+      setFilter("all");
+      setOrderUpdateError(null);
+      busyOrderRef.current = null;
     }
   };
 
-  const startAuction = async () => {
-    if (!adminKey || isStarting) return;
-
-    setIsStarting(true);
-    setMessage("");
+  const handleEditorSubmit = async (
+    input: AuctionDefinitionInput,
+    editingAuctionId: string | null,
+  ) => {
+    setSavingEditor(true);
+    setNotice(null);
 
     try {
-      const response = await fetch("/api/admin/auction/start", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${adminKey}`,
-        },
+      const result = editingAuctionId
+        ? await updateAuction(
+            editingAuctionId,
+            input,
+            editingAuction?.auctionId === editingAuctionId
+              ? editingAuction.revision ?? undefined
+              : undefined,
+          )
+        : await createAuction(input);
+      setNotice({
+        tone: result.legacy ? "info" : "success",
+        message: result.legacy
+          ? "Aukcja została uruchomiona przez zgodny endpoint MVP."
+          : result.message ?? (editingAuctionId
+              ? "Zmiany aukcji zostały zapisane."
+              : "Nowa aukcja została utworzona."),
       });
-      const data = (await response.json()) as StartResponse;
-
-      if (data.outcome === "scheduled") {
-        setMessage(`Nowa aukcja zaplanowana na ${formatDateTime(data.startsAt)}.`);
-        await loadAuction();
-      } else if (data.outcome === "unauthorized") {
-        setMessage("Nieprawidłowy sekret administratora.");
-      } else if (data.outcome === "admin_not_configured") {
-        setMessage("Brak FISZY_ADMIN_SECRET w zmiennych środowiskowych Vercela.");
-      } else if (data.outcome === "pending_payment") {
-        setMessage("Poprzedni zwycięzca ma jeszcze aktywną płatność. Spróbuj ponownie za chwilę.");
-      } else {
-        setMessage("Nie udało się zapisać nowej aukcji w Redisie.");
-      }
-    } catch {
-      setMessage("Nie udało się połączyć z endpointem administracyjnym.");
+      setEditingAuction(null);
+      await loadDashboard();
+      return true;
+    } catch (error) {
+      if (isUnauthorized(error)) handleExpiredSession();
+      else setNotice({ tone: "error", message: errorMessage(error) });
+      return false;
     } finally {
-      setIsStarting(false);
+      setSavingEditor(false);
     }
   };
+
+  const handleStartRun = async (auction: AdminAuction) => {
+    if (auction.recordState === "archived") return;
+    const confirmed = window.confirm(
+      `Uruchomić kolejną rundę aukcji „${auction.productName}”? Serwer wyznaczy najbliższy bezpieczny start.`,
+    );
+    if (!confirmed) return;
+
+    setBusyAuctionId(auction.auctionId);
+    setNotice(null);
+
+    try {
+      const result = await startAuctionRun(auction);
+      setNotice({
+        tone: result.legacy ? "info" : "success",
+        message: result.legacy
+          ? "Runda została uruchomiona przez zgodny endpoint MVP."
+          : result.message ?? "Nowa runda została zaplanowana.",
+      });
+      await loadDashboard();
+    } catch (error) {
+      if (isUnauthorized(error)) handleExpiredSession();
+      else setNotice({ tone: "error", message: errorMessage(error) });
+    } finally {
+      setBusyAuctionId(null);
+    }
+  };
+
+  const handleArchiveToggle = async (auction: AdminAuction) => {
+    const restoring = auction.recordState === "archived";
+    const confirmed = window.confirm(
+      restoring
+        ? `Przywrócić aukcję „${auction.productName}”?`
+        : `Przenieść aukcję „${auction.productName}” do archiwum?`,
+    );
+    if (!confirmed) return;
+
+    setBusyAuctionId(auction.auctionId);
+    setNotice(null);
+    try {
+      const nextState = restoring
+        ? auction.runId ? "published" as const : "draft" as const
+        : "archived" as const;
+      const result = await setAuctionRecordState(
+        auction.auctionId,
+        nextState,
+        auction.revision ?? undefined,
+      );
+      setNotice({
+        tone: "success",
+        message: result.message ?? (restoring
+          ? "Aukcja została przywrócona."
+          : "Aukcja została przeniesiona do archiwum."),
+      });
+      if (!restoring && editingAuction?.auctionId === auction.auctionId) {
+        setEditingAuction(null);
+      }
+      await loadDashboard();
+    } catch (error) {
+      if (isUnauthorized(error)) handleExpiredSession();
+      else setNotice({ tone: "error", message: errorMessage(error) });
+    } finally {
+      setBusyAuctionId(null);
+    }
+  };
+
+  const handleFulfillmentUpdate = async (
+    order: AdminOrder,
+    input: FulfillmentUpdateInput,
+  ) => {
+    if (busyOrderRef.current) return false;
+    const previousFulfillment = order.fulfillment;
+    const optimisticFulfillment = {
+      status: input.status,
+      revision: input.expectedRevision,
+      carrier: input.carrier,
+      trackingNumber: input.trackingNumber,
+      note: input.note,
+      updatedAt: new Date().toISOString(),
+    };
+
+    busyOrderRef.current = order.orderId;
+    setBusyOrderId(order.orderId);
+    setOrderUpdateError(null);
+    setOrders((current) => current.map((item) =>
+      item.orderId === order.orderId
+        ? { ...item, fulfillment: optimisticFulfillment }
+        : item,
+    ));
+
+    try {
+      const fulfillment = await updateOrderFulfillment(order.orderId, input);
+      setOrders((current) => current.map((item) =>
+        item.orderId === order.orderId ? { ...item, fulfillment } : item,
+      ));
+      return true;
+    } catch (error) {
+      setOrders((current) => current.map((item) =>
+        item.orderId === order.orderId
+          ? { ...item, fulfillment: previousFulfillment }
+          : item,
+      ));
+      if (isUnauthorized(error)) {
+        handleExpiredSession();
+      } else {
+        setOrderUpdateError({
+          orderId: order.orderId,
+          message: errorMessage(error),
+        });
+      }
+      return false;
+    } finally {
+      busyOrderRef.current = null;
+      setBusyOrderId(null);
+    }
+  };
+
+  const handleEdit = (auction: AdminAuction) => {
+    setEditingAuction(auction);
+    window.requestAnimationFrame(() => {
+      const editor = document.getElementById("auction-editor");
+      editor?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+      document.getElementById("editor-heading")?.focus({ preventScroll: true });
+    });
+  };
+
+  if (sessionStatus !== "authenticated") {
+    return (
+      <AdminGate
+        checking={sessionStatus === "checking"}
+        configured={sessionStatus !== "unconfigured"}
+        busy={loginBusy}
+        error={sessionError}
+        onLogin={handleLogin}
+      />
+    );
+  }
 
   return (
-    <main className="adminShell">
-      <section className="adminCard">
-        <p className="eyebrow">Fiszy / panel testowy</p>
-        <h1>Uruchamianie aukcji</h1>
+    <main className={styles.dashboardShell} aria-busy={dashboardLoading}>
+      <AdminHeader
+        environment={health?.environment ?? "panel"}
+        role={adminRole}
+        refreshing={dashboardLoading}
+        lastUpdated={lastUpdated}
+        onRefresh={() => void loadDashboard()}
+        onLogout={() => void handleLogout()}
+      />
 
-        <div className="adminStatus">
-          <div>
-            <span>Status</span>
-            <strong>{auction?.status ?? "—"}</strong>
-          </div>
-          <div>
-            <span>Aktualna cena</span>
-            <strong>{auction ? `${auction.currentPrice} zł` : "—"}</strong>
-          </div>
-          <div>
-            <span>Start</span>
-            <strong>{formatDateTime(auction?.startsAt)}</strong>
-          </div>
-        </div>
-
-        <label className="adminLabel" htmlFor="admin-key">
-          Sekret administratora
-        </label>
-        <input
-          id="admin-key"
-          className="adminInput"
-          type="password"
-          value={adminKey}
-          onChange={(event) => setAdminKey(event.target.value)}
-          autoComplete="off"
-          placeholder="FISZY_ADMIN_SECRET"
-        />
-
-        <button
-          className="buyButton"
-          type="button"
-          onClick={startAuction}
-          disabled={!adminKey || isStarting}
-        >
-          {isStarting ? "URUCHAMIAM..." : "NOWA AUKCJA — START ZA 60 SEKUND"}
-        </button>
-
-        {message ? <p className="adminMessage">{message}</p> : null}
-
-        <div className="orderSection">
-          <div className="orderHeader">
-            <div>
-              <p className="eyebrow">Realizacja</p>
-              <h2>Historia zamówień</h2>
-            </div>
-            <button
-              className="adminSecondaryButton"
-              type="button"
-              onClick={loadOrders}
-              disabled={!adminKey || isLoadingOrders}
-            >
-              {isLoadingOrders ? "POBIERAM..." : "POBIERZ HISTORIĘ"}
-            </button>
-          </div>
-
-          {orders.length ? (
-            <div className="orderList">
-              {orders.map((order) => (
-                <article className="orderCard" key={order.orderId}>
-                  <div className="orderCardHeader">
-                    <strong>{order.orderId}</strong>
-                    <span>{formatDateTime(order.paidAt)}</span>
-                  </div>
-                  <div className="orderDetails">
-                    <div><span>Produkt</span><strong>{order.product}</strong></div>
-                    <div><span>Kwota</span><strong>{order.amount} zł</strong></div>
-                    <div><span>Klient</span><strong>{order.customer.name ?? "—"}</strong></div>
-                    <div><span>E-mail</span><strong>{order.customer.email ?? "—"}</strong></div>
-                    <div><span>Telefon</span><strong>{order.customer.phone ?? "—"}</strong></div>
-                    <div><span>Run ID</span><strong>{order.runId.slice(0, 12)}</strong></div>
-                    <div className="orderWide"><span>Adres dostawy</span><strong>{formatAddress(order)}</strong></div>
-                  </div>
-                </article>
-              ))}
-            </div>
-          ) : null}
-
-          {ordersMessage ? <p className="adminMessage">{ordersMessage}</p> : null}
-        </div>
-
-        <p className="adminNote">
-          Każde uruchomienie tworzy nową sesję. Historia opłaconych zamówień pozostaje dostępna niezależnie od kolejnych aukcji.
+      {dashboardLoading && lastUpdated === null ? (
+        <p className={styles.srOnly} role="status">
+          Ładuję dane panelu administratora.
         </p>
+      ) : null}
 
-        <a className="adminLink" href="/">
-          Otwórz stronę aukcji →
-        </a>
-      </section>
+      {notice ? (
+        <div
+          className={`${styles.notice} ${styles[`notice_${notice.tone}`]}`}
+          role={notice.tone === "error" ? "alert" : "status"}
+        >
+          <span>{notice.message}</span>
+          <button type="button" onClick={() => setNotice(null)} aria-label="Zamknij komunikat">×</button>
+        </div>
+      ) : null}
+
+      {dashboardError ? (
+        <div className={styles.errorBanner} role="alert">
+          <strong>Nie wszystkie dane udało się odświeżyć.</strong>
+          <span>{dashboardError}</span>
+          <button type="button" onClick={() => void loadDashboard()}>Spróbuj ponownie</button>
+        </div>
+      ) : null}
+
+      {legacyMode ? (
+        <div className={styles.compatibilityBanner} role="status">
+          Tryb zgodności MVP: część danych pochodzi ze starszych endpointów.
+        </div>
+      ) : null}
+
+      <KpiGrid auctions={auctions} orders={orders} />
+
+      <AuctionList
+        auctions={auctions}
+        filter={filter}
+        searchQuery={auctionSearch}
+        busyAuctionId={busyAuctionId}
+        onFilterChange={setFilter}
+        onSearchChange={setAuctionSearch}
+        onEdit={handleEdit}
+        onStart={(auction) => void handleStartRun(auction)}
+        onArchiveToggle={(auction) => void handleArchiveToggle(auction)}
+      />
+
+      <AuctionEditor
+        editingAuction={editingAuction}
+        busy={savingEditor}
+        onCancel={() => setEditingAuction(null)}
+        onSubmit={handleEditorSubmit}
+      />
+
+      <div className={styles.lowerGrid}>
+        <OrdersPanel
+          orders={orders}
+          busyOrderId={busyOrderId}
+          updateError={orderUpdateError}
+          onUpdateFulfillment={handleFulfillmentUpdate}
+        />
+        <HealthPanel health={health} />
+      </div>
+
+      <RunHistoryPanel
+        auctions={auctions}
+        onSessionExpired={handleExpiredSession}
+      />
+
+      <AuditPanel onSessionExpired={handleExpiredSession} />
+
+      <PortalOperationsPanel onSessionExpired={handleExpiredSession} />
+
+      <footer className={styles.footer}>
+        <span>Fiszy / panel operacyjny</span>
+        <span>Dane list są stronicowane, a historia szczegółowa ładowana na żądanie.</span>
+      </footer>
     </main>
   );
 }
