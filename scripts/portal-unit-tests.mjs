@@ -3,7 +3,10 @@ import test from "node:test";
 
 import { adminPermissions, configuredAdminRole } from "../lib/admin-auth.ts";
 import { defaultAuctionConfig, parseAuctionDefinition } from "../lib/auction.ts";
-import { preparePostAuctionDiscount } from "../lib/discount-storage.ts";
+import {
+  normalizeStoredPostAuctionDiscount,
+  preparePostAuctionDiscount,
+} from "../lib/discount-storage.ts";
 import {
   consumeAccountRateLimit,
   listAccountTickets,
@@ -105,6 +108,36 @@ test("post-auction discount belongs only to an eligible loser and expires determ
     winner,
     now: Date.parse("2026-08-26T10:05:00.000Z"),
   })?.state, "expired");
+});
+
+test("reserved discount restores nullable fields removed by Redis Lua", () => {
+  const reserved = normalizeStoredPostAuctionDiscount({
+    schemaVersion: 1,
+    discountId: "RABAT-1234567890ABCDEF1234567890ABCDEF12345678",
+    accountId: "user_loser",
+    participantId: "clerk:user_loser",
+    auctionId: "discount-unit-auction",
+    runId: "discount-unit-run",
+    product: "Konsola PlayStation 5",
+    regularPrice: 999,
+    discountAmount: 5,
+    finalPrice: 994,
+    currency: "pln",
+    issuedAt: "2026-08-18T10:10:00.000Z",
+    expiresAt: "2026-08-25T10:10:00.000Z",
+    state: "reserved",
+    reservationToken: "6bad2738-1bb3-4fe3-887d-665566052bf9",
+    reservedAt: "2026-08-18T10:12:00.000Z",
+    reservationExpiresAt: "2026-08-18T10:43:00.000Z",
+    reservationExpiresAtMs: 1_776_510_180_000,
+  });
+  assert.equal(reserved?.productImageUrl, null);
+  assert.equal(reserved?.inventory, null);
+  assert.equal(reserved?.state, "reserved");
+  assert.equal(normalizeStoredPostAuctionDiscount({
+    ...reserved,
+    inventory: 0,
+  }), null);
 });
 
 test("notification receipts accept only bounded opaque identifiers", () => {

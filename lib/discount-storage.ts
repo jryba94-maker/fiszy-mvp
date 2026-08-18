@@ -131,12 +131,16 @@ export function normalizeDiscountId(value: unknown) {
   return DISCOUNT_ID_PATTERN.test(discountId) ? discountId : null;
 }
 
-function normalizeStoredDiscount(value: unknown): PostAuctionDiscount | null {
+export function normalizeStoredPostAuctionDiscount(
+  value: unknown,
+): PostAuctionDiscount | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const candidate = value as Partial<PostAuctionDiscount>;
   const discountId = normalizeDiscountId(candidate.discountId);
   const auctionId = normalizeAuctionId(candidate.auctionId);
   const runId = normalizeRunId(candidate.runId);
+  const productImageUrl = candidate.productImageUrl ?? null;
+  const inventory = candidate.inventory ?? null;
   const provider = candidate.paymentProvider === undefined
     ? undefined
     : normalizePaymentProvider(candidate.paymentProvider);
@@ -160,7 +164,7 @@ function normalizeStoredDiscount(value: unknown): PostAuctionDiscount | null {
     typeof candidate.product !== "string" ||
     !candidate.product ||
     candidate.product.length > 80 ||
-    (candidate.productImageUrl !== null && typeof candidate.productImageUrl !== "string") ||
+    (productImageUrl !== null && typeof productImageUrl !== "string") ||
     !validMoney(candidate.regularPrice) ||
     !validMoney(candidate.discountAmount) ||
     !validMoney(candidate.finalPrice) ||
@@ -170,8 +174,8 @@ function normalizeStoredDiscount(value: unknown): PostAuctionDiscount | null {
     !validDate(candidate.issuedAt) ||
     !validDate(candidate.expiresAt) ||
     !states.includes(candidate.state as PostAuctionDiscountState) ||
-    (candidate.inventory !== null &&
-      (!Number.isInteger(candidate.inventory) || Number(candidate.inventory) < 1)) ||
+    (inventory !== null &&
+      (!Number.isInteger(inventory) || Number(inventory) < 1)) ||
     (candidate.paymentProvider !== undefined && !provider) ||
     (candidate.paymentReference !== undefined &&
       (typeof candidate.paymentReference !== "string" ||
@@ -193,6 +197,8 @@ function normalizeStoredDiscount(value: unknown): PostAuctionDiscount | null {
     discountId,
     auctionId,
     runId,
+    productImageUrl,
+    inventory,
     ...(provider ? { paymentProvider: provider } : {}),
   };
 }
@@ -200,7 +206,7 @@ function normalizeStoredDiscount(value: unknown): PostAuctionDiscount | null {
 function parseStoredDiscount(raw: unknown) {
   if (typeof raw !== "string" || !raw) return null;
   try {
-    return normalizeStoredDiscount(JSON.parse(raw) as unknown);
+    return normalizeStoredPostAuctionDiscount(JSON.parse(raw) as unknown);
   } catch {
     return null;
   }
@@ -284,7 +290,7 @@ export function preparePostAuctionDiscount(input: {
 export async function issuePostAuctionDiscount(
   discount: PostAuctionDiscount,
 ): Promise<PostAuctionDiscount> {
-  const normalized = normalizeStoredDiscount(discount);
+  const normalized = normalizeStoredPostAuctionDiscount(discount);
   if (!normalized) throw new Error("Invalid post-auction discount.");
   const issuedAt = Date.parse(normalized.issuedAt);
   const raw = await redisCommand<string>([
