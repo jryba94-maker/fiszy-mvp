@@ -188,6 +188,27 @@
   gap: 12px;
 }
 
+.cardBadges {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.categoryBadge {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  border-radius: 999px;
+  padding: 4px 8px;
+  background: #f1eee6;
+  color: #565852;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
 .duration {
   color: #6e706b;
   font-size: 0.76rem;

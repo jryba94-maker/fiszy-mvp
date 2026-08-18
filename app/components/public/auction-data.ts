@@ -7,11 +7,48 @@ export type AuctionStatus =
   | "payment_pending"
   | "sold";
 
+export type AuctionCategory =
+  | "electronics"
+  | "home"
+  | "sport"
+  | "beauty"
+  | "gaming"
+  | "other";
+
+const AUCTION_CATEGORIES = new Set<AuctionCategory>([
+  "electronics",
+  "home",
+  "sport",
+  "beauty",
+  "gaming",
+  "other",
+]);
+
+export function auctionCategoryLabel(category: AuctionCategory) {
+  if (category === "electronics") return "Elektronika";
+  if (category === "home") return "Dom";
+  if (category === "sport") return "Sport";
+  if (category === "beauty") return "Uroda";
+  if (category === "gaming") return "Gaming";
+  return "Pozostałe";
+}
+
+function inferredCategory(product: string): AuctionCategory {
+  const name = product.toLocaleLowerCase("pl-PL");
+  if (/airpods|iphone|telefon|laptop|słuch|smart|tablet|elektr/.test(name)) return "electronics";
+  if (/playstation|xbox|nintendo|konsol|gaming|gra /.test(name)) return "gaming";
+  if (/dom|kuch|odkurz|ekspres|mebl|lampa/.test(name)) return "home";
+  if (/rower|buty|sport|fitness|zegarek/.test(name)) return "sport";
+  if (/kosmet|perfum|urod|włos/.test(name)) return "beauty";
+  return "other";
+}
+
 export type PublicAuction = {
   auctionId: string;
   runId: string;
   product: string;
   productImageUrl: string | null;
+  category: AuctionCategory;
   regularPrice: number;
   startPrice: number;
   floorPrice: number;
@@ -92,6 +129,10 @@ export function normalizeAuction(
   const auctionId = text(value.auctionId) ?? fallbackAuctionId ?? null;
   const runId = text(value.runId);
   const product = text(value.product) ?? text(value.productName) ?? "Aukcja Fiszy";
+  const categoryValue = text(value.category) as AuctionCategory | null;
+  const category = categoryValue && AUCTION_CATEGORIES.has(categoryValue)
+    ? categoryValue
+    : inferredCategory(product);
   const startsAt = optionalDate(value.startsAt);
   const endsAt = optionalDate(value.endsAt);
   const status = text(value.status) as AuctionStatus | null;
@@ -126,6 +167,7 @@ export function normalizeAuction(
     runId,
     product,
     productImageUrl: text(value.productImageUrl),
+    category,
     regularPrice,
     startPrice,
     floorPrice,

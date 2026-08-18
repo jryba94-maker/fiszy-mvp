@@ -10,6 +10,7 @@ import { redisCommand } from "../../../../lib/redis";
 import { logEvent } from "../../../../lib/observability";
 import { paymentProviderHealth } from "../../../../lib/payment-provider";
 import { checkoutOriginConfiguration } from "../../../../lib/request-origin";
+import { siteUrl } from "../../../../lib/site";
 
 export const dynamic = "force-dynamic";
 
@@ -102,6 +103,8 @@ export async function GET(request: NextRequest) {
       emailDeliveryConfigured,
       inAppNotificationsConfigured: true,
       externalErrorAlertsConfigured: Boolean(process.env.SENTRY_DSN),
+      canonicalSiteUrl: siteUrl(),
+      canonicalSiteUrlExplicit: Boolean(process.env.NEXT_PUBLIC_SITE_URL),
       redisConfigured: Boolean(redisUrl && redisTokenConfigured),
       redisReachable,
       redisLatencyMs,

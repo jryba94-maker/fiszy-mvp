@@ -133,6 +133,7 @@ function toPublicAuction(
     runId: config.runId,
     product: config.productName,
     productImageUrl: config.productImageUrl,
+    category: config.category,
     regularPrice: config.regularPrice,
     startPrice: config.startPrice,
     floorPrice: config.floorPrice,

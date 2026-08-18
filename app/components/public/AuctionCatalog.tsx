@@ -224,14 +224,6 @@ export function AuctionCatalog() {
     }
   };
 
-  const categoryOf = (auction: PublicAuction) => {
-    const name = auction.product.toLocaleLowerCase("pl-PL");
-    if (/airpods|iphone|telefon|laptop|słuch|konsol|smart|tablet|elektr/.test(name)) return "electronics";
-    if (/dom|kuch|odkurz|ekspres|mebl|lampa/.test(name)) return "home";
-    if (/rower|buty|sport|fitness|zegarek/.test(name)) return "sport";
-    if (/kosmet|perfum|urod|włos/.test(name)) return "beauty";
-    return "other";
-  };
   const filteredAuctions = (catalog?.auctions ?? []).filter((auction) => {
     const query = searchQuery.trim().toLocaleLowerCase("pl-PL");
     const matchesSearch = !query || auction.product.toLocaleLowerCase("pl-PL").includes(query);
@@ -239,7 +231,7 @@ export function AuctionCatalog() {
       (statusFilter === "available" && (auction.status === "waiting" || auction.status === "live")) ||
       (statusFilter === "live" && auction.status === "live") ||
       (statusFilter === "finished" && ["ended", "sold", "payment_pending"].includes(auction.status));
-    const matchesCategory = categoryFilter === "all" || categoryOf(auction) === categoryFilter;
+    const matchesCategory = categoryFilter === "all" || auction.category === categoryFilter;
     return matchesSearch && matchesStatus && matchesCategory;
   });
 
@@ -300,6 +292,7 @@ export function AuctionCatalog() {
               <option value="home">Dom</option>
               <option value="sport">Sport</option>
               <option value="beauty">Uroda</option>
+              <option value="gaming">Gaming</option>
               <option value="other">Pozostałe</option>
             </select>
           </label>

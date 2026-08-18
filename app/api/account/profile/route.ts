@@ -7,6 +7,7 @@ import {
   requestAccountDeletion,
   updateAccountProfile,
 } from "../../../../lib/portal-storage";
+import { hasSameOrigin } from "../../../../lib/request-origin";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +29,7 @@ export async function GET() {
 export async function PATCH(request: NextRequest) {
   const identity = await currentAccountIdentity();
   if (!identity) return NextResponse.json({ outcome: "unauthorized" }, { status: 401 });
+  if (!hasSameOrigin(request)) return NextResponse.json({ outcome: "invalid_origin" }, { status: 403 });
   try {
     if (!(await consumeAccountRateLimit({ accountId: identity.accountId, action: "profile", limit: 20, windowSeconds: 600 }))) {
       return NextResponse.json({ outcome: "rate_limited" }, { status: 429, headers: { "Retry-After": "600" } });
@@ -61,9 +63,10 @@ export async function PATCH(request: NextRequest) {
   }
 }
 
-export async function DELETE() {
+export async function DELETE(request: NextRequest) {
   const identity = await currentAccountIdentity();
   if (!identity) return NextResponse.json({ outcome: "unauthorized" }, { status: 401 });
+  if (!hasSameOrigin(request)) return NextResponse.json({ outcome: "invalid_origin" }, { status: 403 });
   try {
     if (!(await consumeAccountRateLimit({ accountId: identity.accountId, action: "profile", limit: 20, windowSeconds: 600 }))) {
       return NextResponse.json({ outcome: "rate_limited" }, { status: 429, headers: { "Retry-After": "600" } });

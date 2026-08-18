@@ -78,7 +78,7 @@ function prefix() {
 
 export async function consumeAccountRateLimit(input: {
   accountId: string;
-  action: "profile" | "watchlist" | "support";
+  action: "profile" | "watchlist" | "support" | "notifications";
   limit: number;
   windowSeconds: number;
 }) {
@@ -125,6 +125,10 @@ function accountIndexKey() {
 
 function accountWatchlistKey(accountId: string) {
   return `${prefix()}:account:${encodeURIComponent(checkedAccountId(accountId))}:watchlist`;
+}
+
+function accountReadNotificationsKey(accountId: string) {
+  return `${prefix()}:account:${encodeURIComponent(checkedAccountId(accountId))}:notifications:read`;
 }
 
 function accountAdminKey(accountId: string) {
@@ -545,6 +549,52 @@ return redis.call("ZCARD", KEYS[1])
     ]);
   }
   return input.watched;
+}
+
+const NOTIFICATION_ID_PATTERN = /^[A-Za-z0-9:_-]{3,240}$/;
+
+export function normalizeNotificationIds(value: unknown) {
+  if (!Array.isArray(value) || value.length < 1 || value.length > 50) return null;
+  const ids = value.map((item) => typeof item === "string" ? item.trim() : "");
+  if (ids.some((id) => !NOTIFICATION_ID_PATTERN.test(id))) return null;
+  return [...new Set(ids)];
+}
+
+export async function listReadAccountNotificationIds(accountIdValue: string) {
+  const accountId = checkedAccountId(accountIdValue);
+  const values = await redisCommand<string[]>([
+    "ZREVRANGE",
+    accountReadNotificationsKey(accountId),
+    0,
+    499,
+  ]);
+  return (values ?? []).filter((id) => NOTIFICATION_ID_PATTERN.test(id));
+}
+
+export async function markAccountNotificationsRead(input: {
+  accountId: string;
+  notificationIds: string[];
+}) {
+  const accountId = checkedAccountId(input.accountId);
+  const ids = normalizeNotificationIds(input.notificationIds);
+  if (!ids) throw new Error("Invalid notification ids.");
+  const key = accountReadNotificationsKey(accountId);
+  const now = Date.now();
+  const result = await redisCommand<number>([
+    "EVAL",
+    `
+for index = 1, #ARGV, 2 do
+  redis.call("ZADD", KEYS[1], ARGV[index], ARGV[index + 1])
+end
+redis.call("ZREMRANGEBYRANK", KEYS[1], 0, -501)
+return redis.call("ZCARD", KEYS[1])
+`,
+    1,
+    key,
+    ...ids.flatMap((id, index) => [now + index, id]),
+  ]);
+  if (typeof result !== "number") throw new Error("Unable to mark notifications read.");
+  return ids;
 }
 
 const TICKET_CATEGORIES = new Set<SupportTicketCategory>([

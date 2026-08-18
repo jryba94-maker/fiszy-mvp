@@ -5,6 +5,7 @@ export const FLOOR_PRICE = 699;
 export const ENTRY_FEE = 5;
 export const DEFAULT_REGULAR_PRICE = 999;
 export const DEFAULT_PRODUCT_NAME = "AirPods Pro";
+export const DEFAULT_AUCTION_CATEGORY = "electronics";
 export const DEFAULT_DURATION_MINUTES = 10;
 export const MIN_PRODUCT_PRICE = 2;
 export const DROP_INTERVAL_MS = 12_000;
@@ -17,11 +18,25 @@ const RUN_ID_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,118}[A-Za-z0-9])?$/;
 export type AuctionDefinition = {
   productName: string;
   productImageUrl: string | null;
+  category: AuctionCategory;
   regularPrice: number;
   startPrice: number;
   floorPrice: number;
   durationMinutes: number;
 };
+
+export const AUCTION_CATEGORIES = [
+  "electronics",
+  "home",
+  "sport",
+  "beauty",
+  "gaming",
+  "other",
+] as const;
+
+export type AuctionCategory = (typeof AUCTION_CATEGORIES)[number];
+
+const AUCTION_CATEGORY_SET = new Set<string>(AUCTION_CATEGORIES);
 
 export type AuctionConfig = AuctionDefinition & {
   schemaVersion: 2;
@@ -57,6 +72,7 @@ export type PublicAuction = {
   runId: string;
   product: string;
   productImageUrl: string | null;
+  category: AuctionCategory;
   regularPrice: number;
   startPrice: number;
   floorPrice: number;
@@ -88,6 +104,7 @@ export function defaultAuctionDefinition(): AuctionDefinition {
   return {
     productName: DEFAULT_PRODUCT_NAME,
     productImageUrl: null,
+    category: DEFAULT_AUCTION_CATEGORY,
     regularPrice: DEFAULT_REGULAR_PRICE,
     startPrice: START_PRICE,
     floorPrice: FLOOR_PRICE,
@@ -101,11 +118,38 @@ export function auctionDefinitionFromConfig(
   return {
     productName: config.productName,
     productImageUrl: config.productImageUrl,
+    category: config.category,
     regularPrice: config.regularPrice,
     startPrice: config.startPrice,
     floorPrice: config.floorPrice,
     durationMinutes: config.durationMinutes,
   };
+}
+
+export function inferAuctionCategory(productName: string): AuctionCategory {
+  const name = productName.toLocaleLowerCase("pl-PL");
+  if (/airpods|iphone|telefon|laptop|słuch|smart|tablet|elektr/.test(name)) {
+    return "electronics";
+  }
+  if (/playstation|xbox|nintendo|konsol|gaming|gra /.test(name)) {
+    return "gaming";
+  }
+  if (/dom|kuch|odkurz|ekspres|mebl|lampa/.test(name)) return "home";
+  if (/rower|buty|sport|fitness|zegarek/.test(name)) return "sport";
+  if (/kosmet|perfum|urod|włos/.test(name)) return "beauty";
+  return "other";
+}
+
+export function normalizeAuctionCategory(
+  value: unknown,
+  productName: string,
+): AuctionCategory | null {
+  if (value === undefined) return inferAuctionCategory(productName);
+  if (typeof value !== "string") return null;
+  const category = value.trim().toLowerCase();
+  return AUCTION_CATEGORY_SET.has(category)
+    ? (category as AuctionCategory)
+    : null;
 }
 
 function normalizedImageUrl(value: unknown) {
@@ -177,6 +221,9 @@ export function parseAuctionDefinition(value: unknown): AuctionDefinition | null
   const candidate = value as Partial<AuctionDefinition>;
   const productName = candidate.productName?.trim();
   const productImageUrl = normalizedImageUrl(candidate.productImageUrl);
+  const category = productName
+    ? normalizeAuctionCategory(candidate.category, productName)
+    : null;
   const regularPrice = candidate.regularPrice;
   const startPrice = candidate.startPrice;
   const floorPrice = candidate.floorPrice;
@@ -187,6 +234,7 @@ export function parseAuctionDefinition(value: unknown): AuctionDefinition | null
     productName.length < 2 ||
     productName.length > 80 ||
     productImageUrl === undefined ||
+    !category ||
     !isInteger(regularPrice) ||
     !isInteger(startPrice) ||
     !isInteger(floorPrice) ||
@@ -206,6 +254,7 @@ export function parseAuctionDefinition(value: unknown): AuctionDefinition | null
   return {
     productName,
     productImageUrl,
+    category,
     regularPrice,
     startPrice,
     floorPrice,

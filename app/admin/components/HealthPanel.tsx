@@ -7,7 +7,7 @@ type HealthPanelProps = {
 
 type HealthItem = {
   label: string;
-  ready: boolean;
+  status: "ready" | "error" | "planned";
   detail: string;
 };
 
@@ -23,7 +23,7 @@ export function HealthPanel({ health }: HealthPanelProps) {
     ? [
         {
           label: "Redis",
-          ready: health.redisConfigured && health.redisReachable,
+          status: health.redisConfigured && health.redisReachable ? "ready" : "error",
           detail:
             health.redisConfigured && health.redisReachable
               ? `Odpowiada${health.redisLatencyMs !== null ? ` · ${health.redisLatencyMs} ms` : ""}`
@@ -33,7 +33,7 @@ export function HealthPanel({ health }: HealthPanelProps) {
         },
         {
           label: "Operator płatności",
-          ready: health.paymentConfigured,
+          status: health.paymentConfigured ? "ready" : "error",
           detail: health.paymentConfigured
             ? health.paymentTestMode
               ? `${providerName} · piaskownica`
@@ -42,20 +42,47 @@ export function HealthPanel({ health }: HealthPanelProps) {
         },
         {
           label: "Potwierdzenia operatora",
-          ready: health.paymentWebhookConfigured,
+          status: health.paymentWebhookConfigured ? "ready" : "error",
           detail: health.paymentWebhookConfigured
             ? "Kanał potwierdzeń skonfigurowany"
             : "Brak konfiguracji potwierdzeń",
         },
         {
           label: "Administrator",
-          ready: health.adminConfigured && health.adminSecretStrong,
+          status: health.adminConfigured && health.adminSecretStrong ? "ready" : "error",
           detail:
             health.adminConfigured && health.adminSecretStrong
               ? "Silny sekret i sesja HttpOnly"
               : health.adminConfigured
                 ? "Sekret wymaga wzmocnienia"
                 : "Brak sekretu",
+        },
+        {
+          label: "Konta użytkowników",
+          status: health.authenticationConfigured ? "ready" : "error",
+          detail: health.authenticationConfigured ? "Clerk i logowanie gotowe" : "Brak konfiguracji Clerk",
+        },
+        {
+          label: "Powiadomienia w portalu",
+          status: health.inAppNotificationsConfigured ? "ready" : "error",
+          detail: health.inAppNotificationsConfigured ? "Aktywne i zapamiętują odczyt" : "Brak konfiguracji",
+        },
+        {
+          label: "Domena i SEO",
+          status: health.canonicalSiteUrlExplicit ? "ready" : "planned",
+          detail: health.canonicalSiteUrlExplicit
+            ? health.canonicalSiteUrl ?? "Kanoniczny adres skonfigurowany"
+            : "Działa na adresie Vercel; własna domena czeka na wybór",
+        },
+        {
+          label: "E-mail transakcyjny",
+          status: health.emailDeliveryConfigured ? "ready" : "planned",
+          detail: health.emailDeliveryConfigured ? "Resend i nadawca skonfigurowani" : "Czeka na zweryfikowaną domenę nadawcy",
+        },
+        {
+          label: "Alerty zewnętrzne",
+          status: health.externalErrorAlertsConfigured ? "ready" : "planned",
+          detail: health.externalErrorAlertsConfigured ? "Tracker błędów skonfigurowany" : "Opcjonalna integracja do wyboru",
         },
       ]
     : [];
@@ -79,7 +106,7 @@ export function HealthPanel({ health }: HealthPanelProps) {
           {items.map((item) => (
             <div className={styles.healthItem} key={item.label}>
               <span
-                className={item.ready ? styles.healthDotReady : styles.healthDotError}
+                className={item.status === "ready" ? styles.healthDotReady : item.status === "planned" ? styles.healthDotPlanned : styles.healthDotError}
                 aria-hidden="true"
               />
               <div>
@@ -87,7 +114,7 @@ export function HealthPanel({ health }: HealthPanelProps) {
                 <span>{item.detail}</span>
               </div>
               <span className={styles.srOnly}>
-                {item.ready ? "Skonfigurowane" : "Nieskonfigurowane"}
+                {item.status === "ready" ? "Skonfigurowane" : item.status === "planned" ? "Zaplanowane" : "Nieskonfigurowane"}
               </span>
             </div>
           ))}

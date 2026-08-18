@@ -320,6 +320,7 @@ export async function POST(
       startsAt: startsAt.toISOString(),
       productName: record.productName,
       productImageUrl: record.productImageUrl,
+      category: record.category,
       regularPrice: record.regularPrice,
       startPrice: record.startPrice,
       floorPrice: record.floorPrice,

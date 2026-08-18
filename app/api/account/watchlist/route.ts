@@ -3,6 +3,7 @@ import { currentAccountIdentity } from "../../../../lib/account-auth";
 import { normalizeAuctionId } from "../../../../lib/auction";
 import { readAuctionRecord } from "../../../../lib/auction-storage";
 import { consumeAccountRateLimit, listWatchedAuctionIds, setAuctionWatched } from "../../../../lib/portal-storage";
+import { hasSameOrigin } from "../../../../lib/request-origin";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,7 @@ export async function GET() {
 export async function PATCH(request: NextRequest) {
   const identity = await currentAccountIdentity();
   if (!identity) return NextResponse.json({ outcome: "unauthorized" }, { status: 401 });
+  if (!hasSameOrigin(request)) return NextResponse.json({ outcome: "invalid_origin" }, { status: 403 });
   try {
     if (!(await consumeAccountRateLimit({ accountId: identity.accountId, action: "watchlist", limit: 60, windowSeconds: 600 }))) {
       return NextResponse.json({ outcome: "rate_limited" }, { status: 429, headers: { "Retry-After": "600" } });

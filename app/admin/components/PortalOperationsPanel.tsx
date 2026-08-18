@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import styles from "../AdminDashboard.module.css";
 
 type UserSummary = {
@@ -62,6 +62,10 @@ export function PortalOperationsPanel({ onSessionExpired }: { onSessionExpired: 
   const [ticketCursor, setTicketCursor] = useState<string | null>(null);
   const [selected, setSelected] = useState<UserDetail | null>(null);
   const [userNote, setUserNote] = useState("");
+  const [userSearch, setUserSearch] = useState("");
+  const [userStatus, setUserStatus] = useState<"all" | "active" | "blocked">("all");
+  const [ticketSearch, setTicketSearch] = useState("");
+  const [ticketStatus, setTicketStatus] = useState<"all" | Ticket["status"]>("all");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
@@ -82,6 +86,28 @@ export function PortalOperationsPanel({ onSessionExpired }: { onSessionExpired: 
   }, [onSessionExpired]);
 
   useEffect(() => { void load(); }, [load]);
+
+  const filteredUsers = useMemo(() => {
+    const query = userSearch.trim().toLocaleLowerCase("pl-PL");
+    return users.filter((user) => {
+      const matchesStatus = userStatus === "all" || user.administration.status === userStatus;
+      const haystack = [user.profile.fullName, user.profile.phone, user.profile.accountId]
+        .join(" ")
+        .toLocaleLowerCase("pl-PL");
+      return matchesStatus && (!query || haystack.includes(query));
+    });
+  }, [userSearch, userStatus, users]);
+
+  const filteredTickets = useMemo(() => {
+    const query = ticketSearch.trim().toLocaleLowerCase("pl-PL");
+    return tickets.filter((ticket) => {
+      const matchesStatus = ticketStatus === "all" || ticket.status === ticketStatus;
+      const haystack = [ticket.ticketId, ticket.subject, ticket.message, ticket.orderId ?? ""]
+        .join(" ")
+        .toLocaleLowerCase("pl-PL");
+      return matchesStatus && (!query || haystack.includes(query));
+    });
+  }, [ticketSearch, ticketStatus, tickets]);
 
   const loadMoreUsers = async () => {
     if (!userCursor) return;
@@ -150,12 +176,16 @@ export function PortalOperationsPanel({ onSessionExpired }: { onSessionExpired: 
       <div className={styles.portalOperationsGrid}>
         <div className={styles.adminSubpanel}>
           <div className={styles.subpanelTitle}><h3>Użytkownicy</h3><span>{users.length} wczytanych</span></div>
-          {users.length ? <div className={styles.compactList}>{users.map((user) => (
+          <div className={styles.portalFilters} role="search" aria-label="Filtrowanie użytkowników">
+            <input type="search" value={userSearch} placeholder="Szukaj użytkownika…" aria-label="Szukaj użytkownika" onChange={(event) => setUserSearch(event.target.value)} />
+            <select value={userStatus} aria-label="Status użytkownika" onChange={(event) => setUserStatus(event.target.value as typeof userStatus)}><option value="all">Wszystkie konta</option><option value="active">Aktywne</option><option value="blocked">Zablokowane</option></select>
+          </div>
+          {filteredUsers.length ? <div className={styles.compactList}>{filteredUsers.map((user) => (
             <button className={styles.userRow} type="button" key={user.profile.accountId} onClick={() => void openUser(user.profile.accountId)} disabled={busy === `user-${user.profile.accountId}`}>
               <span><strong>{user.profile.fullName || "Profil bez nazwy"}</strong><small>{user.profile.phone || "Brak telefonu"}</small></span>
               <em className={user.administration.status === "blocked" ? styles.blockedBadge : styles.activeBadge}>{user.administration.status === "blocked" ? "Zablokowany" : "Aktywny"}</em>
             </button>
-          ))}</div> : <p className={styles.emptyState}>Brak utworzonych profili użytkowników.</p>}
+          ))}</div> : <p className={styles.emptyState}>{users.length ? "Brak użytkowników pasujących do filtrów." : "Brak utworzonych profili użytkowników."}</p>}
           {userCursor ? <button className={styles.secondaryButton} type="button" disabled={busy === "users-more"} onClick={() => void loadMoreUsers()}>{busy === "users-more" ? "Pobieram…" : "Pokaż kolejnych użytkowników"}</button> : null}
 
           {selected ? <div className={styles.userDetail}>
@@ -169,7 +199,11 @@ export function PortalOperationsPanel({ onSessionExpired }: { onSessionExpired: 
 
         <div className={styles.adminSubpanel}>
           <div className={styles.subpanelTitle}><h3>Zgłoszenia</h3><span>{tickets.filter((ticket) => ticket.status !== "resolved").length} otwartych</span></div>
-          {tickets.length ? <div className={styles.ticketAdminList}>{tickets.map((ticket) => <TicketEditor key={ticket.ticketId} ticket={ticket} busy={busy === ticket.ticketId} onSave={updateTicket} />)}</div> : <p className={styles.emptyState}>Brak zgłoszeń użytkowników.</p>}
+          <div className={styles.portalFilters} role="search" aria-label="Filtrowanie zgłoszeń">
+            <input type="search" value={ticketSearch} placeholder="Szukaj zgłoszenia…" aria-label="Szukaj zgłoszenia" onChange={(event) => setTicketSearch(event.target.value)} />
+            <select value={ticketStatus} aria-label="Status zgłoszenia" onChange={(event) => setTicketStatus(event.target.value as typeof ticketStatus)}><option value="all">Wszystkie statusy</option><option value="open">Nowe</option><option value="in_progress">W realizacji</option><option value="resolved">Zamknięte</option></select>
+          </div>
+          {filteredTickets.length ? <div className={styles.ticketAdminList}>{filteredTickets.map((ticket) => <TicketEditor key={ticket.ticketId} ticket={ticket} busy={busy === ticket.ticketId} onSave={updateTicket} />)}</div> : <p className={styles.emptyState}>{tickets.length ? "Brak zgłoszeń pasujących do filtrów." : "Brak zgłoszeń użytkowników."}</p>}
           {ticketCursor ? <button className={styles.secondaryButton} type="button" disabled={busy === "tickets-more"} onClick={() => void loadMoreTickets()}>{busy === "tickets-more" ? "Pobieram…" : "Pokaż kolejne zgłoszenia"}</button> : null}
         </div>
       </div>

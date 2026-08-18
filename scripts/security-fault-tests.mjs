@@ -225,7 +225,7 @@ test("admin mutation origin policy rejects cross-site requests", () => {
   assert.equal(isSameOriginAdminMutation(fakeAdminRequest()), true);
 });
 
-test("auction config storage only migrates timing-only legacy records", async () => {
+test("auction config storage migrates only approved legacy record shapes", async () => {
   const timing = {
     runId: "legacy-timing-only-run",
     startsAt: "2026-08-10T01:00:00.000Z",
@@ -236,7 +236,7 @@ test("auction config storage only migrates timing-only legacy records", async ()
     ...defaultAuctionDefinition(),
   });
 
-  const complete = {
+  const completeWithoutCategory = {
     schemaVersion: 2,
     ...timing,
     productName: "Stored product",
@@ -246,6 +246,11 @@ test("auction config storage only migrates timing-only legacy records", async ()
     floorPrice: 90,
     durationMinutes: 10,
   };
+  const complete = { ...completeWithoutCategory, category: "other" };
+  assert.deepEqual(
+    parseStoredAuctionConfig(JSON.stringify(completeWithoutCategory)),
+    complete,
+  );
   assert.deepEqual(parseStoredAuctionConfig(JSON.stringify(complete)), complete);
   assert.equal(
     parseStoredAuctionConfig(JSON.stringify({ ...complete, productName: null })),

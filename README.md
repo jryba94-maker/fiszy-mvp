@@ -173,6 +173,8 @@ Skrypt:
 | Zmienna | Development | Preview | Production | Znaczenie |
 | --- | --- | --- | --- | --- |
 | `VERCEL_ENV` | ustaw lokalnie na `development` | wstrzykuje Vercel | wstrzykuje Vercel | przestrzeń nazw danych i tryb zabezpieczeń; nie ustawiaj ręcznie w Vercel |
+| `NEXT_PUBLIC_SITE_URL` | `http://127.0.0.1:3000` | stały alias HTTPS Preview | kanoniczna domena HTTPS | canonical, sitemap, robots i karty udostępniania |
+| `CLERK_SECRET_KEY` / `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | instancja testowa | instancja testowa Preview | produkcyjna instancja Clerk | logowanie, sesje i konto użytkownika |
 | `KV_REST_API_URL` | Development Redis | osobny Preview Redis | osobny Production Redis | serwerowy adres Redis REST |
 | `KV_REST_API_TOKEN` | token Development | token Preview | token Production | serwerowy token Redis REST |
 | `STRIPE_SECRET_KEY` | `sk_test_...` | `sk_test_...` | `sk_live_...` | serwerowy klucz Stripe |
@@ -435,6 +437,7 @@ Po incydencie utwórz osobną gałąź naprawczą i nowe Preview. Nie „naprawi
 - limit tworzenia płatnych wejść: 30 prób na IP i 6 na uczestnika w 10 minut dla jednej rundy;
 - limit logowania administratora;
 - podpisana, wygasająca sesja `HttpOnly` i kontrola originu mutacji administratora;
+- kontrola dokładnego originu również dla zmian profilu, obserwowanych, zgłoszeń i powiadomień użytkownika;
 - kontrola rewizji przy równoległej edycji aukcji;
 - walidacja cen, czasu, slugów i adresów zdjęć;
 - nagłówki `nosniff`, `DENY` dla ramek, ograniczenia uprawnień, COOP/CORP oraz HSTS na Production;
@@ -444,7 +447,9 @@ Po incydencie utwórz osobną gałąź naprawczą i nowe Preview. Nie „naprawi
 
 ## Portal użytkownika i obsługa
 
-Po zalogowaniu przez Clerk ekran `/moje-fiszy` korzysta z trwałych danych Redis przypisanych do konta. Obejmuje profil, adres, zgody, historię rund, wygrane, zamówienia i wysyłki, obserwowane aukcje, eksport danych oraz zgłoszenia. Nowe akcje aukcyjne używają identyfikatora `clerk:<userId>` wyznaczanego wyłącznie na serwerze.
+Po zalogowaniu przez Clerk ekran `/moje-fiszy` korzysta z trwałych danych Redis przypisanych do konta. Obejmuje profil, adres, zgody, historię rund, wygrane, zamówienia i wysyłki, obserwowane aukcje, eksport danych, zgłoszenia oraz trwały stan przeczytanych powiadomień. Nowe akcje aukcyjne używają identyfikatora `clerk:<userId>` wyznaczanego wyłącznie na serwerze.
+
+Kategoria produktu jest częścią definicji aukcji i jest ustawiana w panelu administratora. Starsze rekordy bez tego pola otrzymują bezpieczną kategorię na podstawie nazwy produktu, dlatego migracja jest addytywna i nie wymaga przepisywania danych. Production publikuje również manifest aplikacji, grafikę Open Graph, canonicale, dynamiczne metadane aukcji oraz sitemapę ograniczoną do publicznych treści.
 
 Panel administratora zawiera użytkowników, blokadę uczestnictwa, notatki wewnętrzne i zgłoszenia. `FISZY_ADMIN_ROLE` może przyjąć `owner`, `operator`, `support` albo `viewer`; mutacje aukcji, realizacji, kont i zgłoszeń są sprawdzane osobno. Jest to etap przejściowy: jedna wspólna sesja nadal nie identyfikuje konkretnego pracownika. Przed zaproszeniem zespołu należy zastąpić ją indywidualnymi kontami z MFA i rolami Clerk Organizations albo równoważnym systemem.
 

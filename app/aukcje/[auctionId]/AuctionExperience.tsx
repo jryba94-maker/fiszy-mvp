@@ -6,6 +6,7 @@ import { useAuth } from "@clerk/nextjs";
 import {
   cancelPurchase,
   claimAuction,
+  auctionCategoryLabel,
   fetchAuctionDetail,
   fetchEntryState,
   PublicApiError,
@@ -531,7 +532,7 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
           <div className={styles.panel}>
             <div className={styles.topline}>
               <StatusBadge status={displayStatus} />
-              <span className={styles.duration}>Aukcja · {auction.durationMinutes} min</span>
+              <span className={styles.duration}>{auctionCategoryLabel(auction.category)} · {auction.durationMinutes} min</span>
             </div>
             <h1 className={styles.title} id="auction-title">{auction.product}</h1>
 

@@ -10,6 +10,7 @@ type Draft = {
   slug: string;
   productName: string;
   productImageUrl: string;
+  category: AuctionDefinitionInput["category"];
   regularPrice: string;
   startPrice: string;
   floorPrice: string;
@@ -21,6 +22,7 @@ const EMPTY_DRAFT: Draft = {
   slug: "",
   productName: "",
   productImageUrl: "",
+  category: "other",
   regularPrice: "999",
   startPrice: "749",
   floorPrice: "699",
@@ -43,6 +45,7 @@ function draftFromAuction(auction: AdminAuction): Draft {
     slug: auction.slug,
     productName: auction.productName,
     productImageUrl: auction.productImageUrl ?? "",
+    category: auction.category,
     regularPrice: String(auction.regularPrice),
     startPrice: String(auction.startPrice),
     floorPrice: String(auction.floorPrice),
@@ -79,7 +82,7 @@ export function AuctionEditor({
     setError("");
   }, [editingAuctionId]);
 
-  const update = (field: keyof Draft, value: string) => {
+  const update = <Field extends keyof Draft>(field: Field, value: Draft[Field]) => {
     setError("");
     setDraft((current) => ({ ...current, [field]: value }));
   };
@@ -165,6 +168,7 @@ export function AuctionEditor({
         slug,
         productName,
         productImageUrl: productImageUrl || null,
+        category: draft.category,
         regularPrice,
         startPrice,
         floorPrice,
@@ -263,6 +267,27 @@ export function AuctionEditor({
                 placeholder="https://…/produkt.jpg"
               />
               <small>Opcjonalny adres HTTPS. Bez zdjęcia portal pokaże elegancki placeholder.</small>
+            </label>
+
+            <label className={styles.field} htmlFor="product-category">
+              <span>Kategoria</span>
+              <select
+                id="product-category"
+                className={styles.input}
+                value={draft.category}
+                onChange={(event) => update(
+                  "category",
+                  event.target.value as AuctionDefinitionInput["category"],
+                )}
+              >
+                <option value="electronics">Elektronika</option>
+                <option value="gaming">Gaming</option>
+                <option value="home">Dom</option>
+                <option value="sport">Sport</option>
+                <option value="beauty">Uroda</option>
+                <option value="other">Pozostałe</option>
+              </select>
+              <small>Kategoria zasila filtry katalogu i opis aukcji.</small>
             </label>
 
             <label className={styles.field} htmlFor="regular-price">

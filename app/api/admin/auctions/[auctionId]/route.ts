@@ -100,6 +100,7 @@ export async function PATCH(request: NextRequest, context: Context) {
         body.productImageUrl === undefined
           ? record.productImageUrl
           : body.productImageUrl,
+      category: body.category ?? record.category,
       regularPrice: body.regularPrice ?? record.regularPrice,
       startPrice: body.startPrice ?? record.startPrice,
       floorPrice: body.floorPrice ?? record.floorPrice,
@@ -123,6 +124,7 @@ export async function PATCH(request: NextRequest, context: Context) {
     const definitionChanged =
       definition.productName !== record.productName ||
       definition.productImageUrl !== record.productImageUrl ||
+      definition.category !== record.category ||
       definition.regularPrice !== record.regularPrice ||
       definition.startPrice !== record.startPrice ||
       definition.floorPrice !== record.floorPrice ||

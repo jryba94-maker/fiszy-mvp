@@ -2,11 +2,42 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { adminPermissions, configuredAdminRole } from "../lib/admin-auth.ts";
+import { parseAuctionDefinition } from "../lib/auction.ts";
 import {
   consumeAccountRateLimit,
   normalizeAccountProfilePatch,
+  normalizeNotificationIds,
   normalizeSupportTicketInput,
 } from "../lib/portal-storage.ts";
+import { hasSameOrigin } from "../lib/request-origin.ts";
+
+test("auction categories are explicit for new records and safely inferred for legacy records", () => {
+  const definition = {
+    productName: "PlayStation 5 Slim",
+    productImageUrl: null,
+    regularPrice: 2500,
+    startPrice: 2200,
+    floorPrice: 1500,
+    durationMinutes: 10,
+  };
+  assert.equal(parseAuctionDefinition(definition)?.category, "gaming");
+  assert.equal(parseAuctionDefinition({ ...definition, category: "electronics" })?.category, "electronics");
+  assert.equal(parseAuctionDefinition({ ...definition, category: "invalid" }), null);
+});
+
+test("notification receipts accept only bounded opaque identifiers", () => {
+  assert.deepEqual(normalizeNotificationIds(["win:auction-1:run-1", "TKT-ABC123", "TKT-ABC123"]), ["win:auction-1:run-1", "TKT-ABC123"]);
+  assert.equal(normalizeNotificationIds([]), null);
+  assert.equal(normalizeNotificationIds(["contains spaces"]), null);
+  assert.equal(normalizeNotificationIds(Array.from({ length: 51 }, (_, index) => `notice-${index}`)), null);
+});
+
+test("account mutations accept only the exact browser origin", () => {
+  const request = (origin) => ({ headers: new Headers(origin ? { origin } : {}), nextUrl: new URL("https://fiszy.example/api/account/profile") });
+  assert.equal(hasSameOrigin(request("https://fiszy.example")), true);
+  assert.equal(hasSameOrigin(request("https://evil.example")), false);
+  assert.equal(hasSameOrigin(request(null)), false);
+});
 
 test("portal profile accepts complete preferences and rejects malformed addresses", () => {
   const valid = normalizeAccountProfilePatch({

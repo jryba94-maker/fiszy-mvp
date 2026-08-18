@@ -522,6 +522,35 @@
   min-width: 0;
 }
 
+.portalFilters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(150px, auto);
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.portalFilters input,
+.portalFilters select {
+  min-width: 0;
+  min-height: 44px;
+  border: 1px solid rgba(16, 18, 15, 0.18);
+  border-radius: 12px;
+  padding: 9px 12px;
+  background: #fff;
+  color: #10120f;
+  font: inherit;
+}
+
+.portalFilters input:focus-visible,
+.portalFilters select:focus-visible {
+  outline: 3px solid #7a36ff;
+  outline-offset: 2px;
+}
+
+@media (max-width: 620px) {
+  .portalFilters { grid-template-columns: 1fr; }
+}
+
 .compactField {
   min-width: 170px;
 }
@@ -1378,7 +1407,8 @@
 }
 
 .healthDotReady,
-.healthDotError {
+.healthDotError,
+.healthDotPlanned {
   flex: 0 0 9px;
   width: 9px;
   height: 9px;
@@ -1393,6 +1423,11 @@
 .healthDotError {
   background: var(--admin-live);
   box-shadow: 0 0 0 4px rgba(232, 57, 31, 0.1);
+}
+
+.healthDotPlanned {
+  background: #b17600;
+  box-shadow: 0 0 0 4px rgba(177, 118, 0, 0.12);
 }
 
 .footer {

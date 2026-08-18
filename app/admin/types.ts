@@ -1,4 +1,5 @@
 export type AuctionRecordState = "draft" | "published" | "archived";
+export type AuctionCategory = "electronics" | "home" | "sport" | "beauty" | "gaming" | "other";
 
 export type AuctionRunStatus =
   | "waiting"
@@ -18,6 +19,7 @@ export type AdminAuction = {
   recordState: AuctionRecordState;
   productName: string;
   productImageUrl: string | null;
+  category: AuctionCategory;
   regularPrice: number;
   startPrice: number;
   floorPrice: number;
@@ -35,6 +37,7 @@ export type AuctionDefinitionInput = {
   slug: string;
   productName: string;
   productImageUrl: string | null;
+  category: AuctionCategory;
   regularPrice: number;
   startPrice: number;
   floorPrice: number;
@@ -146,6 +149,12 @@ export type AdminHealth = {
   paymentConfigured: boolean;
   paymentTestMode: boolean;
   paymentWebhookConfigured: boolean;
+  authenticationConfigured: boolean;
+  emailDeliveryConfigured: boolean;
+  inAppNotificationsConfigured: boolean;
+  externalErrorAlertsConfigured: boolean;
+  canonicalSiteUrl: string | null;
+  canonicalSiteUrlExplicit: boolean;
   degraded: boolean;
 };
 

@@ -59,3 +59,8 @@ export function getCheckoutOrigin(request: NextRequest) {
     ? browserOrigin
     : fallbackOrigin;
 }
+
+export function hasSameOrigin(request: NextRequest) {
+  const origin = validOrigin(request.headers.get("origin") ?? undefined);
+  return origin !== null && origin === request.nextUrl.origin;
+}

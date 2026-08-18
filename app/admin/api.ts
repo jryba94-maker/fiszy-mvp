@@ -6,6 +6,7 @@ import type {
   AdminOrder,
   AdminParticipant,
   AdminSession,
+  AuctionCategory,
   AuctionDefinitionInput,
   AuctionRecordState,
   AuctionRunStatus,
@@ -33,6 +34,14 @@ const AUCTION_RUN_STATUSES = new Set<AuctionRunStatus>([
   "payment_pending",
   "sold",
   "ended",
+]);
+const AUCTION_CATEGORIES = new Set<AuctionCategory>([
+  "electronics",
+  "home",
+  "sport",
+  "beauty",
+  "gaming",
+  "other",
 ]);
 const FULFILLMENT_STATUSES = new Set<FulfillmentStatus>([
   "new",
@@ -122,6 +131,12 @@ function asRunStatus(value: unknown): AuctionRunStatus | null {
 function asFulfillmentStatus(value: unknown): FulfillmentStatus | null {
   return typeof value === "string" && FULFILLMENT_STATUSES.has(value as FulfillmentStatus)
     ? (value as FulfillmentStatus)
+    : null;
+}
+
+function asAuctionCategory(value: unknown): AuctionCategory | null {
+  return typeof value === "string" && AUCTION_CATEGORIES.has(value as AuctionCategory)
+    ? (value as AuctionCategory)
     : null;
 }
 
@@ -239,6 +254,15 @@ function normalizeAuction(value: unknown, index: number): AdminAuction {
     revision: firstInteger(root.revision, record.revision),
     recordState,
     productName,
+    category:
+      asAuctionCategory(
+        firstString(
+          root.category,
+          publicAuction.category,
+          record.category,
+          definition.category,
+        ),
+      ) ?? "other",
     productImageUrl: firstString(
       root.productImageUrl,
       root.imageUrl,
@@ -357,6 +381,7 @@ function definitionBody(input: AuctionDefinitionInput) {
   return {
     productName: input.productName,
     productImageUrl: input.productImageUrl,
+    category: input.category,
     regularPrice: input.regularPrice,
     startPrice: input.startPrice,
     floorPrice: input.floorPrice,
@@ -494,6 +519,12 @@ export async function loadHealth(): Promise<AdminHealth> {
       record.webhookConfigured ??
       record.stripeWebhookConfigured,
     ),
+    authenticationConfigured: asBoolean(record.authenticationConfigured),
+    emailDeliveryConfigured: asBoolean(record.emailDeliveryConfigured),
+    inAppNotificationsConfigured: asBoolean(record.inAppNotificationsConfigured),
+    externalErrorAlertsConfigured: asBoolean(record.externalErrorAlertsConfigured),
+    canonicalSiteUrl: firstString(record.canonicalSiteUrl),
+    canonicalSiteUrlExplicit: asBoolean(record.canonicalSiteUrlExplicit),
     degraded:
       response.status === 503 ||
       record.healthy === false ||
@@ -573,6 +604,7 @@ export async function startAuctionRun(
     slug: auction.slug,
     productName: auction.productName,
     productImageUrl: auction.productImageUrl,
+    category: auction.category,
     regularPrice: auction.regularPrice,
     startPrice: auction.startPrice,
     floorPrice: auction.floorPrice,

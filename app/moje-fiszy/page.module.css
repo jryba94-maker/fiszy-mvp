@@ -35,6 +35,8 @@
 .notification, .watchItem { display: flex; align-items: center; justify-content: space-between; gap: 16px; border-radius: 14px; padding: 13px 14px; background: #f1eee6; }
 .notification strong, .notification span, .watchItem strong, .watchItem span { display: block; }
 .notification span, .watchItem span { margin-top: 3px; color: #676963; font-size: .76rem; }
+.notificationButton { min-height: 42px; border: 0; border-radius: 12px; padding: 9px 14px; background: #10120f; color: #fffdf7; font: inherit; font-size: .78rem; font-weight: 850; cursor: pointer; }
+.notificationButton:disabled { cursor: wait; opacity: .65; }
 .watchActions { display: flex; align-items: center; gap: 7px; }
 .watchActions a, .watchActions button, .inlineLink, .recordLink { border: 0; background: none; color: #10120f; cursor: pointer; font-size: .78rem; font-weight: 900; text-decoration: underline; text-underline-offset: 3px; }
 .watchActions button:disabled { opacity: .5; }
@@ -82,7 +84,7 @@
 .ticket > div span { margin-bottom: 5px; color: #74766f; font-size: .68rem; font-weight: 850; }
 .ticket p { grid-column: 1 / -1; margin: 2px 0 0; color: #62645e; font-size: .85rem; line-height: 1.5; }
 .ticketStatus { align-self: start; border-radius: 999px; padding: 6px 9px; background: #eeebe3; font-size: .68rem; font-weight: 900; white-space: nowrap; }
-.primaryButton:focus-visible, .secondaryButton:focus-visible, .dangerButton:focus-visible, .moreButton:focus-visible, .watchActions a:focus-visible, .watchActions button:focus-visible, .recordLink:focus-visible, .inlineLink:focus-visible, .profileForm input:focus-visible, .ticketForm input:focus-visible, .ticketForm select:focus-visible, .ticketForm textarea:focus-visible { outline: 3px solid #7a36ff; outline-offset: 3px; }
+.primaryButton:focus-visible, .secondaryButton:focus-visible, .dangerButton:focus-visible, .moreButton:focus-visible, .notificationButton:focus-visible, .watchActions a:focus-visible, .watchActions button:focus-visible, .recordLink:focus-visible, .inlineLink:focus-visible, .profileForm input:focus-visible, .ticketForm input:focus-visible, .ticketForm select:focus-visible, .ticketForm textarea:focus-visible { outline: 3px solid #7a36ff; outline-offset: 3px; }
 
 @media (max-width: 820px) {
   .intro, .signInCard, .portalGrid, .supportGrid { grid-template-columns: 1fr; }

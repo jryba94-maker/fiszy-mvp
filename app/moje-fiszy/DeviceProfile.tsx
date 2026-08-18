@@ -135,6 +135,7 @@ export function DeviceProfile() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [watchedIds, setWatchedIds] = useState<string[]>([]);
   const [watchedAuctions, setWatchedAuctions] = useState<PublicAuction[]>([]);
+  const [readNotificationIds, setReadNotificationIds] = useState<Set<string>>(() => new Set());
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
@@ -146,11 +147,12 @@ export function DeviceProfile() {
     setLoading(true);
     setError("");
     try {
-      const [profileResult, activityResult, watchResult, ticketResult] = await Promise.all([
+      const [profileResult, activityResult, watchResult, ticketResult, notificationResult] = await Promise.all([
         accountRequest<{ profile: Profile }>("/api/account/profile"),
         accountRequest<{ activity: Activity[]; nextCursor: string | null }>("/api/account/activity"),
         accountRequest<{ auctionIds: string[] }>("/api/account/watchlist"),
         accountRequest<{ tickets: Ticket[] }>("/api/account/support"),
+        accountRequest<{ readIds: string[] }>("/api/account/notifications"),
       ]);
       setProfile(profileResult.profile);
       setDraft(draftFrom(profileResult.profile));
@@ -158,6 +160,7 @@ export function DeviceProfile() {
       setHistoryCursor(activityResult.nextCursor);
       setWatchedIds(watchResult.auctionIds);
       setTickets(ticketResult.tickets);
+      setReadNotificationIds(new Set(notificationResult.readIds));
       const watched = await Promise.allSettled(
         watchResult.auctionIds.slice(0, 20).map((auctionId) => fetchAuctionDetail(auctionId)),
       );
@@ -181,7 +184,7 @@ export function DeviceProfile() {
     watched: watchedIds.length,
   }), [activity, watchedIds]);
 
-  const notifications = useMemo(() => [
+  const allNotifications = useMemo(() => [
     ...activity.flatMap((item) => {
       if (item.outcome === "won_payment_pending") return [{ id: `win-${item.runId}`, title: "Masz wygraną do opłacenia", text: item.product }];
       if (item.order?.fulfillment?.status === "shipped") return [{ id: `ship-${item.order.orderId}`, title: "Przesyłka została nadana", text: item.product }];
@@ -190,6 +193,29 @@ export function DeviceProfile() {
     }),
     ...tickets.filter((ticket) => ticket.adminNote).map((ticket) => ({ id: ticket.ticketId, title: "Odpowiedź na zgłoszenie", text: ticket.subject })),
   ], [activity, tickets]);
+
+  const notifications = useMemo(
+    () => allNotifications.filter((item) => !readNotificationIds.has(item.id)),
+    [allNotifications, readNotificationIds],
+  );
+
+  const markNotificationsRead = async () => {
+    const notificationIds = notifications.map((item) => item.id);
+    if (!notificationIds.length || busy) return;
+    setBusy("notifications"); setError("");
+    try {
+      const result = await accountRequest<{ readIds: string[] }>("/api/account/notifications", {
+        method: "PATCH",
+        body: JSON.stringify({ notificationIds }),
+      });
+      setReadNotificationIds((current) => new Set([...current, ...result.readIds]));
+      setNotice("Powiadomienia oznaczono jako przeczytane.");
+    } catch (notificationError) {
+      setError(notificationError instanceof Error ? notificationError.message : "Nie udało się zapisać powiadomień.");
+    } finally {
+      setBusy("");
+    }
+  };
 
   const saveProfile = async (event: FormEvent) => {
     event.preventDefault();
@@ -291,7 +317,7 @@ export function DeviceProfile() {
             <section className={styles.portalGrid} aria-label="Najważniejsze informacje">
               <article className={styles.panel}>
                 <div className={styles.panelHeading}><div><p className={styles.eyebrow}>Teraz</p><h2>Powiadomienia</h2></div><span className={styles.counter}>{notifications.length}</span></div>
-                {notifications.length ? <div className={styles.notificationList}>{notifications.map((item) => <div className={styles.notification} key={item.id}><strong>{item.title}</strong><span>{item.text}</span></div>)}</div> : <p className={styles.muted}>Nie masz teraz spraw wymagających działania.</p>}
+                {notifications.length ? <><div className={styles.notificationList}>{notifications.map((item) => <div className={styles.notification} key={item.id}><div><strong>{item.title}</strong><span>{item.text}</span></div></div>)}</div><button className={styles.notificationButton} type="button" disabled={busy === "notifications"} onClick={() => void markNotificationsRead()}>{busy === "notifications" ? "Zapisuję…" : "Oznacz wszystkie jako przeczytane"}</button></> : <p className={styles.muted}>Nie masz teraz nowych spraw wymagających działania.</p>}
                 <p className={styles.integrationNote}>Powiadomienia w portalu działają. E-mail wymaga jeszcze zweryfikowanej domeny nadawczej.</p>
               </article>
               <article className={styles.panel}>

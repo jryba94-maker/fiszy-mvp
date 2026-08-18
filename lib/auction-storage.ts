@@ -209,6 +209,7 @@ function normalizeAuctionConfig(value: unknown): AuctionConfig | null {
   const definitionKeys = [
     "productName",
     "productImageUrl",
+    "category",
     "regularPrice",
     "startPrice",
     "floorPrice",
