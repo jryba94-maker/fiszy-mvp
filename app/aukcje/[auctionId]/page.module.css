@@ -169,6 +169,18 @@
   line-height: 1.55;
 }
 
+.offerNote {
+  margin: -5px 0 18px;
+  border-left: 3px solid #7a36ff;
+  border-radius: 0 10px 10px 0;
+  background: #f2edff;
+  color: #443760;
+  font-size: 0.78rem;
+  font-weight: 750;
+  line-height: 1.5;
+  padding: 10px 12px;
+}
+
 .feedback {
   margin: 0 0 16px;
   border: 1px solid rgba(16, 18, 15, 0.14);

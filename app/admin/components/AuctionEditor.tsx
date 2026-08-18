@@ -11,6 +11,9 @@ type Draft = {
   productName: string;
   productImageUrl: string;
   category: AuctionDefinitionInput["category"];
+  offerEnabled: boolean;
+  offerValidityDays: string;
+  offerInventory: string;
   regularPrice: string;
   startPrice: string;
   floorPrice: string;
@@ -23,6 +26,9 @@ const EMPTY_DRAFT: Draft = {
   productName: "",
   productImageUrl: "",
   category: "other",
+  offerEnabled: true,
+  offerValidityDays: "7",
+  offerInventory: "",
   regularPrice: "999",
   startPrice: "749",
   floorPrice: "699",
@@ -46,6 +52,11 @@ function draftFromAuction(auction: AdminAuction): Draft {
     productName: auction.productName,
     productImageUrl: auction.productImageUrl ?? "",
     category: auction.category,
+    offerEnabled: auction.postAuctionOffer.enabled,
+    offerValidityDays: String(auction.postAuctionOffer.validityDays),
+    offerInventory: auction.postAuctionOffer.inventory === null
+      ? ""
+      : String(auction.postAuctionOffer.inventory),
     regularPrice: String(auction.regularPrice),
     startPrice: String(auction.startPrice),
     floorPrice: String(auction.floorPrice),
@@ -107,6 +118,10 @@ export function AuctionEditor({
     const startPrice = Number(draft.startPrice);
     const floorPrice = Number(draft.floorPrice);
     const durationMinutes = Number(draft.durationMinutes);
+    const offerValidityDays = Number(draft.offerValidityDays);
+    const offerInventory = draft.offerInventory.trim()
+      ? Number(draft.offerInventory)
+      : null;
 
     const failValidation = (message: string, fieldId: string) => {
       setError(message);
@@ -150,6 +165,27 @@ export function AuctionEditor({
       failValidation("Czas trwania musi wynosić od 1 do 120 minut.", "duration");
       return;
     }
+    if (
+      draft.offerEnabled &&
+      (!Number.isInteger(offerValidityDays) ||
+        offerValidityDays < 1 ||
+        offerValidityDays > 90)
+    ) {
+      failValidation("Ważność rabatu musi wynosić od 1 do 90 dni.", "offer-validity");
+      return;
+    }
+    if (
+      draft.offerEnabled &&
+      (offerInventory !== null &&
+        (!Number.isInteger(offerInventory) || offerInventory < 1 || offerInventory > 100_000))
+    ) {
+      failValidation("Zapas musi być pusty (bez limitu) albo wynosić od 1 do 100 000 sztuk.", "offer-inventory");
+      return;
+    }
+    if (draft.offerEnabled && regularPrice <= 5) {
+      failValidation("Cena regularna musi być wyższa niż rabat za wejście.", "regular-price");
+      return;
+    }
 
     let startsAt: string | undefined;
     if (!editingAuction && draft.startsAt) {
@@ -169,6 +205,11 @@ export function AuctionEditor({
         productName,
         productImageUrl: productImageUrl || null,
         category: draft.category,
+        postAuctionOffer: {
+          enabled: draft.offerEnabled,
+          validityDays: draft.offerEnabled ? offerValidityDays : 7,
+          inventory: draft.offerEnabled ? offerInventory : null,
+        },
         regularPrice,
         startPrice,
         floorPrice,
@@ -365,6 +406,57 @@ export function AuctionEditor({
                 <span>min</span>
               </div>
             </label>
+
+            <fieldset className={`${styles.offerFieldset} ${styles.fieldWide}`}>
+              <legend>Oferta dla przegranych</legend>
+              <label className={styles.offerToggle} htmlFor="offer-enabled">
+                <input
+                  id="offer-enabled"
+                  type="checkbox"
+                  checked={draft.offerEnabled}
+                  onChange={(event) => update("offerEnabled", event.target.checked)}
+                />
+                <span>
+                  <strong>Włącz zakup po aukcji z rabatem za wejście</strong>
+                  <small>Rabat jest przypisany do konta, jednorazowy i dotyczy tego produktu.</small>
+                </span>
+              </label>
+              <div className={styles.offerGrid}>
+                <label className={styles.field} htmlFor="offer-validity">
+                  <span>Ważność rabatu</span>
+                  <div className={styles.suffixedInput}>
+                    <input
+                      id="offer-validity"
+                      className={styles.input}
+                      type="number"
+                      min="1"
+                      max="90"
+                      step="1"
+                      value={draft.offerValidityDays}
+                      disabled={!draft.offerEnabled}
+                      onChange={(event) => update("offerValidityDays", event.target.value)}
+                    />
+                    <span>dni</span>
+                  </div>
+                </label>
+                <label className={styles.field} htmlFor="offer-inventory">
+                  <span>Zapas po aukcji</span>
+                  <input
+                    id="offer-inventory"
+                    className={styles.input}
+                    type="number"
+                    min="1"
+                    max="100000"
+                    step="1"
+                    placeholder="Bez limitu"
+                    value={draft.offerInventory}
+                    disabled={!draft.offerEnabled}
+                    onChange={(event) => update("offerInventory", event.target.value)}
+                  />
+                  <small>Puste pole oznacza brak limitu sztuk.</small>
+                </label>
+              </div>
+            </fieldset>
 
             {!editingAuction ? (
               <label className={`${styles.field} ${styles.fieldWide}`} htmlFor="starts-at">

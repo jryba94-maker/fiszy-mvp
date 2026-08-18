@@ -866,6 +866,55 @@
   grid-column: 1 / -1;
 }
 
+.offerFieldset {
+  display: grid;
+  gap: 15px;
+  margin: 4px 0 0;
+  border: 1px solid rgba(122, 54, 255, 0.28);
+  border-radius: 16px;
+  padding: 18px;
+  background: rgba(122, 54, 255, 0.045);
+}
+
+.offerFieldset legend {
+  padding: 0 7px;
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.offerToggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  cursor: pointer;
+}
+
+.offerToggle input {
+  width: 21px;
+  height: 21px;
+  flex: 0 0 auto;
+  margin: 1px 0 0;
+  accent-color: #7a36ff;
+}
+
+.offerToggle span,
+.offerToggle strong,
+.offerToggle small {
+  display: block;
+}
+
+.offerToggle small {
+  margin-top: 4px;
+  color: var(--admin-muted);
+  line-height: 1.45;
+}
+
+.offerGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
 .prefixedInput,
 .suffixedInput {
   display: flex;
@@ -1007,6 +1056,17 @@
   color: var(--admin-muted);
   font-family: Consolas, "Courier New", monospace;
   font-size: 0.66rem;
+}
+
+.discountOrderPill {
+  display: inline-flex;
+  margin-top: 7px;
+  border-radius: 999px;
+  padding: 4px 7px;
+  background: #eee7ff;
+  color: #5633a8;
+  font-size: 0.62rem;
+  font-weight: 900;
 }
 
 .orderHeader h3 {
@@ -1586,6 +1646,7 @@
   .auctionGrid,
   .editorLayout,
   .formGrid,
+  .offerGrid,
   .listToolbar,
   .onDemandControls,
   .fulfillmentGrid {

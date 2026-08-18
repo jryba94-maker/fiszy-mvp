@@ -42,6 +42,19 @@ type Activity = {
   outcome: "participating" | "lost" | "won_payment_pending" | "won_paid";
   winnerPrice: number | null;
   order: { orderId: string; amount: number; currency: string; paidAt: string; fulfillment: Fulfillment | null } | null;
+  discount: {
+    discountId: string;
+    product: string;
+    productImageUrl: string | null;
+    regularPrice: number;
+    discountAmount: number;
+    finalPrice: number;
+    currency: "pln";
+    issuedAt: string;
+    expiresAt: string;
+    state: "available" | "reserved" | "redeemed" | "expired" | "revoked";
+    orderId: string | null;
+  } | null;
 };
 
 type Ticket = {
@@ -117,8 +130,15 @@ async function accountRequest<T>(path: string, init?: RequestInit): Promise<T> {
   });
   const data = await response.json().catch(() => null) as T;
   if (!response.ok) {
+    const outcome = (data as { outcome?: string } | null)?.outcome;
     throw new Error(response.status === 401
       ? "Sesja wygasła. Zaloguj się ponownie."
+      : outcome === "sold_out"
+        ? "Pula produktów w tej ofercie została już wykorzystana."
+        : outcome === "discount_expired"
+          ? "Termin wykorzystania tego rabatu już minął."
+          : outcome === "discount_unavailable"
+            ? "Ten rabat nie jest już dostępny."
       : response.status === 409
         ? "Profil zmienił się w innej karcie. Odśwież stronę."
         : "Nie udało się pobrać danych konta.");
@@ -180,13 +200,14 @@ export function DeviceProfile() {
   const stats = useMemo(() => ({
     entries: activity.length,
     wins: activity.filter((item) => item.outcome.startsWith("won_")).length,
-    orders: activity.filter((item) => item.order).length,
+    orders: activity.filter((item) => item.order || item.discount?.state === "redeemed").length,
     watched: watchedIds.length,
   }), [activity, watchedIds]);
 
   const allNotifications = useMemo(() => [
     ...activity.flatMap((item) => {
       if (item.outcome === "won_payment_pending") return [{ id: `win-${item.runId}`, title: "Masz wygraną do opłacenia", text: item.product }];
+      if (item.discount?.state === "available") return [{ id: `discount-${item.discount.discountId}`, title: `Masz rabat ${money(item.discount.discountAmount)}`, text: item.product }];
       if (item.order?.fulfillment?.status === "shipped") return [{ id: `ship-${item.order.orderId}`, title: "Przesyłka została nadana", text: item.product }];
       if (item.order?.fulfillment?.status === "delivered") return [{ id: `done-${item.order.orderId}`, title: "Zamówienie dostarczone", text: item.product }];
       return [];
@@ -198,6 +219,48 @@ export function DeviceProfile() {
     () => allNotifications.filter((item) => !readNotificationIds.has(item.id)),
     [allNotifications, readNotificationIds],
   );
+
+  const discounts = useMemo(() => {
+    const byId = new Map<string, NonNullable<Activity["discount"]>>();
+    for (const item of activity) {
+      if (item.discount) byId.set(item.discount.discountId, item.discount);
+    }
+    return [...byId.values()].sort((left, right) =>
+      Date.parse(right.issuedAt) - Date.parse(left.issuedAt),
+    );
+  }, [activity]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    const checkoutState = url.searchParams.get("discount");
+    if (!checkoutState) return;
+    setNotice(checkoutState === "success"
+      ? "Płatność została przyjęta. Status zamówienia pojawi się po potwierdzeniu operatora."
+      : "Zakup został anulowany. Rabat wróci do dostępnych po zamknięciu sesji płatniczej.");
+    url.searchParams.delete("discount");
+    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+    if (checkoutState === "success" && isSignedIn) {
+      const timer = window.setTimeout(() => void loadPortal(), 1_500);
+      return () => window.clearTimeout(timer);
+    }
+  }, [isSignedIn, loadPortal]);
+
+  const buyWithDiscount = async (discountId: string) => {
+    if (busy) return;
+    setBusy(`discount-${discountId}`); setError(""); setNotice("");
+    try {
+      const result = await accountRequest<{ checkoutUrl: string }>(
+        `/api/account/discounts/${encodeURIComponent(discountId)}/checkout`,
+        { method: "POST" },
+      );
+      window.location.assign(result.checkoutUrl);
+    } catch (checkoutError) {
+      setError(checkoutError instanceof Error ? checkoutError.message : "Nie udało się rozpocząć zakupu.");
+      setBusy("");
+      await loadPortal();
+    }
+  };
 
   const markNotificationsRead = async () => {
     const notificationIds = notifications.map((item) => item.id);
@@ -326,6 +389,40 @@ export function DeviceProfile() {
                 <Link className={styles.inlineLink} href="/#aukcje">Przejdź do katalogu</Link>
               </article>
             </section>
+
+            {discounts.length ? (
+              <section className={styles.section} aria-labelledby="discount-title">
+                <div className={styles.sectionHeading}><div><p className={styles.eyebrow}>Dla uczestników</p><h2 id="discount-title">Oferty po aukcji</h2></div><p>Po przegranej odzyskujesz wartość wejścia jako jednorazowy rabat na ten sam produkt.</p></div>
+                <div className={styles.discountGrid}>
+                  {discounts.map((discount) => {
+                    const canBuy = discount.state === "available" || discount.state === "reserved";
+                    const stateLabel = discount.state === "available"
+                      ? "Rabat dostępny"
+                      : discount.state === "reserved"
+                        ? "Zakup rozpoczęty"
+                        : discount.state === "redeemed"
+                          ? "Rabat wykorzystany"
+                          : discount.state === "expired"
+                            ? "Rabat wygasł"
+                            : "Rabat wycofany";
+                    return <article className={styles.discountCard} key={discount.discountId}>
+                      <SafeAuctionImage src={discount.productImageUrl} alt={discount.product} sizes="(max-width: 680px) 100vw, 280px" frameClassName={styles.discountImage} />
+                      <div className={styles.discountBody}>
+                        <span className={styles.discountState}>{stateLabel}</span>
+                        <h3>{discount.product}</h3>
+                        <div className={styles.discountPrice}><span><s>{money(discount.regularPrice)}</s></span><strong>{money(discount.finalPrice)}</strong></div>
+                        <p>Twój rabat: <strong>{money(discount.discountAmount)}</strong></p>
+                        <p className={styles.discountExpiry}>Ważny do {dateLabel(discount.expiresAt)}</p>
+                        {discount.orderId ? <p className={styles.discountOrder}>Zamówienie {discount.orderId}</p> : null}
+                        <button className={styles.primaryButton} type="button" disabled={!canBuy || Boolean(busy)} aria-busy={busy === `discount-${discount.discountId}`} onClick={() => void buyWithDiscount(discount.discountId)}>
+                          {busy === `discount-${discount.discountId}` ? "Przechodzę do płatności…" : canBuy ? `Kup za ${money(discount.finalPrice)}` : stateLabel}
+                        </button>
+                      </div>
+                    </article>;
+                  })}
+                </div>
+              </section>
+            ) : null}
 
             <section className={styles.section} aria-labelledby="activity-title">
               <div className={styles.sectionHeading}><div><p className={styles.eyebrow}>Historia konta</p><h2 id="activity-title">Aukcje i zamówienia</h2></div><p>Dane są przypisane do konta, nie do przeglądarki.</p></div>

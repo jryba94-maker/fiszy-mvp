@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { adminPermissions, configuredAdminRole } from "../lib/admin-auth.ts";
-import { parseAuctionDefinition } from "../lib/auction.ts";
+import { defaultAuctionConfig, parseAuctionDefinition } from "../lib/auction.ts";
+import { preparePostAuctionDiscount } from "../lib/discount-storage.ts";
 import {
   consumeAccountRateLimit,
   normalizeAccountProfilePatch,
@@ -23,6 +24,86 @@ test("auction categories are explicit for new records and safely inferred for le
   assert.equal(parseAuctionDefinition(definition)?.category, "gaming");
   assert.equal(parseAuctionDefinition({ ...definition, category: "electronics" })?.category, "electronics");
   assert.equal(parseAuctionDefinition({ ...definition, category: "invalid" }), null);
+  assert.equal(parseAuctionDefinition({
+    ...definition,
+    postAuctionOffer: { enabled: true, validityDays: 7, inventory: null },
+  })?.postAuctionOffer.enabled, true);
+  assert.equal(parseAuctionDefinition({
+    ...definition,
+    postAuctionOffer: { enabled: true, validityDays: 0, inventory: null },
+  }), null);
+});
+
+test("post-auction discount belongs only to an eligible loser and expires deterministically", () => {
+  const now = Date.parse("2026-08-18T12:00:00.000Z");
+  const config = {
+    ...defaultAuctionConfig(),
+    runId: "discount-unit-run",
+    startsAt: "2026-08-18T10:00:00.000Z",
+    regularPrice: 999,
+    postAuctionOffer: { enabled: true, validityDays: 7, inventory: 12 },
+  };
+  const participant = {
+    schemaVersion: 1,
+    participantId: "clerk:user_loser",
+    auctionId: "discount-unit-auction",
+    runId: config.runId,
+    entryStatus: "granted",
+    entryFee: 5,
+    entryPaymentProvider: "stripe",
+    entryPaymentReference: "cs_entry_loser",
+    entryPaymentSessionId: "cs_entry_loser",
+    grantedAt: "2026-08-18T10:01:00.000Z",
+  };
+  const winner = {
+    bidderId: "clerk:user_winner",
+    price: 730,
+    claimedAt: "2026-08-18T10:05:00.000Z",
+  };
+  const discount = preparePostAuctionDiscount({
+    accountId: "user_loser",
+    participant,
+    config,
+    winner,
+    now,
+  });
+  assert.equal(discount?.discountAmount, 5);
+  assert.equal(discount?.regularPrice, 999);
+  assert.equal(discount?.finalPrice, 994);
+  assert.equal(discount?.inventory, 12);
+  assert.equal(discount?.state, "available");
+  assert.equal(
+    preparePostAuctionDiscount({
+      accountId: "user_winner",
+      participant: { ...participant, participantId: winner.bidderId },
+      config,
+      winner,
+      now,
+    }),
+    null,
+  );
+  assert.equal(
+    preparePostAuctionDiscount({
+      accountId: "user_refunded",
+      participant: {
+        ...participant,
+        participantId: "clerk:user_refunded",
+        entryStatus: "refunded",
+        refundedAt: "2026-08-18T10:02:00.000Z",
+      },
+      config,
+      winner,
+      now,
+    }),
+    null,
+  );
+  assert.equal(preparePostAuctionDiscount({
+    accountId: "user_loser",
+    participant,
+    config,
+    winner,
+    now: Date.parse("2026-08-26T10:05:00.000Z"),
+  })?.state, "expired");
 });
 
 test("notification receipts accept only bounded opaque identifiers", () => {

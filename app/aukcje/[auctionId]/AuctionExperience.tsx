@@ -565,6 +565,11 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
             </div>
 
             <p className={styles.message} aria-live="polite">{auctionMessage}</p>
+            {auction.postAuctionOffer.enabled ? (
+              <p className={styles.offerNote}>
+                Jeśli nie wygrasz, po zakończeniu tej edycji otrzymasz na koncie rabat {auction.entryFee} zł na ten sam produkt. Oferta będzie ważna przez {auction.postAuctionOffer.validityDays} dni.
+              </p>
+            ) : null}
             {!auction.storageReady ? (
               <p className={styles.storageWarning} role="alert">
                 Zakup jest zablokowany do czasu przywrócenia bezpiecznego zapisu.

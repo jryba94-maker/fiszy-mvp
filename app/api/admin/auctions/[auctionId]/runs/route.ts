@@ -321,6 +321,7 @@ export async function POST(
       productName: record.productName,
       productImageUrl: record.productImageUrl,
       category: record.category,
+      postAuctionOffer: record.postAuctionOffer,
       regularPrice: record.regularPrice,
       startPrice: record.startPrice,
       floorPrice: record.floorPrice,

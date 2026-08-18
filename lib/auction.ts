@@ -7,6 +7,8 @@ export const DEFAULT_REGULAR_PRICE = 999;
 export const DEFAULT_PRODUCT_NAME = "AirPods Pro";
 export const DEFAULT_AUCTION_CATEGORY = "electronics";
 export const DEFAULT_DURATION_MINUTES = 10;
+export const DEFAULT_POST_AUCTION_OFFER_VALIDITY_DAYS = 7;
+export const MAX_POST_AUCTION_OFFER_VALIDITY_DAYS = 90;
 export const MIN_PRODUCT_PRICE = 2;
 export const DROP_INTERVAL_MS = 12_000;
 export const DEFAULT_AUCTION_RUN_ID = "run-2026-08-10-1010";
@@ -19,10 +21,17 @@ export type AuctionDefinition = {
   productName: string;
   productImageUrl: string | null;
   category: AuctionCategory;
+  postAuctionOffer: PostAuctionOfferDefinition;
   regularPrice: number;
   startPrice: number;
   floorPrice: number;
   durationMinutes: number;
+};
+
+export type PostAuctionOfferDefinition = {
+  enabled: boolean;
+  validityDays: number;
+  inventory: number | null;
 };
 
 export const AUCTION_CATEGORIES = [
@@ -73,6 +82,7 @@ export type PublicAuction = {
   product: string;
   productImageUrl: string | null;
   category: AuctionCategory;
+  postAuctionOffer: PostAuctionOfferDefinition;
   regularPrice: number;
   startPrice: number;
   floorPrice: number;
@@ -105,6 +115,11 @@ export function defaultAuctionDefinition(): AuctionDefinition {
     productName: DEFAULT_PRODUCT_NAME,
     productImageUrl: null,
     category: DEFAULT_AUCTION_CATEGORY,
+    postAuctionOffer: {
+      enabled: false,
+      validityDays: DEFAULT_POST_AUCTION_OFFER_VALIDITY_DAYS,
+      inventory: null,
+    },
     regularPrice: DEFAULT_REGULAR_PRICE,
     startPrice: START_PRICE,
     floorPrice: FLOOR_PRICE,
@@ -119,10 +134,45 @@ export function auctionDefinitionFromConfig(
     productName: config.productName,
     productImageUrl: config.productImageUrl,
     category: config.category,
+    postAuctionOffer: config.postAuctionOffer,
     regularPrice: config.regularPrice,
     startPrice: config.startPrice,
     floorPrice: config.floorPrice,
     durationMinutes: config.durationMinutes,
+  };
+}
+
+export function normalizePostAuctionOffer(
+  value: unknown,
+): PostAuctionOfferDefinition | null {
+  if (value === undefined) {
+    return {
+      enabled: false,
+      validityDays: DEFAULT_POST_AUCTION_OFFER_VALIDITY_DAYS,
+      inventory: null,
+    };
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const candidate = value as Partial<PostAuctionOfferDefinition>;
+  const inventory = candidate.inventory;
+  if (
+    typeof candidate.enabled !== "boolean" ||
+    typeof candidate.validityDays !== "number" ||
+    !Number.isInteger(candidate.validityDays) ||
+    candidate.validityDays < 1 ||
+    candidate.validityDays > MAX_POST_AUCTION_OFFER_VALIDITY_DAYS ||
+    (inventory !== null &&
+      (typeof inventory !== "number" ||
+        !Number.isInteger(inventory) ||
+        inventory < 1 ||
+        inventory > 100_000))
+  ) {
+    return null;
+  }
+  return {
+    enabled: candidate.enabled,
+    validityDays: candidate.validityDays,
+    inventory,
   };
 }
 
@@ -224,6 +274,7 @@ export function parseAuctionDefinition(value: unknown): AuctionDefinition | null
   const category = productName
     ? normalizeAuctionCategory(candidate.category, productName)
     : null;
+  const postAuctionOffer = normalizePostAuctionOffer(candidate.postAuctionOffer);
   const regularPrice = candidate.regularPrice;
   const startPrice = candidate.startPrice;
   const floorPrice = candidate.floorPrice;
@@ -235,6 +286,7 @@ export function parseAuctionDefinition(value: unknown): AuctionDefinition | null
     productName.length > 80 ||
     productImageUrl === undefined ||
     !category ||
+    !postAuctionOffer ||
     !isInteger(regularPrice) ||
     !isInteger(startPrice) ||
     !isInteger(floorPrice) ||
@@ -255,6 +307,7 @@ export function parseAuctionDefinition(value: unknown): AuctionDefinition | null
     productName,
     productImageUrl,
     category,
+    postAuctionOffer,
     regularPrice,
     startPrice,
     floorPrice,

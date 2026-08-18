@@ -101,6 +101,7 @@ export async function PATCH(request: NextRequest, context: Context) {
           ? record.productImageUrl
           : body.productImageUrl,
       category: body.category ?? record.category,
+      postAuctionOffer: body.postAuctionOffer ?? record.postAuctionOffer,
       regularPrice: body.regularPrice ?? record.regularPrice,
       startPrice: body.startPrice ?? record.startPrice,
       floorPrice: body.floorPrice ?? record.floorPrice,
@@ -125,6 +126,9 @@ export async function PATCH(request: NextRequest, context: Context) {
       definition.productName !== record.productName ||
       definition.productImageUrl !== record.productImageUrl ||
       definition.category !== record.category ||
+      definition.postAuctionOffer.enabled !== record.postAuctionOffer.enabled ||
+      definition.postAuctionOffer.validityDays !== record.postAuctionOffer.validityDays ||
+      definition.postAuctionOffer.inventory !== record.postAuctionOffer.inventory ||
       definition.regularPrice !== record.regularPrice ||
       definition.startPrice !== record.startPrice ||
       definition.floorPrice !== record.floorPrice ||

@@ -210,6 +210,7 @@ function normalizeAuctionConfig(value: unknown): AuctionConfig | null {
     "productName",
     "productImageUrl",
     "category",
+    "postAuctionOffer",
     "regularPrice",
     "startPrice",
     "floorPrice",

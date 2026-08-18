@@ -15,6 +15,12 @@ export type AuctionCategory =
   | "gaming"
   | "other";
 
+export type PostAuctionOffer = {
+  enabled: boolean;
+  validityDays: number;
+  inventory: number | null;
+};
+
 const AUCTION_CATEGORIES = new Set<AuctionCategory>([
   "electronics",
   "home",
@@ -49,6 +55,7 @@ export type PublicAuction = {
   product: string;
   productImageUrl: string | null;
   category: AuctionCategory;
+  postAuctionOffer: PostAuctionOffer;
   regularPrice: number;
   startPrice: number;
   floorPrice: number;
@@ -140,6 +147,17 @@ export function normalizeAuction(
   const floorPrice = finiteNumber(value.floorPrice);
   const regularPrice = finiteNumber(value.regularPrice);
   const currentPrice = finiteNumber(value.currentPrice);
+  const offerValue = isRecord(value.postAuctionOffer)
+    ? value.postAuctionOffer
+    : null;
+  const offerValidityDays = offerValue
+    ? finiteNumber(offerValue.validityDays)
+    : null;
+  const offerInventory = offerValue?.inventory === null
+    ? null
+    : offerValue
+      ? finiteNumber(offerValue.inventory)
+      : null;
 
   if (
     !auctionId ||
@@ -168,6 +186,18 @@ export function normalizeAuction(
     product,
     productImageUrl: text(value.productImageUrl),
     category,
+    postAuctionOffer: {
+      enabled: offerValue?.enabled === true,
+      validityDays:
+        offerValidityDays !== null && Number.isInteger(offerValidityDays)
+          ? offerValidityDays
+          : 7,
+      inventory:
+        offerValue?.inventory === null ||
+        (offerInventory !== null && Number.isInteger(offerInventory))
+          ? offerInventory
+          : null,
+    },
     regularPrice,
     startPrice,
     floorPrice,

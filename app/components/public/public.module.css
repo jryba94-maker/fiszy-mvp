@@ -209,6 +209,19 @@
   letter-spacing: 0.02em;
 }
 
+.offerBadge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 6px 9px;
+  background: #f0e8ff;
+  color: #5420b4;
+  font-size: 0.67rem;
+  font-weight: 900;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
 .duration {
   color: #6e706b;
   font-size: 0.76rem;

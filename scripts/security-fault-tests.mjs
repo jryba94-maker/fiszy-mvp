@@ -246,7 +246,11 @@ test("auction config storage migrates only approved legacy record shapes", async
     floorPrice: 90,
     durationMinutes: 10,
   };
-  const complete = { ...completeWithoutCategory, category: "other" };
+  const complete = {
+    ...completeWithoutCategory,
+    category: "other",
+    postAuctionOffer: defaultAuctionDefinition().postAuctionOffer,
+  };
   assert.deepEqual(
     parseStoredAuctionConfig(JSON.stringify(completeWithoutCategory)),
     complete,

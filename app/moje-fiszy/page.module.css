@@ -60,6 +60,19 @@
 .emptyCompact h3 { margin: 0 0 7px; }
 .emptyCompact p { margin: 0; color: #6b6d66; }
 .moreButton { display: block; min-height: 46px; margin: 22px auto 0; border: 1px solid #10120f; border-radius: 999px; padding: 0 18px; background: transparent; cursor: pointer; font-weight: 900; }
+.discountGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.discountCard { display: grid; grid-template-columns: minmax(150px, .72fr) minmax(0, 1fr); overflow: hidden; border: 1px solid rgba(16,18,15,.12); border-radius: 24px; background: #fffdf7; }
+.discountImage { min-height: 290px; border-right: 1px solid rgba(16,18,15,.1); background: #ece9e0; }
+.discountBody { min-width: 0; padding: 24px; }
+.discountState { display: inline-flex; border-radius: 999px; padding: 6px 9px; background: #d8ff63; font-size: .7rem; font-weight: 900; }
+.discountBody h3 { margin: 14px 0 18px; font-size: 1.55rem; letter-spacing: -.045em; }
+.discountPrice { display: flex; align-items: baseline; gap: 11px; margin-bottom: 13px; }
+.discountPrice span { color: #777971; font-size: .88rem; }
+.discountPrice strong { font-size: 2rem; letter-spacing: -.05em; }
+.discountBody p { margin: 7px 0; color: #5f625b; font-size: .8rem; line-height: 1.45; }
+.discountExpiry { padding-bottom: 16px; }
+.discountOrder { overflow-wrap: anywhere; }
+.discountBody .primaryButton { width: 100%; margin-top: 12px; }
 .profileForm, .ticketForm { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; border: 1px solid rgba(16,18,15,.12); border-radius: 24px; padding: 26px; background: #fffdf7; }
 .profileForm label, .ticketForm label { min-width: 0; }
 .profileForm label > span, .ticketForm label > span, .preferences legend { display: block; margin-bottom: 7px; font-size: .78rem; font-weight: 850; }
@@ -87,7 +100,7 @@
 .primaryButton:focus-visible, .secondaryButton:focus-visible, .dangerButton:focus-visible, .moreButton:focus-visible, .notificationButton:focus-visible, .watchActions a:focus-visible, .watchActions button:focus-visible, .recordLink:focus-visible, .inlineLink:focus-visible, .profileForm input:focus-visible, .ticketForm input:focus-visible, .ticketForm select:focus-visible, .ticketForm textarea:focus-visible { outline: 3px solid #7a36ff; outline-offset: 3px; }
 
 @media (max-width: 820px) {
-  .intro, .signInCard, .portalGrid, .supportGrid { grid-template-columns: 1fr; }
+  .intro, .signInCard, .portalGrid, .supportGrid, .discountGrid { grid-template-columns: 1fr; }
   .intro { align-items: start; }
   .signInCard { place-items: center; text-align: center; }
   .stats { grid-template-columns: repeat(2, 1fr); }
@@ -101,6 +114,8 @@
   .intro h1 { font-size: clamp(3.6rem, 22vw, 5.2rem); }
   .accountBar { align-items: stretch; flex-direction: column; }
   .record { grid-template-columns: 1fr; }
+  .discountCard { grid-template-columns: 1fr; }
+  .discountImage { min-height: 240px; border-right: 0; border-bottom: 1px solid rgba(16,18,15,.1); }
   .recordImage { min-height: 220px; border-right: 0; border-bottom: 1px solid rgba(16,18,15,.1); }
   .recordTop, .orderLine { align-items: flex-start; flex-direction: column; }
   .updated { white-space: normal; }

@@ -1,5 +1,6 @@
 import {
   createEntryCheckoutSession,
+  createDiscountPurchaseCheckoutSession,
   createPurchaseCheckoutSession,
   expireCheckoutSession,
   refundCheckoutSessionPayment,
@@ -48,6 +49,8 @@ export function paymentProviderHealth(environment = process.env.VERCEL_ENV ?? "l
 // Przelewy24 can implement this same boundary when payment work resumes.
 export const createEntryPaymentSession = createEntryCheckoutSession;
 export const createPurchasePaymentSession = createPurchaseCheckoutSession;
+export const createDiscountPurchasePaymentSession =
+  createDiscountPurchaseCheckoutSession;
 export const expirePaymentSession = expireCheckoutSession;
 export const retrievePaymentSession = retrieveCheckoutSession;
 export const refundPaymentSession = refundCheckoutSessionPayment;

@@ -12,6 +12,7 @@ Technologia: Next.js 15 (App Router), React 19, TypeScript, Redis REST, neutraln
 
 - publiczny katalog wielu aukcji;
 - osobna strona każdej aukcji z zegarem, bieżącą ceną i stanami `waiting`, `live`, `payment_pending`, `sold` oraz `ended`;
+- konfigurowalna oferta dla przegranych: jednorazowy rabat równy opłacie wejściowej, termin 1–90 dni i opcjonalny limit sztuk;
 - płatne wejście przez Stripe Checkout;
 - atomowy wybór jednego zwycięzcy, również przy niemal równoczesnych kliknięciach;
 - weryfikacja, że cena przesłana przez kupującego jest nadal aktualną ceną serwera;
@@ -43,11 +44,13 @@ flowchart LR
 Najważniejsze elementy modelu:
 
 - `AuctionRecord` przechowuje tożsamość aukcji, produkt, stan publikacji i numer rewizji;
-- `AuctionConfig` jest migawką parametrów konkretnej rundy: `runId`, start, ceny i czas;
+- `AuctionConfig` jest migawką parametrów konkretnej rundy: `runId`, start, ceny, czas i zasady oferty po aukcji;
 - wpis wejściowy potwierdza prawo danego identyfikatora uczestnika do udziału w konkretnej rundzie;
 - zwycięzca jest zapisywany atomowo w Redisie, więc dwie instancje serwera nie mogą sprzedać tego samego produktu dwóm osobom;
 - stan rekordu aukcji (`draft`, `published`, `archived`) jest niezależny od stanu jej rundy (`waiting`, `live`, `payment_pending`, `sold`, `ended`);
 - zamówienie jest powiązane z `auctionId`, `runId`, zwycięzcą, operatorem i referencją płatności; stare rekordy bez pola operatora są interpretowane jako legacy Stripe;
+- rabat przegranego jest przypisany do konta Clerk i konkretnej rundy, nie jest kodem do przekazania, nie łączy się z innym rabatem i może zostać wykorzystany tylko raz na ten sam produkt;
+- limitowana oferta rezerwuje sztukę na czas Checkout, zwalnia ją po wygaśnięciu sesji i zużywa dopiero po podpisanym potwierdzeniu płatności;
 - realizacja zamówienia ma własny numer rewizji; zapis compare-and-set (CAS) odrzuca próbę nadpisania zmiany wykonanej wcześniej w innym oknie;
 - każda skuteczna zmiana realizacji tworzy trwały wpis audytowy bez danych kontaktowych i adresowych klienta;
 - indeksy Redis umożliwiają stronicowanie katalogu, rund i zamówień bez przeszukiwania całej bazy;
@@ -72,6 +75,8 @@ Cena maleje całkowitą liczbą złotych od ceny startowej do minimalnej. Ostatn
 | `/api/auctions/[auctionId]/runs/[runId]/entry` | publiczny | stan wejścia i utworzenie Checkout opłaty wejściowej |
 | `/api/auctions/[auctionId]/runs/[runId]/buy` | publiczny | atomowa próba wygrania i Checkout produktu |
 | `/api/auctions/[auctionId]/runs/[runId]/purchase/cancel` | publiczny | anulowanie nieopłaconego Checkout zwycięzcy |
+| `/api/account/activity` | konto Clerk | historia udziału, wygranych, zamówień i ofert po aukcji |
+| `/api/account/discounts/[discountId]/checkout` | konto Clerk | rezerwacja oferty i utworzenie Checkout zakupu z rabatem |
 | `/api/stripe/webhook` | Stripe | podpisane potwierdzenia płatności i wygaśnięcia Checkout |
 | `/api/admin/session` | administrator | utworzenie, sprawdzenie i usunięcie sesji |
 | `/api/admin/auctions` | administrator | lista i tworzenie aukcji |

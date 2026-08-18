@@ -199,7 +199,10 @@ export function ordersCsv(orders: AdminOrder[]) {
   const header = [
     "ID zamówienia",
     "Produkt",
+    "Rodzaj zamówienia",
     "Kwota",
+    "Cena regularna",
+    "Rabat",
     "Waluta",
     "Opłacono",
     "Status realizacji",
@@ -215,7 +218,10 @@ export function ordersCsv(orders: AdminOrder[]) {
   const rows = orders.map((order) => [
     order.orderId,
     order.product,
+    order.orderKind === "post_auction_discount" ? "Zakup po aukcji" : "Wygrana aukcji",
     order.amount,
+    order.regularPrice,
+    order.discountAmount,
     order.currency.toUpperCase(),
     order.paidAt,
     FULFILLMENT_LABELS[order.fulfillment.status],

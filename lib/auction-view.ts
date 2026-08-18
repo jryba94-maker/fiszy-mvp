@@ -134,6 +134,7 @@ function toPublicAuction(
     product: config.productName,
     productImageUrl: config.productImageUrl,
     category: config.category,
+    postAuctionOffer: config.postAuctionOffer,
     regularPrice: config.regularPrice,
     startPrice: config.startPrice,
     floorPrice: config.floorPrice,

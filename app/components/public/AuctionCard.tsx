@@ -39,6 +39,9 @@ export function AuctionCard({ auction, watched = false, watchBusy = false, onWat
           <div className={styles.cardBadges}>
             <StatusBadge status={auction.status} />
             <span className={styles.categoryBadge}>{auctionCategoryLabel(auction.category)}</span>
+            {auction.postAuctionOffer.enabled ? (
+              <span className={styles.offerBadge}>Rabat po aukcji</span>
+            ) : null}
           </div>
           <span className={styles.duration}>{auction.durationMinutes} min</span>
         </div>

@@ -20,6 +20,14 @@ import {
   type OrderAddress,
 } from "../../../../lib/order-storage";
 import {
+  discountOrderId,
+  discountOrderRunId,
+  normalizeDiscountId,
+  readPostAuctionDiscount,
+  redeemPostAuctionDiscount,
+  releasePostAuctionDiscount,
+} from "../../../../lib/discount-storage";
+import {
   stripeWebhookSecret,
   refundCheckoutSessionPayment,
   verifyStripeWebhook,
@@ -83,6 +91,35 @@ function orderAddress(address: StripeAddress | null | undefined): OrderAddress |
     line2: address.line2 ?? null,
     postalCode: address.postal_code ?? null,
     state: address.state ?? null,
+  };
+}
+
+function discountMetadata(session: StripeCheckoutSession) {
+  const metadata = session.metadata;
+  const auctionId = normalizeAuctionId(metadata?.auctionId);
+  const runId = normalizeRunId(metadata?.runId);
+  const discountId = normalizeDiscountId(metadata?.discountId);
+  if (
+    metadata?.kind !== "post_auction_purchase" ||
+    !auctionId ||
+    !runId ||
+    !discountId ||
+    !metadata.bidderId ||
+    metadata.bidderId.length > 100 ||
+    !metadata.accountId ||
+    metadata.accountId.length > 100 ||
+    !metadata.reservationToken ||
+    metadata.reservationToken.length > 100
+  ) {
+    return null;
+  }
+  return {
+    auctionId,
+    runId,
+    discountId,
+    bidderId: metadata.bidderId,
+    accountId: metadata.accountId,
+    reservationToken: metadata.reservationToken,
   };
 }
 
@@ -211,6 +248,7 @@ async function handlePaidPurchase(session: StripeCheckoutSession) {
       phone: customer?.phone ?? null,
     },
     shippingAddress: orderAddress(shipping?.address ?? customer?.address),
+    orderKind: "auction_win",
   };
 
   const saved = await savePaidAuctionOrder(order);
@@ -236,6 +274,82 @@ async function handlePaidPurchase(session: StripeCheckoutSession) {
   throw new Error("Unable to save paid auction order atomically.");
 }
 
+async function handlePaidDiscountPurchase(session: StripeCheckoutSession) {
+  const metadata = discountMetadata(session);
+  if (!metadata || session.mode !== "payment" || session.payment_status !== "paid") {
+    return false;
+  }
+  const discount = await readPostAuctionDiscount(metadata.discountId);
+  if (
+    !discount ||
+    discount.accountId !== metadata.accountId ||
+    discount.participantId !== metadata.bidderId ||
+    discount.auctionId !== metadata.auctionId ||
+    discount.runId !== metadata.runId ||
+    discount.reservationToken !== metadata.reservationToken ||
+    discount.paymentProvider !== "stripe" ||
+    discount.paymentReference !== session.id ||
+    session.currency !== "pln" ||
+    session.amount_total !== discount.finalPrice * 100
+  ) {
+    return false;
+  }
+
+  const paidAt = new Date().toISOString();
+  const shipping = session.collected_information?.shipping_details ?? null;
+  const customer = session.customer_details ?? null;
+  const order: AuctionOrder = {
+    orderId: discountOrderId(discount.discountId, session.id),
+    auctionId: discount.auctionId,
+    runId: discountOrderRunId(discount.discountId),
+    bidderId: discount.participantId,
+    product: discount.product,
+    amount: discount.finalPrice,
+    currency: "pln",
+    paymentProvider: "stripe",
+    paymentReference: session.id,
+    paymentSessionId: session.id,
+    paidAt,
+    customer: {
+      name:
+        shipping?.name ??
+        session.collected_information?.individual_name ??
+        customer?.individual_name ??
+        customer?.name ??
+        null,
+      email: customer?.email ?? null,
+      phone: customer?.phone ?? null,
+    },
+    shippingAddress: orderAddress(shipping?.address ?? customer?.address),
+    orderKind: "post_auction_discount",
+    sourceRunId: discount.runId,
+    discountId: discount.discountId,
+    regularPrice: discount.regularPrice,
+    discountAmount: discount.discountAmount,
+  };
+  const saved = await redeemPostAuctionDiscount({
+    discountId: discount.discountId,
+    accountId: discount.accountId,
+    reservationToken: metadata.reservationToken,
+    provider: "stripe",
+    reference: session.id,
+    order,
+  });
+  if (saved === 1 || saved === 0) {
+    logEvent("post_auction_discount_redeemed", {
+      auctionId: discount.auctionId,
+      runId: discount.runId,
+      discountId: discount.discountId,
+      amount: discount.finalPrice,
+      duplicate: saved === 0,
+    });
+    return true;
+  }
+  if (saved === -3) throw new Error("Discount order id conflicts with another order.");
+  if (saved === -4) throw new Error("Discount order conflicts with stored data.");
+  return false;
+}
+
 async function handleExpiredPurchase(session: StripeCheckoutSession) {
   const metadata = auctionMetadata(session, "auction_purchase");
   if (!metadata) return false;
@@ -253,6 +367,24 @@ async function handleExpiredPurchase(session: StripeCheckoutSession) {
     released: released === 1,
   });
 
+  return released === 1;
+}
+
+async function handleExpiredDiscountPurchase(session: StripeCheckoutSession) {
+  const metadata = discountMetadata(session);
+  if (!metadata) return false;
+  const released = await releasePostAuctionDiscount({
+    discountId: metadata.discountId,
+    accountId: metadata.accountId,
+    reservationToken: metadata.reservationToken,
+    paymentReference: session.id,
+  });
+  logEvent("post_auction_discount_checkout_expired", {
+    auctionId: metadata.auctionId,
+    runId: metadata.runId,
+    discountId: metadata.discountId,
+    released: released === 1,
+  });
   return released === 1;
 }
 
@@ -278,7 +410,9 @@ export async function POST(request: NextRequest) {
 
   if (event.type === "checkout.session.expired") {
     try {
-      const released = await handleExpiredPurchase(event.data.object);
+      const released =
+        (await handleExpiredPurchase(event.data.object)) ||
+        (await handleExpiredDiscountPurchase(event.data.object));
       return NextResponse.json({ received: true, released });
     } catch (error) {
       logEvent(
@@ -304,9 +438,13 @@ export async function POST(request: NextRequest) {
     }
 
     const purchasePaid = await handlePaidPurchase(event.data.object);
+    if (purchasePaid) {
+      return NextResponse.json({ received: true, kind: "auction_purchase" });
+    }
+    const discountPaid = await handlePaidDiscountPurchase(event.data.object);
     return NextResponse.json({
       received: true,
-      kind: purchasePaid ? "auction_purchase" : "ignored",
+      kind: discountPaid ? "post_auction_purchase" : "ignored",
     });
   } catch (error) {
     logEvent("stripe_webhook_processing_failed", errorDetails(error), "error");

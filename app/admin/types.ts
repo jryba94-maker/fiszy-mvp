@@ -1,5 +1,10 @@
 export type AuctionRecordState = "draft" | "published" | "archived";
 export type AuctionCategory = "electronics" | "home" | "sport" | "beauty" | "gaming" | "other";
+export type PostAuctionOfferInput = {
+  enabled: boolean;
+  validityDays: number;
+  inventory: number | null;
+};
 
 export type AuctionRunStatus =
   | "waiting"
@@ -20,6 +25,7 @@ export type AdminAuction = {
   productName: string;
   productImageUrl: string | null;
   category: AuctionCategory;
+  postAuctionOffer: PostAuctionOfferInput;
   regularPrice: number;
   startPrice: number;
   floorPrice: number;
@@ -38,6 +44,7 @@ export type AuctionDefinitionInput = {
   productName: string;
   productImageUrl: string | null;
   category: AuctionCategory;
+  postAuctionOffer: PostAuctionOfferInput;
   regularPrice: number;
   startPrice: number;
   floorPrice: number;
@@ -77,6 +84,11 @@ export type AdminOrder = {
   amount: number;
   currency: string;
   paymentSessionId: string | null;
+  orderKind: "auction_win" | "post_auction_discount";
+  sourceRunId: string | null;
+  discountId: string | null;
+  regularPrice: number | null;
+  discountAmount: number | null;
   paidAt: string;
   customer: {
     name: string | null;

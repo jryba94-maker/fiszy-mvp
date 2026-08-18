@@ -78,7 +78,7 @@ function prefix() {
 
 export async function consumeAccountRateLimit(input: {
   accountId: string;
-  action: "profile" | "watchlist" | "support" | "notifications";
+  action: "profile" | "watchlist" | "support" | "notifications" | "discounts";
   limit: number;
   windowSeconds: number;
 }) {

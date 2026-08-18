@@ -247,6 +247,12 @@ function normalizeAuction(value: unknown, index: number): AdminAuction {
   const recordState =
     asRecordState(root.recordState ?? root.state ?? record.state) ??
     (legacyStatus === "draft" ? "draft" : "published");
+  const postAuctionOffer = asRecord(
+    root.postAuctionOffer ??
+      publicAuction.postAuctionOffer ??
+      record.postAuctionOffer ??
+      definition.postAuctionOffer,
+  );
 
   return {
     auctionId,
@@ -263,6 +269,14 @@ function normalizeAuction(value: unknown, index: number): AdminAuction {
           definition.category,
         ),
       ) ?? "other",
+    postAuctionOffer: {
+      enabled: asBoolean(postAuctionOffer.enabled),
+      validityDays: firstInteger(postAuctionOffer.validityDays) ?? 7,
+      inventory:
+        postAuctionOffer.inventory === null
+          ? null
+          : firstInteger(postAuctionOffer.inventory),
+    },
     productImageUrl: firstString(
       root.productImageUrl,
       root.imageUrl,
@@ -356,6 +370,14 @@ function normalizeOrder(value: unknown, index: number): AdminOrder {
     amount: firstNumber(root.amount) ?? 0,
     currency: firstString(root.currency) ?? "pln",
     paymentSessionId: firstString(root.paymentSessionId),
+    orderKind:
+      root.orderKind === "post_auction_discount"
+        ? "post_auction_discount"
+        : "auction_win",
+    sourceRunId: firstString(root.sourceRunId),
+    discountId: firstString(root.discountId),
+    regularPrice: firstNumber(root.regularPrice),
+    discountAmount: firstNumber(root.discountAmount),
     paidAt,
     customer: {
       name: firstString(customer.name, root.customerName),
@@ -382,6 +404,7 @@ function definitionBody(input: AuctionDefinitionInput) {
     productName: input.productName,
     productImageUrl: input.productImageUrl,
     category: input.category,
+    postAuctionOffer: input.postAuctionOffer,
     regularPrice: input.regularPrice,
     startPrice: input.startPrice,
     floorPrice: input.floorPrice,
@@ -605,6 +628,7 @@ export async function startAuctionRun(
     productName: auction.productName,
     productImageUrl: auction.productImageUrl,
     category: auction.category,
+    postAuctionOffer: auction.postAuctionOffer,
     regularPrice: auction.regularPrice,
     startPrice: auction.startPrice,
     floorPrice: auction.floorPrice,

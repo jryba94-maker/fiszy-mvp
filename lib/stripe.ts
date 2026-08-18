@@ -176,6 +176,51 @@ export async function createPurchaseCheckoutSession(input: {
   );
 }
 
+export async function createDiscountPurchaseCheckoutSession(input: {
+  origin: string;
+  auctionId: string;
+  runId: string;
+  bidderId: string;
+  accountId: string;
+  discountId: string;
+  reservationToken: string;
+  amount: number;
+  expiresAt: number;
+  productName: string;
+}) {
+  const body = new URLSearchParams();
+  body.set("mode", "payment");
+  body.set("success_url", `${input.origin}/moje-fiszy?discount=success`);
+  body.set("cancel_url", `${input.origin}/moje-fiszy?discount=cancelled`);
+  body.set("payment_method_types[0]", "card");
+  body.set("expires_at", String(input.expiresAt));
+  body.set("shipping_address_collection[allowed_countries][0]", "PL");
+  body.set("phone_number_collection[enabled]", "true");
+  body.set("name_collection[individual][enabled]", "true");
+  body.set("line_items[0][price_data][currency]", "pln");
+  body.set("line_items[0][price_data][unit_amount]", String(input.amount));
+  body.set(
+    "line_items[0][price_data][product_data][name]",
+    `${input.productName} — oferta po aukcji Fiszy`,
+  );
+  body.set("line_items[0][quantity]", "1");
+  body.set("metadata[kind]", "post_auction_purchase");
+  body.set("metadata[auctionId]", input.auctionId);
+  body.set("metadata[runId]", input.runId);
+  body.set("metadata[bidderId]", input.bidderId);
+  body.set("metadata[accountId]", input.accountId);
+  body.set("metadata[discountId]", input.discountId);
+  body.set("metadata[reservationToken]", input.reservationToken);
+
+  return createCheckoutSession(
+    body,
+    idempotencyKey("post-auction-discount", [
+      input.discountId,
+      input.reservationToken,
+    ]),
+  );
+}
+
 export async function expireCheckoutSession(sessionId: string) {
   const response = await fetch(
     `${STRIPE_API_BASE}/checkout/sessions/${encodeURIComponent(sessionId)}/expire`,

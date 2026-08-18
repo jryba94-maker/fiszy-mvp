@@ -161,6 +161,9 @@ function OrderCard({
       <div className={styles.orderHeader}>
         <div>
           <span className={styles.orderId}>{order.orderId}</span>
+          {order.orderKind === "post_auction_discount" ? (
+            <span className={styles.discountOrderPill}>Zakup po aukcji</span>
+          ) : null}
           <h3>{order.product}</h3>
         </div>
         <div className={styles.orderHeadlineMeta}>
@@ -178,6 +181,16 @@ function OrderCard({
           <dt>Opłacono</dt>
           <dd>{formatDateTime(order.paidAt)}</dd>
         </div>
+        {order.orderKind === "post_auction_discount" ? (
+          <div>
+            <dt>Rabat po aukcji</dt>
+            <dd>
+              {order.regularPrice !== null && order.discountAmount !== null
+                ? `${formatMoney(order.regularPrice, order.currency)} − ${formatMoney(order.discountAmount, order.currency)}`
+                : "Zastosowany"}
+            </dd>
+          </div>
+        ) : null}
         <div>
           <dt>Klient</dt>
           <dd>{order.customer.name ?? "—"}</dd>

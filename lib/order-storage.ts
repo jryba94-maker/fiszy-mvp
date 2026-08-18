@@ -42,6 +42,11 @@ export type AuctionOrder = {
     phone: string | null;
   };
   shippingAddress: OrderAddress | null;
+  orderKind?: "auction_win" | "post_auction_discount";
+  sourceRunId?: string;
+  discountId?: string;
+  regularPrice?: number;
+  discountAmount?: number;
 };
 
 function environmentName() {
@@ -113,11 +118,11 @@ function latestOrderKey(auctionId: string = AUCTION_ID) {
   return `${prefix()}:auction:${checkedAuctionId(auctionId)}:order:latest`;
 }
 
-function ordersIndexKey() {
+export function ordersIndexKey() {
   return `${prefix()}:index:v1:orders`;
 }
 
-function orderReferenceKey(orderId: string) {
+export function orderReferenceKey(orderId: string) {
   return `${prefix()}:order-ref:${encodeURIComponent(orderId)}`;
 }
 
