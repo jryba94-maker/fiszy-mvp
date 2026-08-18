@@ -1,8 +1,6 @@
 import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import {
-  ENTRY_FEE,
-  getAuctionEndsAt,
   normalizeAuctionId,
   normalizeRunId,
 } from "../../../../lib/auction";
@@ -38,8 +36,6 @@ import { errorDetails, logEvent } from "../../../../lib/observability";
 
 export const dynamic = "force-dynamic";
 
-const ENTRY_FEE_GROSZE = ENTRY_FEE * 100;
-
 function auctionMetadata(session: StripeCheckoutSession, kind: string) {
   const metadata = session.metadata;
 
@@ -72,7 +68,6 @@ function paidAuctionEntry(session: StripeCheckoutSession) {
     !metadata ||
     session.mode !== "payment" ||
     session.payment_status !== "paid" ||
-    session.amount_total !== ENTRY_FEE_GROSZE ||
     session.currency !== "pln"
   ) {
     return null;
@@ -131,25 +126,29 @@ async function handlePaidEntry(session: StripeCheckoutSession) {
     paidEntry.runId,
     paidEntry.auctionId,
   );
+  if (
+    !runConfig ||
+    session.amount_total !== runConfig.entryFee * 100
+  ) {
+    return null;
+  }
   const now = Date.now();
   const entry: AuctionEntry = {
     bidderId: paidEntry.bidderId,
-    fee: ENTRY_FEE,
+    fee: runConfig.entryFee,
     grantedAt: new Date(now).toISOString(),
     provider: "stripe",
     paymentReference: session.id,
     paymentSessionId: session.id,
   };
 
-  const grantResult = runConfig
-    ? await grantAuctionEntryIfCurrent(
+  const grantResult = await grantAuctionEntryIfCurrent(
         paidEntry.runId,
-        getAuctionEndsAt(runConfig).getTime(),
+        Date.parse(runConfig.startsAt),
         now,
         entry,
         paidEntry.auctionId,
-      )
-    : 0;
+      );
 
   if (grantResult === 1 || grantResult === 2) {
     logEvent("auction_entry_granted", {
@@ -173,7 +172,7 @@ async function handlePaidEntry(session: StripeCheckoutSession) {
       auctionId: paidEntry.auctionId,
       runId: paidEntry.runId,
       entryStatus: "refunded",
-      entryFee: ENTRY_FEE,
+      entryFee: runConfig.entryFee,
       entryPaymentProvider: "stripe",
       entryPaymentReference: session.id,
       entryPaymentSessionId: session.id,

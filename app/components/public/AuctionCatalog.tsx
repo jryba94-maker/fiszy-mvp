@@ -27,7 +27,14 @@ function uniqueAuctions(
   secondary: PublicAuction[] = [],
 ) {
   const seen = new Set<string>();
+  const now = Date.now();
   return [...primary, ...secondary].filter((auction) => {
+    if (
+      (auction.status !== "waiting" && auction.status !== "live") ||
+      Date.parse(auction.endsAt) <= now
+    ) {
+      return false;
+    }
     if (seen.has(auction.auctionId)) return false;
     seen.add(auction.auctionId);
     return true;
@@ -101,24 +108,12 @@ export function AuctionCatalog() {
     setError("");
     try {
       const result = await fetchAuctionIndex(null, signal);
-      if (result.auctions.length) {
-        if (!isCurrentRequest()) return;
-        setCatalog((current) => refreshedCatalog(
-          current,
-          result.auctions,
-          result.nextCursor,
-          false,
-        ));
-        return;
-      }
-
-      const legacy = await fetchLegacyAuction(signal);
       if (!isCurrentRequest()) return;
       setCatalog((current) => refreshedCatalog(
         current,
-        [legacy],
-        null,
-        true,
+        result.auctions,
+        result.nextCursor,
+        false,
       ));
       return;
     } catch (indexError) {
@@ -261,7 +256,7 @@ export function AuctionCatalog() {
       </section>
 
       <div className={styles.stats} role="group" aria-label="Najważniejsze zasady Fiszy">
-        <div className={styles.stat}><strong>5 zł</strong><span>wejście do wybranej aukcji</span></div>
+        <div className={styles.stat}><strong>Ustalane</strong><span>wejście do wybranej aukcji</span></div>
         <div className={styles.stat}><strong>1 klik</strong><span>decyduje o zwycięstwie</span></div>
         <div className={styles.stat}><strong>Na żywo</strong><span>czas zsynchronizowany z serwerem</span></div>
       </div>

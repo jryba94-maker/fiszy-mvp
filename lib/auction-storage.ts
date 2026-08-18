@@ -9,6 +9,7 @@ import {
   normalizeAuctionId,
   normalizeRunId,
   parseAuctionDefinition,
+  parseStoredAuctionDefinition,
 } from "./auction";
 import type { AuctionOrder } from "./order-storage";
 import {
@@ -211,6 +212,7 @@ function normalizeAuctionConfig(value: unknown): AuctionConfig | null {
     "productImageUrl",
     "category",
     "postAuctionOffer",
+    "entryFee",
     "regularPrice",
     "startPrice",
     "floorPrice",
@@ -224,7 +226,7 @@ function normalizeAuctionConfig(value: unknown): AuctionConfig | null {
   if (!isTimingOnlyLegacyConfig && candidate.schemaVersion !== 2) return null;
   const definition = isTimingOnlyLegacyConfig
     ? defaultAuctionDefinition()
-    : parseAuctionDefinition(candidate);
+    : parseStoredAuctionDefinition(candidate);
   if (!definition) return null;
 
   return {
@@ -250,7 +252,7 @@ function normalizeAuctionRecord(value: unknown): AuctionRecord | null {
 
   const candidate = value as Partial<AuctionRecord>;
   const auctionId = normalizeAuctionId(candidate.auctionId);
-  const definition = parseAuctionDefinition(candidate);
+  const definition = parseStoredAuctionDefinition(candidate);
   const currentRunId =
     candidate.currentRunId === null
       ? null
@@ -1825,7 +1827,7 @@ export async function readAuctionRunHistoryDetails(
 
 export async function grantAuctionEntryIfCurrent(
   runId: string,
-  endsAtMs: number,
+  entryClosesAtMs: number,
   nowMs: number,
   entry: AuctionEntry,
   auctionId: string = AUCTION_ID,
@@ -1941,7 +1943,7 @@ return 1
     normalizedRunId,
     entry.paymentSessionId ?? "",
     nowMs,
-    endsAtMs,
+    entryClosesAtMs,
     JSON.stringify(canonicalEntry),
     JSON.stringify(normalizedParticipant),
     historyScore,

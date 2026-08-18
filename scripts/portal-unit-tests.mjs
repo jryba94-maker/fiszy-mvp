@@ -2,7 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { adminPermissions, configuredAdminRole } from "../lib/admin-auth.ts";
-import { defaultAuctionConfig, parseAuctionDefinition } from "../lib/auction.ts";
+import {
+  defaultAuctionConfig,
+  isAuctionEntryWindowOpen,
+  parseAuctionDefinition,
+  parseStoredAuctionDefinition,
+} from "../lib/auction.ts";
 import {
   normalizeStoredPostAuctionDiscount,
   preparePostAuctionDiscount,
@@ -26,16 +31,50 @@ test("auction categories are explicit for new records and safely inferred for le
     durationMinutes: 10,
   };
   assert.equal(parseAuctionDefinition(definition)?.category, "gaming");
+  assert.equal(parseAuctionDefinition(definition)?.entryFee, 5);
+  assert.equal(parseAuctionDefinition(definition)?.startPrice, 2500);
+  assert.equal(parseAuctionDefinition(definition)?.floorPrice, 1);
   assert.equal(parseAuctionDefinition({ ...definition, category: "electronics" })?.category, "electronics");
   assert.equal(parseAuctionDefinition({ ...definition, category: "invalid" }), null);
   assert.equal(parseAuctionDefinition({
     ...definition,
     postAuctionOffer: { enabled: true, validityDays: 7, inventory: null },
   })?.postAuctionOffer.enabled, true);
+  assert.deepEqual(parseAuctionDefinition({
+    ...definition,
+    entryFee: 25,
+    postAuctionOffer: { enabled: false, validityDays: 14, inventory: 3 },
+  })?.postAuctionOffer, { enabled: true, validityDays: 14, inventory: null });
+  assert.equal(parseAuctionDefinition({ ...definition, entryFee: 2500 }), null);
   assert.equal(parseAuctionDefinition({
     ...definition,
     postAuctionOffer: { enabled: true, validityDays: 0, inventory: null },
   }), null);
+});
+
+test("stored runs stay immutable while new definitions use the current pricing rules", () => {
+  const stored = parseStoredAuctionDefinition({
+    productName: "Historyczny produkt",
+    productImageUrl: null,
+    category: "other",
+    postAuctionOffer: { enabled: false, validityDays: 7, inventory: 2 },
+    regularPrice: 999,
+    startPrice: 749,
+    floorPrice: 699,
+    durationMinutes: 10,
+  });
+  assert.equal(stored?.startPrice, 749);
+  assert.equal(stored?.floorPrice, 699);
+  assert.equal(stored?.postAuctionOffer.enabled, false);
+  assert.equal(stored?.entryFee, 5);
+});
+
+test("entry checkout is available only during the final minute before start", () => {
+  const config = { startsAt: "2026-08-18T10:01:00.000Z" };
+  assert.equal(isAuctionEntryWindowOpen(Date.parse("2026-08-18T09:59:59.999Z"), config), false);
+  assert.equal(isAuctionEntryWindowOpen(Date.parse("2026-08-18T10:00:00.000Z"), config), true);
+  assert.equal(isAuctionEntryWindowOpen(Date.parse("2026-08-18T10:00:59.999Z"), config), true);
+  assert.equal(isAuctionEntryWindowOpen(Date.parse("2026-08-18T10:01:00.000Z"), config), false);
 });
 
 test("post-auction discount belongs only to an eligible loser and expires deterministically", () => {

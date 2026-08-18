@@ -274,18 +274,14 @@ export default function AdminPage() {
     }
   };
 
-  const handleStartRun = async (auction: AdminAuction) => {
+  const handleStartRun = async (auction: AdminAuction, startsAt: string) => {
     if (auction.recordState === "archived") return;
-    const confirmed = window.confirm(
-      `Uruchomić kolejną rundę aukcji „${auction.productName}”? Serwer wyznaczy najbliższy bezpieczny start.`,
-    );
-    if (!confirmed) return;
 
     setBusyAuctionId(auction.auctionId);
     setNotice(null);
 
     try {
-      const result = await startAuctionRun(auction);
+      const result = await startAuctionRun(auction, startsAt);
       setNotice({
         tone: result.legacy ? "info" : "success",
         message: result.legacy
@@ -465,7 +461,7 @@ export default function AdminPage() {
         onFilterChange={setFilter}
         onSearchChange={setAuctionSearch}
         onEdit={handleEdit}
-        onStart={(auction) => void handleStartRun(auction)}
+        onStart={(auction, startsAt) => void handleStartRun(auction, startsAt)}
         onArchiveToggle={(auction) => void handleArchiveToggle(auction)}
       />
 

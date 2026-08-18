@@ -1,5 +1,4 @@
 import {
-  ENTRY_FEE,
   LEGACY_AUCTION_ID,
   type AuctionConfig,
   type AuctionRecord,
@@ -140,7 +139,7 @@ function toPublicAuction(
     floorPrice: config.floorPrice,
     durationMinutes: config.durationMinutes,
     currentPrice: order?.amount ?? winner?.price ?? timedState.currentPrice,
-    entryFee: ENTRY_FEE,
+    entryFee: config.entryFee,
     status,
     startsAt: config.startsAt,
     endsAt: getAuctionEndsAt(config).toISOString(),
@@ -198,20 +197,32 @@ export async function listPublicAuctions(input: {
   cursor?: string | null;
   limit?: number;
 }) {
-  const page = await listAuctionIds({
-    cursor: input.cursor,
-    limit: input.limit,
-    catalogOnly: true,
-  });
-  if (!page) return null;
+  const limit = input.limit ?? 20;
+  const auctions: PublicAuction[] = [];
+  let cursor = input.cursor ?? null;
 
-  const bases = await readAuctionBases(page.auctionIds);
-  const hydrated = await hydratePublicAuctions(bases, { now: Date.now() });
+  // The catalog index is historical, so ended runs can remain in it. Read
+  // bounded pages until the requested number of available auctions is filled.
+  for (let pageNumber = 0; pageNumber < 20 && auctions.length < limit; pageNumber += 1) {
+    const page = await listAuctionIds({
+      cursor,
+      limit: limit - auctions.length,
+      catalogOnly: true,
+    });
+    if (!page) return null;
 
-  return {
-    auctions: hydrated.map(({ auction }) => auction),
-    nextCursor: page.nextCursor,
-  };
+    const bases = await readAuctionBases(page.auctionIds);
+    const hydrated = await hydratePublicAuctions(bases, { now: Date.now() });
+    auctions.push(
+      ...hydrated
+        .map(({ auction }) => auction)
+        .filter((auction) => auction.status === "waiting" || auction.status === "live"),
+    );
+    cursor = page.nextCursor;
+    if (!cursor) break;
+  }
+
+  return { auctions, nextCursor: cursor };
 }
 
 export async function readAdminAuction(auctionIdValue: string) {

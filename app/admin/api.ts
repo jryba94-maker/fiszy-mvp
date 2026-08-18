@@ -270,12 +270,9 @@ function normalizeAuction(value: unknown, index: number): AdminAuction {
         ),
       ) ?? "other",
     postAuctionOffer: {
-      enabled: asBoolean(postAuctionOffer.enabled),
+      enabled: true,
       validityDays: firstInteger(postAuctionOffer.validityDays) ?? 7,
-      inventory:
-        postAuctionOffer.inventory === null
-          ? null
-          : firstInteger(postAuctionOffer.inventory),
+      inventory: null,
     },
     productImageUrl: firstString(
       root.productImageUrl,
@@ -286,6 +283,13 @@ function normalizeAuction(value: unknown, index: number): AdminAuction {
       definition.productImageUrl,
       definition.imageUrl,
     ),
+    entryFee:
+      firstNumber(
+        root.entryFee,
+        publicAuction.entryFee,
+        record.entryFee,
+        definition.entryFee,
+      ) ?? 5,
     regularPrice:
       firstNumber(
         root.regularPrice,
@@ -405,6 +409,7 @@ function definitionBody(input: AuctionDefinitionInput) {
     productImageUrl: input.productImageUrl,
     category: input.category,
     postAuctionOffer: input.postAuctionOffer,
+    entryFee: input.entryFee,
     regularPrice: input.regularPrice,
     startPrice: input.startPrice,
     floorPrice: input.floorPrice,
@@ -629,6 +634,7 @@ export async function startAuctionRun(
     productImageUrl: auction.productImageUrl,
     category: auction.category,
     postAuctionOffer: auction.postAuctionOffer,
+    entryFee: auction.entryFee,
     regularPrice: auction.regularPrice,
     startPrice: auction.startPrice,
     floorPrice: auction.floorPrice,

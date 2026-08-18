@@ -60,7 +60,7 @@ export async function GET() {
       floorPrice: config.floorPrice,
       durationMinutes: config.durationMinutes,
       currentPrice,
-      entryFee: 5,
+      entryFee: config.entryFee,
       status,
       startsAt: config.startsAt,
       endsAt: getAuctionEndsAt(config).toISOString(),

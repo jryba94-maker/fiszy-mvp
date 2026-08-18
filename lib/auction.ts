@@ -1,7 +1,7 @@
 export const LEGACY_AUCTION_ID = "demo-airpods-pro-1";
 export const AUCTION_ID = LEGACY_AUCTION_ID;
-export const START_PRICE = 749;
-export const FLOOR_PRICE = 699;
+export const START_PRICE = 999;
+export const FLOOR_PRICE = 1;
 export const ENTRY_FEE = 5;
 export const DEFAULT_REGULAR_PRICE = 999;
 export const DEFAULT_PRODUCT_NAME = "AirPods Pro";
@@ -11,6 +11,7 @@ export const DEFAULT_POST_AUCTION_OFFER_VALIDITY_DAYS = 7;
 export const MAX_POST_AUCTION_OFFER_VALIDITY_DAYS = 90;
 export const MIN_PRODUCT_PRICE = 2;
 export const DROP_INTERVAL_MS = 12_000;
+export const ENTRY_WINDOW_MS = 60_000;
 export const DEFAULT_AUCTION_RUN_ID = "run-2026-08-10-1010";
 export const DEFAULT_AUCTION_STARTS_AT = new Date("2026-08-10T08:10:00.000Z");
 
@@ -22,6 +23,7 @@ export type AuctionDefinition = {
   productImageUrl: string | null;
   category: AuctionCategory;
   postAuctionOffer: PostAuctionOfferDefinition;
+  entryFee: number;
   regularPrice: number;
   startPrice: number;
   floorPrice: number;
@@ -116,12 +118,13 @@ export function defaultAuctionDefinition(): AuctionDefinition {
     productImageUrl: null,
     category: DEFAULT_AUCTION_CATEGORY,
     postAuctionOffer: {
-      enabled: false,
+      enabled: true,
       validityDays: DEFAULT_POST_AUCTION_OFFER_VALIDITY_DAYS,
       inventory: null,
     },
+    entryFee: ENTRY_FEE,
     regularPrice: DEFAULT_REGULAR_PRICE,
-    startPrice: START_PRICE,
+    startPrice: DEFAULT_REGULAR_PRICE,
     floorPrice: FLOOR_PRICE,
     durationMinutes: DEFAULT_DURATION_MINUTES,
   };
@@ -135,6 +138,7 @@ export function auctionDefinitionFromConfig(
     productImageUrl: config.productImageUrl,
     category: config.category,
     postAuctionOffer: config.postAuctionOffer,
+    entryFee: config.entryFee,
     regularPrice: config.regularPrice,
     startPrice: config.startPrice,
     floorPrice: config.floorPrice,
@@ -147,32 +151,25 @@ export function normalizePostAuctionOffer(
 ): PostAuctionOfferDefinition | null {
   if (value === undefined) {
     return {
-      enabled: false,
+      enabled: true,
       validityDays: DEFAULT_POST_AUCTION_OFFER_VALIDITY_DAYS,
       inventory: null,
     };
   }
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const candidate = value as Partial<PostAuctionOfferDefinition>;
-  const inventory = candidate.inventory;
   if (
-    typeof candidate.enabled !== "boolean" ||
     typeof candidate.validityDays !== "number" ||
     !Number.isInteger(candidate.validityDays) ||
     candidate.validityDays < 1 ||
-    candidate.validityDays > MAX_POST_AUCTION_OFFER_VALIDITY_DAYS ||
-    (inventory !== null &&
-      (typeof inventory !== "number" ||
-        !Number.isInteger(inventory) ||
-        inventory < 1 ||
-        inventory > 100_000))
+    candidate.validityDays > MAX_POST_AUCTION_OFFER_VALIDITY_DAYS
   ) {
     return null;
   }
   return {
-    enabled: candidate.enabled,
+    enabled: true,
     validityDays: candidate.validityDays,
-    inventory,
+    inventory: null,
   };
 }
 
@@ -276,6 +273,91 @@ export function parseAuctionDefinition(value: unknown): AuctionDefinition | null
     : null;
   const postAuctionOffer = normalizePostAuctionOffer(candidate.postAuctionOffer);
   const regularPrice = candidate.regularPrice;
+  const entryFee = candidate.entryFee ?? ENTRY_FEE;
+  const durationMinutes = candidate.durationMinutes;
+
+  if (
+    !productName ||
+    productName.length < 2 ||
+    productName.length > 80 ||
+    productImageUrl === undefined ||
+    !category ||
+    !postAuctionOffer ||
+    !isInteger(entryFee) ||
+    !isInteger(regularPrice) ||
+    !isInteger(durationMinutes) ||
+    entryFee < 1 ||
+    entryFee >= regularPrice ||
+    regularPrice < MIN_PRODUCT_PRICE ||
+    regularPrice > 100_000 ||
+    durationMinutes < 1 ||
+    durationMinutes > 120
+  ) {
+    return null;
+  }
+
+  return {
+    productName,
+    productImageUrl,
+    category,
+    postAuctionOffer,
+    entryFee,
+    regularPrice,
+    startPrice: regularPrice,
+    floorPrice: FLOOR_PRICE,
+    durationMinutes,
+  };
+}
+
+function normalizeStoredPostAuctionOffer(
+  value: unknown,
+): PostAuctionOfferDefinition | null {
+  if (value === undefined) {
+    return {
+      enabled: false,
+      validityDays: DEFAULT_POST_AUCTION_OFFER_VALIDITY_DAYS,
+      inventory: null,
+    };
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const candidate = value as Partial<PostAuctionOfferDefinition>;
+  const inventory = candidate.inventory ?? null;
+  if (
+    typeof candidate.enabled !== "boolean" ||
+    typeof candidate.validityDays !== "number" ||
+    !Number.isInteger(candidate.validityDays) ||
+    candidate.validityDays < 1 ||
+    candidate.validityDays > MAX_POST_AUCTION_OFFER_VALIDITY_DAYS ||
+    (inventory !== null &&
+      (typeof inventory !== "number" ||
+        !Number.isInteger(inventory) ||
+        inventory < 1 ||
+        inventory > 100_000))
+  ) {
+    return null;
+  }
+  return {
+    enabled: candidate.enabled,
+    validityDays: candidate.validityDays,
+    inventory,
+  };
+}
+
+// Immutable stored runs keep the rules they were created with. New and edited
+// definitions use parseAuctionDefinition(), which applies the current rules.
+export function parseStoredAuctionDefinition(
+  value: unknown,
+): AuctionDefinition | null {
+  if (!value || typeof value !== "object") return null;
+  const candidate = value as Partial<AuctionDefinition>;
+  const productName = candidate.productName?.trim();
+  const productImageUrl = normalizedImageUrl(candidate.productImageUrl);
+  const category = productName
+    ? normalizeAuctionCategory(candidate.category, productName)
+    : null;
+  const postAuctionOffer = normalizeStoredPostAuctionOffer(candidate.postAuctionOffer);
+  const entryFee = candidate.entryFee ?? ENTRY_FEE;
+  const regularPrice = candidate.regularPrice;
   const startPrice = candidate.startPrice;
   const floorPrice = candidate.floorPrice;
   const durationMinutes = candidate.durationMinutes;
@@ -287,15 +369,17 @@ export function parseAuctionDefinition(value: unknown): AuctionDefinition | null
     productImageUrl === undefined ||
     !category ||
     !postAuctionOffer ||
+    !isInteger(entryFee) ||
     !isInteger(regularPrice) ||
     !isInteger(startPrice) ||
     !isInteger(floorPrice) ||
     !isInteger(durationMinutes) ||
+    entryFee < 1 ||
     regularPrice < MIN_PRODUCT_PRICE ||
     regularPrice > 100_000 ||
     startPrice < MIN_PRODUCT_PRICE ||
     startPrice > regularPrice ||
-    floorPrice < MIN_PRODUCT_PRICE ||
+    floorPrice < 1 ||
     floorPrice >= startPrice ||
     durationMinutes < 1 ||
     durationMinutes > 120
@@ -308,6 +392,7 @@ export function parseAuctionDefinition(value: unknown): AuctionDefinition | null
     productImageUrl,
     category,
     postAuctionOffer,
+    entryFee,
     regularPrice,
     startPrice,
     floorPrice,
@@ -347,6 +432,18 @@ export function getAuctionDurationMs(
 export function getAuctionEndsAt(config: AuctionConfig) {
   return new Date(
     new Date(config.startsAt).getTime() + getAuctionDurationMs(config),
+  );
+}
+
+export function isAuctionEntryWindowOpen(
+  now: number,
+  config: Pick<AuctionConfig, "startsAt">,
+) {
+  const startsAt = Date.parse(config.startsAt);
+  return (
+    Number.isFinite(startsAt) &&
+    now >= startsAt - ENTRY_WINDOW_MS &&
+    now < startsAt
   );
 }
 

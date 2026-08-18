@@ -6,6 +6,7 @@ import {
   getAuctionEndsAt,
   getTimedAuctionState,
   normalizeAuctionId,
+  parseAuctionDefinition,
 } from "../../../../../../lib/auction";
 import {
   type AuctionWinner,
@@ -314,21 +315,19 @@ export async function POST(
       return NextResponse.json({ outcome: "invalid_request" }, { status: 400 });
     }
 
+    const definition = parseAuctionDefinition(record);
+    if (!definition) {
+      return NextResponse.json({ outcome: "invalid_request" }, { status: 400 });
+    }
     const config: AuctionConfig = {
       schemaVersion: 2,
       runId: randomUUID(),
       startsAt: startsAt.toISOString(),
-      productName: record.productName,
-      productImageUrl: record.productImageUrl,
-      category: record.category,
-      postAuctionOffer: record.postAuctionOffer,
-      regularPrice: record.regularPrice,
-      startPrice: record.startPrice,
-      floorPrice: record.floorPrice,
-      durationMinutes: record.durationMinutes,
+      ...definition,
     };
     const nextRecord = {
       ...record,
+      ...definition,
       state: publish ? "published" as const : record.state,
       currentRunId: config.runId,
       revision: record.revision + 1,

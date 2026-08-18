@@ -69,18 +69,32 @@ export async function POST(request: NextRequest) {
   }
 
   let requestedDefinition: AuctionDefinition | undefined;
+  let requestedStartsAt: Date | undefined;
 
   try {
     const rawBody = await request.text();
     if (rawBody.trim()) {
+      const body = JSON.parse(rawBody) as Record<string, unknown>;
       requestedDefinition =
-        parseAuctionDefinition(JSON.parse(rawBody) as unknown) ?? undefined;
+        parseAuctionDefinition(body) ?? undefined;
 
       if (!requestedDefinition) {
         return NextResponse.json(
           { outcome: "invalid_request" },
           { status: 400 },
         );
+      }
+      if (body.startsAt !== undefined) {
+        if (typeof body.startsAt !== "string") {
+          return NextResponse.json({ outcome: "invalid_request" }, { status: 400 });
+        }
+        requestedStartsAt = new Date(body.startsAt);
+        if (
+          !Number.isFinite(requestedStartsAt.getTime()) ||
+          requestedStartsAt.getTime() <= Date.now()
+        ) {
+          return NextResponse.json({ outcome: "invalid_request" }, { status: 400 });
+        }
       }
     }
   } catch {
@@ -162,7 +176,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const startsAt = new Date(Date.now() + START_DELAY_MS);
+    const startsAt = requestedStartsAt ?? new Date(Date.now() + START_DELAY_MS);
     const definition =
       requestedDefinition ?? auctionDefinitionFromConfig(currentConfig);
     const config: AuctionConfig = {

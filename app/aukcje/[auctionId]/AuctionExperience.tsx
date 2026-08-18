@@ -22,6 +22,7 @@ import { AuctionWatchControl } from "../../components/public/AuctionWatchControl
 import styles from "./page.module.css";
 
 type Feedback = { text: string; error?: boolean } | null;
+const ENTRY_WINDOW_MS = 60_000;
 
 function clearQueryParam(name: string) {
   const url = new URL(window.location.href);
@@ -253,7 +254,7 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
       if (attempts >= 15) {
         recordAuctionEvent(auction, { entryState: "unconfirmed" });
         setEntryFeedback({
-          text: "Wejście nie zostało jeszcze przyznane. Jeśli aukcja zakończyła się podczas płatności, 5 zł zostanie automatycznie zwrócone.",
+          text: `Wejście nie zostało jeszcze przyznane. Jeśli aukcja rozpoczęła się podczas płatności, ${auction.entryFee} zł zostanie automatycznie zwrócone.`,
           error: true,
         });
         clearQueryParam("payment");
@@ -267,7 +268,7 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
       active = false;
       if (retryTimer) window.clearTimeout(retryTimer);
     };
-  }, [auction?.runId, auctionId, isAuthLoaded, isSignedIn]);
+  }, [auction?.entryFee, auction?.runId, auctionId, isAuthLoaded, isSignedIn]);
 
   useEffect(() => {
     if (!auction?.runId || !isAuthLoaded || !isSignedIn) return;
@@ -329,6 +330,14 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
   const displayStatus = auction ? statusAt(auction, serverNow) : "waiting";
   const visiblePrice = auction ? priceAt(auction, displayStatus, serverNow) : 0;
   const hasCurrentEntry = Boolean(auction && hasEntry && entryRunId === auction.runId);
+  const startsAtMs = auction ? Date.parse(auction.startsAt) : Number.NaN;
+  const entryOpensAtMs = startsAtMs - ENTRY_WINDOW_MS;
+  const entryWindowOpen = Boolean(
+    auction &&
+      displayStatus === "waiting" &&
+      serverNow >= entryOpensAtMs &&
+      serverNow < startsAtMs,
+  );
 
   const timer = timerAt(auction, displayStatus, serverNow);
 
@@ -344,13 +353,15 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
     if (!auction.storageReady) {
       auctionMessage = "Mechanizm zakupu jest chwilowo niedostępny.";
     } else if (displayStatus === "waiting") {
-      auctionMessage = `Start: ${startDateLabel(auction.startsAt)}. Wejście możesz opłacić wcześniej.`;
+      auctionMessage = entryWindowOpen
+        ? `Wejście jest otwarte do startu o ${startDateLabel(auction.startsAt)}.`
+        : `Wejście otworzy się minutę przed startem: ${startDateLabel(auction.startsAt)}.`;
     } else if (!isAuthLoaded) {
       auctionMessage = "Sprawdzamy stan Twojego konta…";
     } else if (!isSignedIn && displayStatus === "live") {
-      auctionMessage = "Zaloguj się, aby wejście i ewentualna wygrana zostały przypisane do Twojego konta.";
+      auctionMessage = "Aukcja już trwa. Do tej rundy nie można już dołączyć.";
     } else if (displayStatus === "live" && !hasCurrentEntry) {
-      auctionMessage = `Cena już spada. Opłać wejście ${auction.entryFee} zł, aby móc kliknąć.`;
+      auctionMessage = "Aukcja już trwa. Do tej rundy nie można już dołączyć.";
     } else if (displayStatus === "live") {
       auctionMessage = "Cena spada. Pierwszy poprawny klik rezerwuje widoczną kwotę.";
     } else if (displayStatus === "payment_pending") {
@@ -368,14 +379,14 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
       isSignedIn &&
       auction.storageReady &&
       !hasCurrentEntry &&
-      (displayStatus === "waiting" || displayStatus === "live"),
+      entryWindowOpen,
   );
   const canBuy = Boolean(
     auction && isAuthLoaded && isSignedIn && auction.storageReady && hasCurrentEntry && displayStatus === "live",
   );
   const needsSignIn = Boolean(
     auction && isAuthLoaded && !isSignedIn && auction.storageReady &&
-      (displayStatus === "waiting" || displayStatus === "live"),
+      entryWindowOpen,
   );
 
   let actionLabel = "ŁADOWANIE…";
@@ -387,6 +398,7 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
     else if (canEnter) actionLabel = `OPŁAĆ WEJŚCIE — ${auction.entryFee} ZŁ`;
     else if (canBuy) actionLabel = `KUP TERAZ — ${visiblePrice} ZŁ`;
     else if (displayStatus === "waiting" && hasCurrentEntry) actionLabel = "WEJŚCIE OPŁACONE — CZEKAMY";
+    else if (displayStatus === "waiting") actionLabel = "WEJŚCIE OTWORZY SIĘ MINUTĘ PRZED STARTEM";
     else if (displayStatus === "payment_pending") actionLabel = "PRODUKT ZAREZERWOWANY";
     else if (displayStatus === "sold") actionLabel = "SPRZEDANE";
     else actionLabel = "AUKCJA ZAKOŃCZONA";

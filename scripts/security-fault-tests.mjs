@@ -246,14 +246,25 @@ test("auction config storage migrates only approved legacy record shapes", async
     floorPrice: 90,
     durationMinutes: 10,
   };
+  const migratedLegacy = {
+    ...completeWithoutCategory,
+    category: "other",
+    entryFee: 5,
+    postAuctionOffer: {
+      enabled: false,
+      validityDays: 7,
+      inventory: null,
+    },
+  };
   const complete = {
     ...completeWithoutCategory,
     category: "other",
+    entryFee: 5,
     postAuctionOffer: defaultAuctionDefinition().postAuctionOffer,
   };
   assert.deepEqual(
     parseStoredAuctionConfig(JSON.stringify(completeWithoutCategory)),
-    complete,
+    migratedLegacy,
   );
   assert.deepEqual(parseStoredAuctionConfig(JSON.stringify(complete)), complete);
   assert.equal(
@@ -707,6 +718,7 @@ test("webhook orchestration handles refunds, duplicates, order-id upgrades and r
     startsAt: "2026-08-10T01:00:00.000Z",
     productName: "Webhook unit product",
     productImageUrl: null,
+    entryFee: 7,
     regularPrice: 120,
     startPrice: 100,
     floorPrice: 90,
@@ -813,7 +825,7 @@ test("webhook orchestration handles refunds, duplicates, order-id upgrades and r
       auctionId,
       runId,
       bidderId: "route-late-bidder",
-      amount: 500,
+      amount: 700,
     });
     lateSession.payment_intent = "pi_test_route_late";
     const late = await invoke({

@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import {
-  ENTRY_FEE,
   LEGACY_AUCTION_ID,
   getAuctionEndsAt,
   getTimedAuctionState,
+  isAuctionEntryWindowOpen,
   normalizeAuctionId,
   normalizeRunId,
 } from "../../../../lib/auction";
@@ -29,7 +29,6 @@ import {
 } from "../../../../lib/payment-provider";
 import { ensureAccountProfile, isAccountBlocked } from "../../../../lib/portal-storage";
 
-const ENTRY_FEE_GROSZE = ENTRY_FEE * 100;
 const PURCHASE_CHECKOUT_WINDOW_SECONDS = 31 * 60;
 
 type BidderRequest = { expectedPrice?: unknown };
@@ -134,7 +133,7 @@ export async function handleEntryGet(
       auctionId: active.auctionId,
       runId: active.config.runId,
       hasEntry: Boolean(entry),
-      entryFee: ENTRY_FEE,
+      entryFee: active.config.entryFee,
       grantedAt: entry?.grantedAt ?? null,
     });
   } catch (error) {
@@ -189,7 +188,7 @@ export async function handleEntryPost(
         auctionId: active.auctionId,
         runId: active.config.runId,
         hasEntry: true,
-        entryFee: ENTRY_FEE,
+        entryFee: active.config.entryFee,
       });
     }
 
@@ -197,8 +196,13 @@ export async function handleEntryPost(
       active.config.runId,
       active.auctionId,
     );
-    const timedState = getTimedAuctionState(Date.now(), active.config);
-    if (winner || timedState.status === "ended") {
+    const now = Date.now();
+    const timedState = getTimedAuctionState(now, active.config);
+    if (
+      winner ||
+      timedState.status !== "waiting" ||
+      !isAuctionEntryWindowOpen(now, active.config)
+    ) {
       return NextResponse.json(
         {
           outcome: "auction_unavailable",
@@ -230,7 +234,7 @@ export async function handleEntryPost(
       auctionId: active.auctionId,
       runId: active.config.runId,
       bidderId,
-      amount: ENTRY_FEE_GROSZE,
+      amount: active.config.entryFee * 100,
       productName: active.config.productName,
     });
     return NextResponse.json({
@@ -238,7 +242,7 @@ export async function handleEntryPost(
       auctionId: active.auctionId,
       runId: active.config.runId,
       checkoutUrl: session.url,
-      entryFee: ENTRY_FEE,
+      entryFee: active.config.entryFee,
     });
   } catch (error) {
     console.error("Unable to create entry Checkout Session.", error);

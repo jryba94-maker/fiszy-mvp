@@ -26,6 +26,7 @@ export type AdminAuction = {
   productImageUrl: string | null;
   category: AuctionCategory;
   postAuctionOffer: PostAuctionOfferInput;
+  entryFee: number;
   regularPrice: number;
   startPrice: number;
   floorPrice: number;
@@ -45,6 +46,7 @@ export type AuctionDefinitionInput = {
   productImageUrl: string | null;
   category: AuctionCategory;
   postAuctionOffer: PostAuctionOfferInput;
+  entryFee: number;
   regularPrice: number;
   startPrice: number;
   floorPrice: number;

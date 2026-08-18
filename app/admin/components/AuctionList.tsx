@@ -32,12 +32,18 @@ type AuctionListProps = {
   onFilterChange: (filter: AuctionFilter) => void;
   onSearchChange: (query: string) => void;
   onEdit: (auction: AdminAuction) => void;
-  onStart: (auction: AdminAuction) => void;
+  onStart: (auction: AdminAuction, startsAt: string) => void;
   onArchiveToggle: (auction: AdminAuction) => void;
 };
 
 function filterCount(auctions: AdminAuction[], filter: AuctionFilter) {
   return auctions.filter((auction) => matchesFilter(auction, filter)).length;
+}
+
+function localDateTime(date: Date) {
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
+    .toISOString()
+    .slice(0, 16);
 }
 
 export function AuctionList({
@@ -52,6 +58,9 @@ export function AuctionList({
   onArchiveToggle,
 }: AuctionListProps) {
   const [now, setNow] = useState(() => Date.now());
+  const [schedulingId, setSchedulingId] = useState<string | null>(null);
+  const [scheduledStart, setScheduledStart] = useState("");
+  const [scheduleError, setScheduleError] = useState("");
   const deferredSearch = useDeferredValue(searchQuery);
   const hasTimedAuction = auctions.some(
     (auction) => auction.status === "waiting" || auction.status === "live",
@@ -70,6 +79,23 @@ export function AuctionList({
     ),
     [auctions, deferredSearch, filter],
   );
+
+  const openSchedule = (auctionId: string) => {
+    setSchedulingId(auctionId);
+    setScheduledStart(localDateTime(new Date(Date.now() + 5 * 60_000)));
+    setScheduleError("");
+  };
+
+  const scheduleRun = (auction: AdminAuction) => {
+    const startsAt = new Date(scheduledStart);
+    if (!Number.isFinite(startsAt.getTime()) || startsAt.getTime() <= Date.now()) {
+      setScheduleError("Wybierz godzinę rozpoczęcia w przyszłości.");
+      return;
+    }
+    setScheduleError("");
+    setSchedulingId(null);
+    onStart(auction, startsAt.toISOString());
+  };
 
   return (
     <section className={styles.panelSection} aria-labelledby="auctions-heading">
@@ -126,6 +152,7 @@ export function AuctionList({
             const archived = auction.recordState === "archived";
             const busy = busyAuctionId === auction.auctionId;
             const disabledReasonId = `auction-disabled-${auction.auctionId}`;
+            const scheduleErrorId = `run-start-error-${auction.auctionId}`;
 
             return (
               <article className={styles.auctionCard} key={auction.auctionId}>
@@ -166,6 +193,10 @@ export function AuctionList({
                     <dd>{auction.durationMinutes || "—"} min</dd>
                   </div>
                   <div>
+                    <dt>Wejście</dt>
+                    <dd>{formatMoney(auction.entryFee)}</dd>
+                  </div>
+                  <div>
                     <dt>Start</dt>
                     <dd>{formatDateTime(auction.startsAt)}</dd>
                   </div>
@@ -193,7 +224,7 @@ export function AuctionList({
                   <button
                     className={styles.cardPrimaryButton}
                     type="button"
-                    onClick={() => onStart(auction)}
+                    onClick={() => openSchedule(auction.auctionId)}
                     disabled={active || archived || busy}
                     aria-busy={busy}
                     aria-describedby={active || archived ? disabledReasonId : undefined}
@@ -202,9 +233,44 @@ export function AuctionList({
                       ? "PRACUJĘ…"
                       : auction.runId
                         ? "URUCHOM KOLEJNĄ RUNDĘ"
-                        : "URUCHOM PIERWSZĄ RUNDĘ"}
+                        : "ZAPLANUJ PIERWSZĄ RUNDĘ"}
                   </button>
                 </div>
+
+                {schedulingId === auction.auctionId ? (
+                  <form
+                    className={styles.runScheduleForm}
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      scheduleRun(auction);
+                    }}
+                  >
+                    <label className={styles.field} htmlFor={`run-start-${auction.auctionId}`}>
+                      <span>Data i godzina rozpoczęcia rundy</span>
+                      <input
+                        id={`run-start-${auction.auctionId}`}
+                        className={styles.input}
+                        type="datetime-local"
+                        value={scheduledStart}
+                        aria-describedby={scheduleError ? scheduleErrorId : undefined}
+                        onChange={(event) => {
+                          setScheduledStart(event.target.value);
+                          setScheduleError("");
+                        }}
+                        required
+                      />
+                    </label>
+                    {scheduleError ? <p className={styles.errorNotice} id={scheduleErrorId} role="alert">{scheduleError}</p> : null}
+                    <div className={styles.cardActions}>
+                      <button className={styles.ghostButton} type="button" onClick={() => setSchedulingId(null)}>
+                        Anuluj
+                      </button>
+                      <button className={styles.cardPrimaryButton} type="submit">
+                        ZAPLANUJ RUNDĘ
+                      </button>
+                    </div>
+                  </form>
+                ) : null}
 
                 {active || archived ? (
                   <p className={styles.disabledReason} id={disabledReasonId}>

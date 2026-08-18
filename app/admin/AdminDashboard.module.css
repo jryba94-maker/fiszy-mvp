@@ -814,6 +814,18 @@
   gap: 8px;
 }
 
+.runScheduleForm {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  border-top: 1px solid var(--admin-border);
+  padding-top: 12px;
+}
+
+.runScheduleForm .errorNotice {
+  margin: 0;
+}
+
 .disabledReason {
   margin: 8px 0 0;
   color: var(--admin-muted);
