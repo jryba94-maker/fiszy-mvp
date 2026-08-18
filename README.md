@@ -206,7 +206,7 @@ Zasady środowisk:
 
 1. Od publikacji zaplanowanej rundy do chwili jej startu użytkownik może zainicjować opłatę wejściową. Serwer ogranicza liczbę prób i tworzy Stripe Checkout za kwotę ustawioną dla aukcji; po starcie nie pozwala już dołączyć.
 2. Dopiero podpisany webhook `checkout.session.completed` lub `checkout.session.async_payment_succeeded` zapisuje prawo wejścia.
-3. Podczas aukcji serwer ponownie sprawdza rundę, prawo wejścia, czas i cenę.
+3. Podczas aukcji cena spada skokowo o wartość opłaty wejściowej, a wszystkie punkty cenowe są równomiernie rozłożone na czas rundy. Serwer ponownie sprawdza rundę, prawo wejścia, czas i cenę.
 4. Atomowa operacja Redis wybiera dokładnie jednego zwycięzcę.
 5. Dla zwycięzcy powstaje idempotentna sesja Checkout produktu; kolejne żądanie tego samego zwycięzcy odzyskuje tę samą sesję.
 6. Podpisany webhook zapisuje opłacone zamówienie i dane dostawy. Duplikat webhooka nie tworzy drugiego zamówienia.

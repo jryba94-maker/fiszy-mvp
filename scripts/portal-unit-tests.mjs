@@ -4,7 +4,9 @@ import test from "node:test";
 import { adminPermissions, configuredAdminRole } from "../lib/admin-auth.ts";
 import {
   defaultAuctionConfig,
+  getAuctionPriceAt,
   isAuctionEntryWindowOpen,
+  isAuctionPricePoint,
   parseAuctionDefinition,
   parseStoredAuctionDefinition,
 } from "../lib/auction.ts";
@@ -77,6 +79,40 @@ test("entry checkout is available from publication until the exact auction start
   assert.equal(isAuctionEntryWindowOpen(Date.parse("2026-08-18T10:01:00.000Z"), config), false);
   assert.equal(isAuctionEntryWindowOpen(Date.parse("2026-08-18T10:01:00.001Z"), config), false);
   assert.equal(isAuctionEntryWindowOpen(Date.now(), { startsAt: "invalid" }), false);
+});
+
+test("auction price drops by the entry fee across 5, 10 and 60 minute rounds", () => {
+  const startsAt = "2026-08-18T20:00:00.000Z";
+  const startMs = Date.parse(startsAt);
+
+  for (const durationMinutes of [5, 10, 60]) {
+    const config = {
+      startsAt,
+      durationMinutes,
+      startPrice: 1000,
+      floorPrice: 1,
+      entryFee: 5,
+    };
+    const intervalMs = (durationMinutes * 60_000) / 201;
+
+    assert.equal(getAuctionPriceAt(startMs, config), 1000);
+    assert.equal(getAuctionPriceAt(startMs + intervalMs - 0.001, config), 1000);
+    assert.equal(getAuctionPriceAt(startMs + intervalMs + 0.01, config), 995);
+    assert.equal(getAuctionPriceAt(startMs + intervalMs * 2 + 0.01, config), 990);
+    assert.equal(getAuctionPriceAt(startMs + durationMinutes * 60_000 - 1, config), 1);
+    assert.equal(getAuctionPriceAt(startMs + durationMinutes * 60_000, config), 1);
+  }
+});
+
+test("a stale displayed price is accepted only when it is a real auction price point", () => {
+  const config = { startPrice: 1000, floorPrice: 1, entryFee: 5 };
+  assert.equal(isAuctionPricePoint(1000, config), true);
+  assert.equal(isAuctionPricePoint(995, config), true);
+  assert.equal(isAuctionPricePoint(5, config), true);
+  assert.equal(isAuctionPricePoint(1, config), true);
+  assert.equal(isAuctionPricePoint(999, config), false);
+  assert.equal(isAuctionPricePoint(0, config), false);
+  assert.equal(isAuctionPricePoint(1005, config), false);
 });
 
 test("post-auction discount belongs only to an eligible loser and expires deterministically", () => {

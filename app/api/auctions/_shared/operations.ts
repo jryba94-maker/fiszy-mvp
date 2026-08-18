@@ -4,6 +4,7 @@ import {
   LEGACY_AUCTION_ID,
   getAuctionEndsAt,
   getTimedAuctionState,
+  isAuctionPricePoint,
   isAuctionEntryWindowOpen,
   normalizeAuctionId,
   normalizeRunId,
@@ -300,7 +301,8 @@ export async function handleBuyPost(
     }
     if (
       expectedPrice !== undefined &&
-      expectedPrice !== timedState.currentPrice
+      (expectedPrice < timedState.currentPrice ||
+        !isAuctionPricePoint(expectedPrice, active.config))
     ) {
       return NextResponse.json(
         {

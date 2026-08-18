@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
+import { getAuctionPriceAt } from "../../../lib/auction";
 import {
   cancelPurchase,
   claimAuction,
@@ -43,26 +44,7 @@ function priceAt(auction: PublicAuction, status: AuctionStatus, serverNow: numbe
   if (status === "waiting") return auction.startPrice;
   if (status === "ended") return auction.floorPrice;
   if (status !== "live") return auction.currentPrice;
-
-  const start = Date.parse(auction.startsAt);
-  const end = Date.parse(auction.endsAt);
-  const duration = end - start;
-  if (duration <= 0) return auction.floorPrice;
-  const totalDrops = auction.startPrice - auction.floorPrice;
-  const totalPricePoints = totalDrops + 1;
-  const floorWindow = Math.min(
-    duration,
-    Math.max(1_000, duration / totalPricePoints),
-  );
-  const fallingDuration = duration - floorWindow;
-  const elapsed = Math.max(0, serverNow - start);
-  if (fallingDuration <= 0 || elapsed >= fallingDuration) {
-    return auction.floorPrice;
-  }
-  const completedDrops = Math.floor(
-    (elapsed * totalDrops) / fallingDuration,
-  );
-  return Math.max(auction.floorPrice, auction.startPrice - completedDrops);
+  return getAuctionPriceAt(serverNow, auction);
 }
 
 function formatCountdown(target: string | null, serverNow: number) {

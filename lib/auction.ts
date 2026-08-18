@@ -77,6 +77,11 @@ export type TimedAuctionState = {
   status: TimedAuctionStatus;
 };
 
+type AuctionPriceSchedule = Pick<
+  AuctionConfig,
+  "startsAt" | "durationMinutes" | "startPrice" | "floorPrice" | "entryFee"
+>;
+
 export type PublicAuction = {
   auctionId: string;
   runId: string;
@@ -442,6 +447,52 @@ export function isAuctionEntryWindowOpen(
   return Number.isFinite(startsAt) && now < startsAt;
 }
 
+export function isAuctionPricePoint(
+  price: number,
+  config: Pick<AuctionConfig, "startPrice" | "floorPrice" | "entryFee">,
+) {
+  return (
+    Number.isInteger(price) &&
+    price >= config.floorPrice &&
+    price <= config.startPrice &&
+    (price === config.floorPrice ||
+      (config.entryFee > 0 &&
+        (config.startPrice - price) % config.entryFee === 0))
+  );
+}
+
+export function getAuctionPriceAt(
+  now: number,
+  config: AuctionPriceSchedule,
+) {
+  const startMs = Date.parse(config.startsAt);
+  const durationMs = config.durationMinutes * 60_000;
+  const endMs = startMs + durationMs;
+
+  if (!Number.isFinite(startMs) || durationMs <= 0) {
+    return config.floorPrice;
+  }
+  if (now <= startMs) return config.startPrice;
+  if (now >= endMs) return config.floorPrice;
+
+  const priceStep = Math.max(1, Math.trunc(config.entryFee));
+  const totalDropSteps = Math.ceil(
+    (config.startPrice - config.floorPrice) / priceStep,
+  );
+  if (totalDropSteps <= 0) return config.floorPrice;
+
+  const totalPricePoints = totalDropSteps + 1;
+  const completedDropSteps = Math.min(
+    totalDropSteps,
+    Math.floor(((now - startMs) * totalPricePoints) / durationMs),
+  );
+
+  return Math.max(
+    config.floorPrice,
+    config.startPrice - completedDropSteps * priceStep,
+  );
+}
+
 export function getTimedAuctionState(
   now: number = Date.now(),
   config: AuctionConfig = defaultAuctionConfig(),
@@ -462,28 +513,8 @@ export function getTimedAuctionState(
     return { status: "ended", currentPrice: config.floorPrice };
   }
 
-  const totalDrops = config.startPrice - config.floorPrice;
-  const totalPricePoints = totalDrops + 1;
-  const elapsedMs = now - startMs;
-  const floorWindowMs = Math.min(
-    durationMs,
-    Math.max(1_000, durationMs / totalPricePoints),
-  );
-  const fallingDurationMs = durationMs - floorWindowMs;
-
-  if (elapsedMs >= fallingDurationMs) {
-    return { status: "live", currentPrice: config.floorPrice };
-  }
-
-  const completedDrops = Math.floor(
-    (elapsedMs * totalDrops) / fallingDurationMs,
-  );
-
   return {
     status: "live",
-    currentPrice: Math.max(
-      config.floorPrice,
-      config.startPrice - completedDrops,
-    ),
+    currentPrice: getAuctionPriceAt(now, config),
   };
 }
