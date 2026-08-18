@@ -162,10 +162,21 @@ export async function PATCH(request: NextRequest, context: Context) {
       revision: record.revision + 1,
       updatedAt: new Date().toISOString(),
     };
+    const currentRunOffer =
+      config &&
+      config.runId === record.currentRunId &&
+      !record.postAuctionOffer.enabled &&
+      definition.postAuctionOffer.enabled
+        ? {
+            runId: config.runId,
+            postAuctionOffer: definition.postAuctionOffer,
+          }
+        : undefined;
     const result = await updateAuctionRecordIfRevision(
       expectedRevision,
       nextRecord,
       config ? new Date(config.startsAt).getTime() : null,
+      currentRunOffer,
     );
     if (result !== 1) {
       return NextResponse.json(

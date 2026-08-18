@@ -1180,7 +1180,16 @@ export async function updateAuctionRecordIfRevision(
   expectedRevision: number,
   record: AuctionRecord,
   currentStartsAtMs: number | null,
+  currentRunOffer?: {
+    runId: string;
+    postAuctionOffer: AuctionConfig["postAuctionOffer"];
+  },
 ) {
+  const currentRunId =
+    currentRunOffer?.runId ?? record.currentRunId ?? defaultAuctionConfig().runId;
+  const serializedCurrentRunOffer = currentRunOffer
+    ? JSON.stringify(currentRunOffer.postAuctionOffer)
+    : "";
   const script = `
 local raw = redis.call("GET", KEYS[1])
 if not raw then return 0 end
@@ -1188,11 +1197,37 @@ local ok, current = pcall(cjson.decode, raw)
 if not ok or type(current) ~= "table" or current.revision ~= tonumber(ARGV[1]) then
   return 0
 end
+local activeConfig = nil
+local runConfig = nil
+if ARGV[7] ~= "" then
+  if current.currentRunId ~= ARGV[6] then return -1 end
+  local activeRaw = redis.call("GET", KEYS[3])
+  local runRaw = redis.call("GET", KEYS[4])
+  if not activeRaw or not runRaw then return -1 end
+  local activeOk, parsedActive = pcall(cjson.decode, activeRaw)
+  local runOk, parsedRun = pcall(cjson.decode, runRaw)
+  local offerOk, offer = pcall(cjson.decode, ARGV[7])
+  if
+    not activeOk or type(parsedActive) ~= "table" or parsedActive.runId ~= ARGV[6] or
+    not runOk or type(parsedRun) ~= "table" or parsedRun.runId ~= ARGV[6] or
+    not offerOk or type(offer) ~= "table"
+  then
+    return -1
+  end
+  activeConfig = parsedActive
+  runConfig = parsedRun
+  activeConfig.postAuctionOffer = offer
+  runConfig.postAuctionOffer = offer
+end
 redis.call("SET", KEYS[1], ARGV[2])
 if ARGV[3] == "published" and ARGV[4] ~= "" then
   redis.call("ZADD", KEYS[2], ARGV[4], ARGV[5])
 else
   redis.call("ZREM", KEYS[2], ARGV[5])
+end
+if activeConfig and runConfig then
+  redis.call("SET", KEYS[3], cjson.encode(activeConfig))
+  redis.call("SET", KEYS[4], cjson.encode(runConfig))
 end
 return 1
 `;
@@ -1200,14 +1235,18 @@ return 1
   return redisCommand<number>([
     "EVAL",
     script,
-    2,
+    4,
     auctionRecordKey(record.auctionId),
     catalogIndexKey(),
+    auctionConfigKey(record.auctionId),
+    auctionRunConfigKey(currentRunId, record.auctionId),
     expectedRevision,
     JSON.stringify(record),
     record.state,
     currentStartsAtMs ?? "",
     record.auctionId,
+    currentRunId,
+    serializedCurrentRunOffer,
   ]);
 }
 
