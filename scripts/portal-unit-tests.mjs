@@ -6,6 +6,7 @@ import { defaultAuctionConfig, parseAuctionDefinition } from "../lib/auction.ts"
 import { preparePostAuctionDiscount } from "../lib/discount-storage.ts";
 import {
   consumeAccountRateLimit,
+  listAccountTickets,
   normalizeAccountProfilePatch,
   normalizeNotificationIds,
   normalizeSupportTicketInput,
@@ -174,6 +175,36 @@ test("account rate limit uses a pseudonymous expiring key", async () => {
     assert.match(commands[0][3], /^fiszy:development:rate:v1:portal:support:[a-f0-9]{32}$/);
     assert.equal(commands[0][3].includes("user_test_123"), false);
     assert.equal(commands[0][4], 600);
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousEnv.url === undefined) delete process.env.KV_REST_API_URL; else process.env.KV_REST_API_URL = previousEnv.url;
+    if (previousEnv.token === undefined) delete process.env.KV_REST_API_TOKEN; else process.env.KV_REST_API_TOKEN = previousEnv.token;
+    if (previousEnv.environment === undefined) delete process.env.VERCEL_ENV; else process.env.VERCEL_ENV = previousEnv.environment;
+  }
+});
+
+test("account support history accepts the first page without an invalid cursor purpose", async () => {
+  const previousFetch = globalThis.fetch;
+  const previousEnv = {
+    url: process.env.KV_REST_API_URL,
+    token: process.env.KV_REST_API_TOKEN,
+    environment: process.env.VERCEL_ENV,
+  };
+  const commands = [];
+  process.env.KV_REST_API_URL = "https://redis.portal-unit.invalid";
+  process.env.KV_REST_API_TOKEN = "portal-unit";
+  process.env.VERCEL_ENV = "development";
+  globalThis.fetch = async (_url, init = {}) => {
+    commands.push(JSON.parse(init.body));
+    return Response.json({ result: [1] });
+  };
+  try {
+    assert.deepEqual(
+      await listAccountTickets({ accountId: `user_${"x".repeat(95)}`, limit: 20 }),
+      { tickets: [], nextCursor: null },
+    );
+    assert.equal(commands.length, 1);
+    assert.equal(commands[0][0], "EVAL");
   } finally {
     globalThis.fetch = previousFetch;
     if (previousEnv.url === undefined) delete process.env.KV_REST_API_URL; else process.env.KV_REST_API_URL = previousEnv.url;

@@ -1,4 +1,4 @@
-import { createHmac, randomUUID } from "node:crypto";
+import { createHash, createHmac, randomUUID } from "node:crypto";
 import { redisCommand } from "./redis";
 import { listSortedSetPage } from "./sorted-set-pagination";
 
@@ -146,6 +146,14 @@ function ticketIndexKey() {
 
 function accountTicketIndexKey(accountId: string) {
   return `${prefix()}:account:${encodeURIComponent(checkedAccountId(accountId))}:index:v1:support-tickets`;
+}
+
+function accountTicketCursorPurpose(accountId: string) {
+  const accountRef = createHash("sha256")
+    .update(checkedAccountId(accountId))
+    .digest("hex")
+    .slice(0, 24);
+  return `portal.account-tickets.v1.${accountRef}`;
 }
 
 function cleanText(value: unknown, maxLength: number) {
@@ -750,7 +758,7 @@ export async function listAccountTickets(input: {
   const accountId = checkedAccountId(input.accountId);
   return listTicketPage({
     indexKey: accountTicketIndexKey(accountId),
-    purpose: `portal.account-tickets.v1:${accountId}`,
+    purpose: accountTicketCursorPurpose(accountId),
     cursor: input.cursor,
     limit: input.limit,
     accountId,

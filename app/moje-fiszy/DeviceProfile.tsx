@@ -187,24 +187,35 @@ export function DeviceProfile() {
     setLoading(true);
     setError("");
     try {
-      const [profileResult, activityResult, watchResult, ticketResult, notificationResult] = await Promise.all([
+      const [profileResult, activityResult, watchResult, ticketResult, notificationResult] = await Promise.allSettled([
         accountRequest<{ profile: Profile }>("/api/account/profile"),
         accountRequest<{ activity: Activity[]; nextCursor: string | null }>("/api/account/activity"),
         accountRequest<{ auctionIds: string[] }>("/api/account/watchlist"),
         accountRequest<{ tickets: Ticket[] }>("/api/account/support"),
         accountRequest<{ readIds: string[] }>("/api/account/notifications"),
       ]);
-      setProfile(profileResult.profile);
-      setDraft(draftFrom(profileResult.profile));
-      setActivity(activityResult.activity);
-      setHistoryCursor(activityResult.nextCursor);
-      setWatchedIds(watchResult.auctionIds);
-      setTickets(ticketResult.tickets);
-      setReadNotificationIds(new Set(notificationResult.readIds));
-      const watched = await Promise.allSettled(
-        watchResult.auctionIds.slice(0, 20).map((auctionId) => fetchAuctionDetail(auctionId)),
-      );
-      setWatchedAuctions(watched.flatMap((result) => result.status === "fulfilled" ? [result.value] : []));
+      if (profileResult.status === "rejected") throw profileResult.reason;
+      if (activityResult.status === "rejected") throw activityResult.reason;
+
+      setProfile(profileResult.value.profile);
+      setDraft(draftFrom(profileResult.value.profile));
+      setActivity(activityResult.value.activity);
+      setHistoryCursor(activityResult.value.nextCursor);
+
+      if (watchResult.status === "fulfilled") {
+        setWatchedIds(watchResult.value.auctionIds);
+        const watched = await Promise.allSettled(
+          watchResult.value.auctionIds.slice(0, 20).map((auctionId) => fetchAuctionDetail(auctionId)),
+        );
+        setWatchedAuctions(watched.flatMap((result) => result.status === "fulfilled" ? [result.value] : []));
+      }
+      if (ticketResult.status === "fulfilled") setTickets(ticketResult.value.tickets);
+      if (notificationResult.status === "fulfilled") {
+        setReadNotificationIds(new Set(notificationResult.value.readIds));
+      }
+      if ([watchResult, ticketResult, notificationResult].some((result) => result.status === "rejected")) {
+        setError("Historia aukcji jest aktualna, ale nie udało się załadować części dodatków konta.");
+      }
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Nie udało się załadować konta.");
     } finally {
