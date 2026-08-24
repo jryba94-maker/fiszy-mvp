@@ -243,10 +243,7 @@ export function AuctionCatalog() {
             <h1 id="hero-title">Cena spada.<span>Ty wybierasz moment.</span></h1>
           </div>
           <div className={styles.heroAside}>
-            <p>
-              Obserwujesz cenę na żywo. Klikasz raz. Jeśli jesteś pierwszy —
-              ta cena zostaje Twoja.
-            </p>
+            <p>Każda decyzja ma swoją cenę.</p>
             <div className={styles.heroActions}>
               <Link className={styles.heroAction} href="#aukcje">Zobacz aukcje</Link>
               <Link className={styles.heroActionGhost} href="/moje-fiszy">Moja historia</Link>
@@ -255,16 +252,10 @@ export function AuctionCatalog() {
         </div>
       </section>
 
-      <div className={styles.stats} role="group" aria-label="Najważniejsze zasady Fiszy">
-        <div className={styles.stat}><strong>Ustalane</strong><span>wejście do wybranej aukcji</span></div>
-        <div className={styles.stat}><strong>1 klik</strong><span>decyduje o zwycięstwie</span></div>
-        <div className={styles.stat}><strong>Na żywo</strong><span>czas zsynchronizowany z serwerem</span></div>
-      </div>
-
       <section className={styles.section} id="aukcje" aria-labelledby="auctions-title">
         <div className={styles.sectionHeading}>
-          <h2 id="auctions-title">Wybierz swoją Fiszę</h2>
-          <p>Każda aukcja ma własny czas, cenę i jedno zwycięskie kliknięcie.</p>
+          <h2 id="auctions-title">Aktualne aukcje</h2>
+          <p>Każda aukcja ma własny czas, cenę i jeden moment, który ją kończy.</p>
         </div>
 
         <div className={styles.catalogTools} role="search" aria-label="Wyszukiwanie i filtrowanie aukcji">
@@ -321,7 +312,7 @@ export function AuctionCatalog() {
               />
             ))}
             {!filteredAuctions.length && !error ? (
-              <p className={styles.emptyBox}>Nie ma teraz aktywnych aukcji. Wróć za chwilę.</p>
+              <p className={styles.emptyBox}>Nie ma teraz aktywnych aukcji.<br />Kolejne pojawią się wkrótce.</p>
             ) : null}
             {error ? (
               <div className={styles.errorBox} role="alert">
@@ -349,29 +340,18 @@ export function AuctionCatalog() {
 
       <section className={`${styles.section} ${styles.mechanics}`} id="jak-to-dziala" aria-labelledby="mechanics-title">
         <div className={styles.sectionHeading}>
-          <h2 id="mechanics-title">Proste zasady. Prawdziwe emocje.</h2>
+          <h2 id="mechanics-title">Jeden moment decyduje</h2>
         </div>
-        <div className={styles.steps}>
-          <article className={styles.step}>
-            <span className={styles.stepNumber}>1</span>
-            <h3>Wchodzisz</h3>
-            <p>Opłacasz wejście tylko do aukcji, którą naprawdę chcesz obserwować.</p>
-          </article>
-          <article className={styles.step}>
-            <span className={styles.stepNumber}>2</span>
-            <h3>Czekasz</h3>
-            <p>Cena spada, a Ty decydujesz, czy warto zaryzykować jeszcze chwilę.</p>
-          </article>
-          <article className={styles.step}>
-            <span className={styles.stepNumber}>3</span>
-            <h3>Klikasz</h3>
-            <p>Pierwszy poprawny klik rezerwuje produkt dokładnie po widocznej cenie.</p>
-          </article>
-        </div>
+        <article className={styles.mechanicsCard}>
+          <p>Cena spada przez cały czas trwania aukcji.</p>
+          <p>Możesz kliknąć wcześniej i zapłacić więcej albo poczekać, licząc na niższą cenę.</p>
+          <p className={styles.mechanicsTension}>Tylko jednego nie wiesz:<strong>kiedy zdecyduje ktoś inny.</strong></p>
+          <p>Jeśli klikniesz jako pierwszy, aukcja się kończy, a produkt kupujesz po cenie widocznej w tym momencie.</p>
+        </article>
       </section>
 
       <footer className={styles.footer}>
-        <span>Fiszy — aukcje, w których cena spada.</span>
+        <span><strong>Fiszy.</strong> Przywracamy emocje zakupów.</span>
         <nav className={styles.footerLinks} aria-label="Dokumenty">
           <Link href="/regulamin">Regulamin</Link>
           <Link href="/prywatnosc">Prywatność</Link>
