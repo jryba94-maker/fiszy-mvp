@@ -343,10 +343,15 @@ export function AuctionCatalog() {
           <h2 id="mechanics-title">Jeden moment decyduje</h2>
         </div>
         <article className={styles.mechanicsCard}>
-          <p>Cena spada przez cały czas trwania aukcji.</p>
-          <p>Możesz kliknąć wcześniej i zapłacić więcej albo poczekać, licząc na niższą cenę.</p>
-          <p className={styles.mechanicsTension}>Tylko jednego nie wiesz:<strong>kiedy zdecyduje ktoś inny.</strong></p>
-          <p>Jeśli klikniesz jako pierwszy, aukcja się kończy, a produkt kupujesz po cenie widocznej w tym momencie.</p>
+          <div className={styles.mechanicsLead}>
+            <span>Twoja decyzja</span>
+            <h3>Obserwujesz cenę.<br />Wybierasz swój moment.</h3>
+          </div>
+          <div className={styles.mechanicsCopy}>
+            <p>Cena spada przez cały czas trwania aukcji.</p>
+            <p>Im dłużej czekasz, tym mniej możesz zapłacić.</p>
+            <p>Klikasz wtedy, gdy widoczna cena jest właściwa dla Ciebie. W tym momencie aukcja się kończy, a cena zostaje zapisana.</p>
+          </div>
         </article>
       </section>
 

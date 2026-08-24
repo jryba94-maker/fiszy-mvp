@@ -320,40 +320,63 @@
 
 .mechanicsCard {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1.15fr) minmax(320px, .85fr);
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, .14);
   border-radius: 28px;
-  background: #111114;
+  background: linear-gradient(135deg, #7728f6 0%, #5512c8 100%);
 }
 
-.mechanicsCard p {
-  min-height: 180px;
-  margin: 0;
-  padding: 30px;
-  color: #c3bfc9;
-  font-size: clamp(1rem, 2vw, 1.2rem);
-  line-height: 1.55;
-}
-
-.mechanicsCard p:nth-child(even) { border-left: 1px solid rgba(255, 255, 255, .12); }
-.mechanicsCard p:nth-child(n + 3) { border-top: 1px solid rgba(255, 255, 255, .12); }
-
-.mechanicsCard .mechanicsTension {
+.mechanicsLead {
+  min-height: 340px;
+  padding: clamp(32px, 5vw, 64px);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  background: #7b2cff;
-  color: #fff;
 }
 
-.mechanicsTension strong {
-  display: block;
-  max-width: 430px;
-  font-size: clamp(1.8rem, 4vw, 3.4rem);
+.mechanicsLead span {
+  color: rgba(255, 255, 255, .72);
+  font-size: .76rem;
   font-weight: 600;
-  letter-spacing: -.055em;
-  line-height: .98;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.mechanicsLead h3 {
+  max-width: 690px;
+  margin: 0;
+  color: #fff;
+  font-size: clamp(2.3rem, 5vw, 4.9rem);
+  font-weight: 600;
+  letter-spacing: -.06em;
+  line-height: .96;
+}
+
+.mechanicsCopy {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: clamp(32px, 5vw, 58px);
+  border-left: 1px solid rgba(255, 255, 255, .22);
+  background: rgba(10, 8, 14, .36);
+}
+
+.mechanicsCopy p {
+  margin: 0;
+  padding: 20px 0;
+  color: rgba(255, 255, 255, .82);
+  font-size: clamp(1rem, 1.5vw, 1.15rem);
+  line-height: 1.55;
+}
+
+.mechanicsCopy p + p {
+  border-top: 1px solid rgba(255, 255, 255, .18);
+}
+
+.mechanicsCopy p:first-child {
+  color: #fff;
+  font-weight: 600;
 }
 
 .steps {
@@ -529,10 +552,8 @@
     grid-template-columns: 1fr;
   }
 
-  .mechanicsCard p { min-height: 0; padding: 24px; }
-  .mechanicsCard p:nth-child(even) { border-left: 0; }
-  .mechanicsCard p + p { border-top: 1px solid rgba(255, 255, 255, .12); }
-  .mechanicsTension { gap: 44px; }
+  .mechanicsLead { min-height: 300px; }
+  .mechanicsCopy { border-top: 1px solid rgba(255, 255, 255, .22); border-left: 0; }
 
   .catalogTools {
     grid-template-columns: 1fr;
