@@ -332,15 +332,7 @@
   padding: clamp(32px, 5vw, 64px);
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-}
-
-.mechanicsLead span {
-  color: rgba(255, 255, 255, .72);
-  font-size: .76rem;
-  font-weight: 600;
-  letter-spacing: .12em;
-  text-transform: uppercase;
+  justify-content: center;
 }
 
 .mechanicsLead h3 {
@@ -374,7 +366,7 @@
   border-top: 1px solid rgba(255, 255, 255, .18);
 }
 
-.mechanicsCopy p:first-child {
+.mechanicsCopy strong {
   color: #fff;
   font-weight: 600;
 }

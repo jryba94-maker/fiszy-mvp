@@ -340,17 +340,16 @@ export function AuctionCatalog() {
 
       <section className={`${styles.section} ${styles.mechanics}`} id="jak-to-dziala" aria-labelledby="mechanics-title">
         <div className={styles.sectionHeading}>
-          <h2 id="mechanics-title">Jeden moment decyduje</h2>
+          <h2 id="mechanics-title">Moment decyzji</h2>
         </div>
         <article className={styles.mechanicsCard}>
           <div className={styles.mechanicsLead}>
-            <span>Twoja decyzja</span>
-            <h3>Obserwujesz cenę.<br />Wybierasz swój moment.</h3>
+            <h3>Cena spada.<br />Ty obserwujesz.</h3>
           </div>
           <div className={styles.mechanicsCopy}>
-            <p>Cena spada przez cały czas trwania aukcji.</p>
             <p>Im dłużej czekasz, tym mniej możesz zapłacić.</p>
-            <p>Klikasz wtedy, gdy widoczna cena jest właściwa dla Ciebie. W tym momencie aukcja się kończy, a cena zostaje zapisana.</p>
+            <p><strong>Tylko jednego nie wiesz:</strong><br />kiedy zdecyduje ktoś inny.</p>
+            <p>Gdy cena jest właściwa, klikasz.<br />Pierwsza decyzja kończy aukcję.</p>
           </div>
         </article>
       </section>
