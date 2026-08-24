@@ -523,3 +523,31 @@
     animation: none;
   }
 }
+
+/* Shared visual language from the Fiszy launch landing */
+.page { background: #070708; color: #f8f7fb; }
+.hero {
+  border-color: rgba(255,255,255,.12);
+  background:
+    radial-gradient(circle at 82% 18%, rgba(123,44,255,.82) 0, rgba(71,12,165,.48) 22%, transparent 48%),
+    #111114;
+}
+.hero::before, .hero::after { border-color: rgba(167,122,255,.24); }
+.hero h1 { font-weight: 600; letter-spacing: -.065em; line-height: .86; }
+.hero h1 span { color: #a77aff; }
+.eyebrow::before { background: #7b2cff; box-shadow: 0 0 0 6px rgba(123,44,255,.18); }
+.heroAction { border-color: #7b2cff; background: #7b2cff; color: #fff; }
+.heroActionGhost { border-color: rgba(255,255,255,.24); color: #fff; }
+.stats, .catalogTools { border-color: rgba(255,255,255,.12); background: #111114; }
+.stat + .stat { border-color: rgba(255,255,255,.12); }
+.stat span, .sectionHeading p, .resultsCount { color: #aaa6b2; }
+.catalogTools input, .catalogTools select { border-color: rgba(255,255,255,.12); background: #18181c; color: #f8f7fb; }
+.sectionHeading h2 { font-weight: 600; letter-spacing: -.055em; }
+.steps { border-color: rgba(255,255,255,.14); background: #111114; }
+.stepNumber, .step:nth-child(2) .stepNumber, .step:nth-child(3) .stepNumber { background: #7b2cff; color: #fff; }
+.footer { border-color: rgba(255,255,255,.12); color: #8f8b97; }
+.footerLinks a { color: #bcb8c3; }
+.retryButton, .moreButton { border-color: rgba(255,255,255,.28); color: #fff; }
+.retryButton:hover, .moreButton:hover { background: #7b2cff; }
+.notice, .errorBox, .emptyBox { border-color: rgba(255,255,255,.16); background: #111114; color: #c8c4cf; }
+.skeleton { background: linear-gradient(100deg,#121216 30%,#222128 50%,#121216 70%); background-size:250% 100%; }

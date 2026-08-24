@@ -36,6 +36,16 @@ import type {
 } from "./types";
 
 type SessionStatus = "checking" | "signed_out" | "authenticated" | "unconfigured";
+type AdminSection = "overview" | "auctions" | "orders" | "history" | "users" | "audit";
+
+const ADMIN_SECTIONS: Array<{ id: AdminSection; label: string; caption: string }> = [
+  { id: "overview", label: "Pulpit", caption: "Wyniki i system" },
+  { id: "auctions", label: "Aukcje", caption: "Lista i edycja" },
+  { id: "orders", label: "Zamówienia", caption: "Realizacja" },
+  { id: "history", label: "Rundy", caption: "Uczestnicy" },
+  { id: "users", label: "Użytkownicy", caption: "Pomoc i lista e-mail" },
+  { id: "audit", label: "Dziennik", caption: "Zmiany i zdarzenia" },
+];
 
 type Notice = {
   tone: "success" | "info" | "error";
@@ -75,6 +85,7 @@ export default function AdminPage() {
   const [lastUpdated, setLastUpdated] = useState<number | null>(null);
   const [notice, setNotice] = useState<Notice>(null);
   const [legacyMode, setLegacyMode] = useState(false);
+  const [activeSection, setActiveSection] = useState<AdminSection>("overview");
   const loadingRef = useRef(false);
   const busyOrderRef = useRef<string | null>(null);
 
@@ -387,6 +398,7 @@ export default function AdminPage() {
   };
 
   const handleEdit = (auction: AdminAuction) => {
+    setActiveSection("auctions");
     setEditingAuction(auction);
     window.requestAnimationFrame(() => {
       const editor = document.getElementById("auction-editor");
@@ -412,6 +424,27 @@ export default function AdminPage() {
 
   return (
     <main className={styles.dashboardShell} aria-busy={dashboardLoading}>
+      <div className={styles.adminLayout}>
+        <aside className={styles.sidebar} aria-label="Sekcje panelu administratora">
+          <div className={styles.sidebarBrand}>Fiszy<span>.</span></div>
+          <nav className={styles.sidebarNav}>
+            {ADMIN_SECTIONS.map((section) => (
+              <button
+                key={section.id}
+                type="button"
+                className={styles.sidebarLink}
+                aria-current={activeSection === section.id ? "page" : undefined}
+                onClick={() => setActiveSection(section.id)}
+              >
+                <span>{section.label}</span>
+                <small>{section.caption}</small>
+              </button>
+            ))}
+          </nav>
+          <a className={styles.sidebarPublicLink} href="/aukcje">Otwórz portal ↗</a>
+        </aside>
+
+        <div className={styles.dashboardContent}>
       <AdminHeader
         environment={health?.environment ?? "panel"}
         role={adminRole}
@@ -451,9 +484,14 @@ export default function AdminPage() {
         </div>
       ) : null}
 
-      <KpiGrid auctions={auctions} orders={orders} />
+      {activeSection === "overview" ? (
+        <div className={styles.sectionStack}>
+          <KpiGrid auctions={auctions} orders={orders} />
+          <HealthPanel health={health} />
+        </div>
+      ) : null}
 
-      <AuctionList
+      {activeSection === "auctions" ? <div className={styles.sectionStack}><AuctionList
         auctions={auctions}
         filter={filter}
         searchQuery={auctionSearch}
@@ -470,31 +508,32 @@ export default function AdminPage() {
         busy={savingEditor}
         onCancel={() => setEditingAuction(null)}
         onSubmit={handleEditorSubmit}
-      />
+      /></div> : null}
 
-      <div className={styles.lowerGrid}>
-        <OrdersPanel
+      {activeSection === "orders" ? (
+        <div className={styles.sectionStack}><OrdersPanel
           orders={orders}
           busyOrderId={busyOrderId}
           updateError={orderUpdateError}
           onUpdateFulfillment={handleFulfillmentUpdate}
-        />
-        <HealthPanel health={health} />
-      </div>
+        /></div>
+      ) : null}
 
-      <RunHistoryPanel
+      {activeSection === "history" ? <div className={styles.sectionStack}><RunHistoryPanel
         auctions={auctions}
         onSessionExpired={handleExpiredSession}
-      />
+      /></div> : null}
 
-      <AuditPanel onSessionExpired={handleExpiredSession} />
+      {activeSection === "audit" ? <div className={styles.sectionStack}><AuditPanel onSessionExpired={handleExpiredSession} /></div> : null}
 
-      <PortalOperationsPanel onSessionExpired={handleExpiredSession} />
+      {activeSection === "users" ? <div className={styles.sectionStack}><PortalOperationsPanel onSessionExpired={handleExpiredSession} /></div> : null}
 
       <footer className={styles.footer}>
         <span>Fiszy / panel operacyjny</span>
         <span>Dane list są stronicowane, a historia szczegółowa ładowana na żądanie.</span>
       </footer>
+        </div>
+      </div>
     </main>
   );
 }

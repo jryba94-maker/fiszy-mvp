@@ -161,3 +161,18 @@
 @media (prefers-reduced-motion: reduce) {
   .page *, .page *::before, .page *::after { scroll-behavior: auto !important; }
 }
+
+.page { background: #070708; color: #f8f7fb; }
+.intro h1 { font-weight: 600; letter-spacing: -.065em; }
+.eyebrow, .introText, .muted, .integrationNote, .sectionHeading > p { color: #aaa6b2; }
+.accountBar, .quickCard { background: #111114; }
+.quickCard:nth-child(2) { background: #4a169d; }
+.accountAvatar, .counter, .outcome, .discountState { background: #7b2cff; color: #fff; }
+.stats, .panel, .record, .discountCard, .profileForm, .ticketForm, .ticket, .emptyCompact, .empty, .signInCard { border-color: rgba(255,255,255,.12); background: #111114; }
+.stat + .stat { border-color: rgba(255,255,255,.12); }
+.statLabel, .recordDetails span, .notification span, .watchItem span, .discountBody p, .updated { color: #aaa6b2; }
+.accountNav a, .secondaryButton, .moreButton { border-color: rgba(255,255,255,.16); background: #18181c; color: #f8f7fb; }
+.notification, .watchItem, .recordDetails span { background: #1b1b20; }
+.primaryButton, .notificationButton { border-color: #7b2cff; background: #7b2cff; color: #fff; }
+.profileForm input, .ticketForm input, .ticketForm select, .ticketForm textarea { border-color: rgba(255,255,255,.14); background: #0c0c0e; color: #fff; }
+.recordImage, .discountImage { background: #18181c; }
