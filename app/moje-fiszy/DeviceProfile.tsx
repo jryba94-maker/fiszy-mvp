@@ -179,6 +179,7 @@ export function DeviceProfile() {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<string | null>(null);
   const [historyFilter, setHistoryFilter] = useState<HistoryFilter>("all");
   const [ticketDraft, setTicketDraft] = useState({ category: "other" as Ticket["category"], subject: "", message: "", orderId: "" });
 
@@ -216,6 +217,7 @@ export function DeviceProfile() {
       if ([watchResult, ticketResult, notificationResult].some((result) => result.status === "rejected")) {
         setError("Historia aukcji jest aktualna, ale nie udało się załadować części dodatków konta.");
       }
+      setLastRefreshedAt(new Date().toISOString());
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Nie udało się załadować konta.");
     } finally {
@@ -428,7 +430,11 @@ export function DeviceProfile() {
 
             <section className={styles.accountBar}>
               <div><span className={styles.accountAvatar} aria-hidden="true">{(profile?.fullName || user?.firstName || user?.primaryEmailAddress?.emailAddress || "F").slice(0, 1).toUpperCase()}</span><div><strong>{profile?.fullName || user?.fullName || "Twoje konto Fiszy"}</strong><span>{user?.primaryEmailAddress?.emailAddress}</span></div></div>
-              <a className={styles.secondaryButton} href="/api/account/export">Pobierz moje dane</a>
+              <div className={styles.accountActions}>
+                {lastRefreshedAt ? <span className={styles.refreshedAt}>Aktualne na {new Intl.DateTimeFormat("pl-PL", { hour: "2-digit", minute: "2-digit" }).format(new Date(lastRefreshedAt))}</span> : null}
+                <button className={styles.secondaryButton} type="button" disabled={loading || Boolean(busy)} onClick={() => void loadPortal()}>Odśwież dane</button>
+                <a className={styles.secondaryButton} href="/api/account/export">Pobierz moje dane</a>
+              </div>
             </section>
 
             <div className={styles.stats} role="group" aria-label="Podsumowanie konta">
@@ -457,12 +463,12 @@ export function DeviceProfile() {
                 <div className={styles.panelHeading}><div><p className={styles.eyebrow}>Teraz</p><h2>Powiadomienia</h2></div><span className={styles.counter}>{notifications.length}</span></div>
                 {notifications.length ? <><div className={styles.notificationList}>{notifications.map((item) => <div className={styles.notification} key={item.id}><div><strong>{item.title}</strong><span>{item.text}</span></div></div>)}</div><button className={styles.notificationButton} type="button" disabled={busy === "notifications"} onClick={() => void markNotificationsRead()}>{busy === "notifications" ? "Zapisuję…" : "Oznacz wszystkie jako przeczytane"}</button></> : <p className={styles.muted}>Nie masz teraz nowych spraw wymagających działania.</p>}
                 <DeviceNotifications />
-                <p className={styles.integrationNote}>Powiadomienia w portalu działają. Automatyczny e-mail wymaga jeszcze zweryfikowanej domeny nadawczej.</p>
+                <p className={styles.integrationNote}>Powiadomienia w portalu działają, a ważne wiadomości mogą być wysyłane na adres przypisany do konta zgodnie z Twoimi ustawieniami.</p>
               </article>
               <article className={styles.panel} id="obserwowane">
                 <div className={styles.panelHeading}><div><p className={styles.eyebrow}>Lista</p><h2>Obserwowane</h2></div><span className={styles.counter}>{watchedIds.length}</span></div>
                 {watchedAuctions.length ? <div className={styles.watchList}>{watchedAuctions.map((auction) => <div className={styles.watchItem} key={auction.auctionId}><div><strong>{auction.product}</strong><span>{watchStatus(auction)}</span></div><div className={styles.watchActions}><Link href={`/aukcje/${encodeURIComponent(auction.auctionId)}`}>Otwórz</Link><a href={`/api/auctions/${encodeURIComponent(auction.auctionId)}/calendar`}>Kalendarz</a><button type="button" disabled={busy === `watch-${auction.auctionId}`} onClick={() => void removeWatch(auction.auctionId)}>Usuń</button></div></div>)}</div> : <p className={styles.muted}>Dodaj aukcje do obserwowanych w katalogu.</p>}
-                <Link className={styles.inlineLink} href="/#aukcje">Przejdź do katalogu</Link>
+                <Link className={styles.inlineLink} href="/aukcje">Przejdź do katalogu</Link>
               </article>
             </section>
 

@@ -13,6 +13,8 @@
 .signInCard { grid-template-columns: minmax(0, 620px) auto; place-items: center start; gap: 44px; text-align: left; }
 .accountBar { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: 18px; border: 1px solid rgba(16,18,15,.12); border-radius: 22px; padding: 18px; background: #10120f; color: #fff; }
 .accountBar > div { display: flex; min-width: 0; align-items: center; gap: 13px; }
+.accountBar .accountActions { justify-content: flex-end; flex-wrap: wrap; }
+.refreshedAt { color: rgba(255,255,255,.62); font-size: .72rem; white-space: nowrap; }
 .accountBar strong, .accountBar span { display: block; }
 .accountBar strong { margin-bottom: 3px; }
 .accountBar > div span:not(.accountAvatar) { overflow: hidden; color: rgba(255,255,255,.62); font-size: .82rem; text-overflow: ellipsis; }
@@ -119,7 +121,7 @@
 .secondaryButton { background: #fffdf7; color: #10120f; }
 .accountBar .secondaryButton { border-color: rgba(255,255,255,.35); background: transparent; color: #fff; }
 .dangerButton { border-color: #c94a35; background: transparent; color: #8a2b1a; }
-.primaryButton:disabled, .dangerButton:disabled { cursor: not-allowed; opacity: .5; }
+.primaryButton:disabled, .secondaryButton:disabled, .dangerButton:disabled { cursor: not-allowed; opacity: .5; }
 .supportGrid { align-items: start; }
 .ticketForm { grid-template-columns: 1fr; }
 .ticket { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; border: 1px solid rgba(16,18,15,.11); border-radius: 18px; padding: 18px; background: #fffdf7; }
@@ -143,6 +145,8 @@
   .main { width: min(100% - 28px, 1160px); padding-top: 28px; }
   .intro h1 { font-size: clamp(3.6rem, 22vw, 5.2rem); }
   .accountBar { align-items: stretch; flex-direction: column; }
+  .accountBar .accountActions { align-items: stretch; flex-direction: column; }
+  .refreshedAt { text-align: center; }
   .record { grid-template-columns: 1fr; }
   .discountCard { grid-template-columns: 1fr; }
   .discountImage { min-height: 240px; border-right: 0; border-bottom: 1px solid rgba(16,18,15,.1); }
