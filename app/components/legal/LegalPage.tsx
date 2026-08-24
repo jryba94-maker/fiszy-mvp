@@ -17,7 +17,7 @@ export function LegalPage({ eyebrow, title, lead, sections }: {
           Fiszy<span className={publicStyles.brandDot}>.</span>
         </Link>
         <nav className={publicStyles.nav} aria-label="Główna nawigacja">
-          <Link className={publicStyles.navLink} href="/#jak-to-dziala">Jak to działa</Link>
+          <Link className={publicStyles.navLink} href="/aukcje#jak-to-dziala">Jak to działa</Link>
           <Link className={publicStyles.navLink} href="/faq">Pomoc</Link>
           <Link className={`${publicStyles.navLink} ${publicStyles.navLinkPrimary}`} href="/moje-fiszy">Moje Fiszy</Link>
         </nav>
