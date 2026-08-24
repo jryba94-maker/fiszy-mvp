@@ -142,11 +142,32 @@ test("post-auction discount belongs only to an eligible loser and expires determ
     price: 730,
     claimedAt: "2026-08-18T10:05:00.000Z",
   };
+  const order = {
+    orderId: "FISZY-UNIT-DISCOUNT-WINNER",
+    auctionId: participant.auctionId,
+    runId: config.runId,
+    bidderId: winner.bidderId,
+    product: config.productName,
+    amount: winner.price,
+    currency: "pln",
+    paymentSessionId: "cs_discount_winner",
+    paidAt: "2026-08-18T10:06:00.000Z",
+    customer: { name: null, email: null, phone: null },
+    shippingAddress: null,
+  };
+  assert.equal(preparePostAuctionDiscount({
+    accountId: "user_loser",
+    participant,
+    config,
+    winner,
+    now,
+  }), null, "a pending winner must not create loser discounts");
   const discount = preparePostAuctionDiscount({
     accountId: "user_loser",
     participant,
     config,
     winner,
+    order,
     now,
   });
   assert.equal(discount?.discountAmount, 5);
@@ -160,6 +181,7 @@ test("post-auction discount belongs only to an eligible loser and expires determ
       participant: { ...participant, participantId: winner.bidderId },
       config,
       winner,
+      order,
       now,
     }),
     null,
@@ -175,6 +197,7 @@ test("post-auction discount belongs only to an eligible loser and expires determ
       },
       config,
       winner,
+      order,
       now,
     }),
     null,
@@ -184,6 +207,7 @@ test("post-auction discount belongs only to an eligible loser and expires determ
     participant,
     config,
     winner,
+    order,
     now: Date.parse("2026-08-26T10:05:00.000Z"),
   })?.state, "expired");
 });

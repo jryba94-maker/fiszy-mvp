@@ -35,62 +35,69 @@ export async function GET(request: NextRequest) {
         participant: item.participant,
         config: item.config,
         winner: item.winner,
+        order: item.order,
       });
       const discount = preparedDiscount
         ? await issuePostAuctionDiscount(preparedDiscount)
         : null;
       return { ...item, discount };
     }));
-    const orders = enrichedItems.flatMap((item) => item.order ? [item.order] : []);
+    const orders = enrichedItems.flatMap((item) =>
+      item.order?.bidderId === identity.participantId ? [item.order] : [],
+    );
     const fulfillments = await readOrderFulfillments(orders);
     const fulfillmentByOrder = new Map(
       orders.map((order, index) => [order.orderId, fulfillmentResponse(fulfillments[index])]),
     );
     const now = Date.now();
-    const activity = enrichedItems.map(({ participant, config, winner, order, discount }) => ({
-      auctionId: participant.auctionId,
-      runId: participant.runId,
-      product: config.productName,
-      productImageUrl: config.productImageUrl,
-      startsAt: config.startsAt,
-      entryStatus: participant.entryStatus,
-      entryFee: participant.entryFee,
-      enteredAt: participant.grantedAt ?? participant.refundedAt ?? config.startsAt,
-      outcome: order
-        ? "won_paid"
-        : winner?.bidderId === identity.participantId
-          ? "won_payment_pending"
-          : winner
-            ? "lost"
-            : getTimedAuctionState(now, config).status === "ended"
+    const activity = enrichedItems.map(({ participant, config, winner, order, discount }) => {
+      const accountOrder = order?.bidderId === identity.participantId ? order : null;
+      const runSettled = Boolean(winner && order?.bidderId === winner.bidderId);
+      return {
+        auctionId: participant.auctionId,
+        runId: participant.runId,
+        product: config.productName,
+        productImageUrl: config.productImageUrl,
+        startsAt: config.startsAt,
+        entryStatus: participant.entryStatus,
+        entryFee: participant.entryFee,
+        enteredAt: participant.grantedAt ?? participant.refundedAt ?? config.startsAt,
+        outcome: accountOrder
+          ? "won_paid"
+          : winner?.bidderId === identity.participantId
+            ? "won_payment_pending"
+            : runSettled
               ? "lost"
-              : "participating",
-      winnerPrice: winner?.bidderId === identity.participantId ? winner.price : null,
-      order: order ? {
-        orderId: order.orderId,
-        amount: order.amount,
-        currency: order.currency,
-        paidAt: order.paidAt,
-        fulfillment: fulfillmentByOrder.get(order.orderId) ?? null,
-      } : null,
-      discount: discount ? {
-        discountId: discount.discountId,
-        product: discount.product,
-        productImageUrl: discount.productImageUrl,
-        regularPrice: discount.regularPrice,
-        discountAmount: discount.discountAmount,
-        finalPrice: discount.finalPrice,
-        currency: discount.currency,
-        issuedAt: discount.issuedAt,
-        expiresAt: discount.expiresAt,
-        state:
-          (discount.state === "available" || discount.state === "reserved") &&
-          now >= Date.parse(discount.expiresAt)
-            ? "expired"
-            : discount.state,
-        orderId: discount.orderId ?? null,
-      } : null,
-    }));
+              : getTimedAuctionState(now, config).status === "ended"
+                ? "lost"
+                : "participating",
+        winnerPrice: winner?.bidderId === identity.participantId ? winner.price : null,
+        order: accountOrder ? {
+          orderId: accountOrder.orderId,
+          amount: accountOrder.amount,
+          currency: accountOrder.currency,
+          paidAt: accountOrder.paidAt,
+          fulfillment: fulfillmentByOrder.get(accountOrder.orderId) ?? null,
+        } : null,
+        discount: discount ? {
+          discountId: discount.discountId,
+          product: discount.product,
+          productImageUrl: discount.productImageUrl,
+          regularPrice: discount.regularPrice,
+          discountAmount: discount.discountAmount,
+          finalPrice: discount.finalPrice,
+          currency: discount.currency,
+          issuedAt: discount.issuedAt,
+          expiresAt: discount.expiresAt,
+          state:
+            (discount.state === "available" || discount.state === "reserved") &&
+            now >= Date.parse(discount.expiresAt)
+              ? "expired"
+              : discount.state,
+          orderId: discount.orderId ?? null,
+        } : null,
+      };
+    });
     return NextResponse.json(
       { outcome: "ok", activity, nextCursor: page.nextCursor },
       { headers: { "Cache-Control": "private, no-store, max-age=0" } },
