@@ -11,6 +11,7 @@ import { logEvent } from "../../../../lib/observability";
 import { paymentProviderHealth } from "../../../../lib/payment-provider";
 import { checkoutOriginConfiguration } from "../../../../lib/request-origin";
 import { siteUrl } from "../../../../lib/site";
+import { transactionalEmailConfigured } from "../../../../lib/transactional-email";
 
 export const dynamic = "force-dynamic";
 
@@ -50,9 +51,7 @@ export async function GET(request: NextRequest) {
   const authenticationConfigured = Boolean(
     process.env.CLERK_SECRET_KEY && process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
   );
-  const emailDeliveryConfigured = Boolean(
-    process.env.RESEND_API_KEY && process.env.FISZY_EMAIL_FROM,
-  );
+  const emailDeliveryConfigured = transactionalEmailConfigured();
 
   let redisReachable = false;
   let redisLatencyMs: number | null = null;

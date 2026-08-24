@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { errorDetails, logEvent } from "../../../lib/observability";
 import { hasSameOrigin } from "../../../lib/request-origin";
+import { sendWaitlistConfirmation } from "../../../lib/transactional-email";
 import {
   consumeWaitlistRateLimit,
   normalizeWaitlistSignup,
@@ -58,6 +59,14 @@ export async function POST(request: NextRequest) {
       medium: input.source.utmMedium ?? null,
       campaign: input.source.utmCampaign ?? null,
     });
+    if (result.created) {
+      try {
+        await sendWaitlistConfirmation(input.email);
+        logEvent("waitlist.confirmation.sent", {});
+      } catch (error) {
+        logEvent("waitlist.confirmation.failed", errorDetails(error), "error");
+      }
+    }
     return NextResponse.json(
       { outcome: "accepted" },
       {
