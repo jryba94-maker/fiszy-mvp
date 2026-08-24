@@ -11,6 +11,26 @@ import { clerkAppearance } from "../lib/clerk-appearance";
 import { PwaManager } from "./components/pwa/PwaManager";
 import "./globals.css";
 
+const fiszyLocalization = {
+  ...plPL,
+  signIn: {
+    ...plPL.signIn,
+    start: {
+      ...plPL.signIn?.start,
+      title: "Witaj ponownie",
+      subtitle: "Zaloguj się do swojego konta Fiszy.",
+    },
+  },
+  signUp: {
+    ...plPL.signUp,
+    start: {
+      ...plPL.signUp?.start,
+      title: "Dołącz do Fiszy",
+      subtitle: "Załóż konto i zachowaj swoją historię aukcji.",
+    },
+  },
+};
+
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl()),
   title: {
@@ -48,7 +68,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
   return (
     <html lang="pl" className={`${GeistSans.variable} ${GeistMono.variable}`}>
       <body className={GeistSans.className}>
-        <ClerkProvider localization={plPL} appearance={clerkAppearance}>
+        <ClerkProvider localization={fiszyLocalization} appearance={clerkAppearance}>
           {children}
           <PwaManager />
         </ClerkProvider>
