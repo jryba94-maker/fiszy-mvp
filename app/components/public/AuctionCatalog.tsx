@@ -240,7 +240,7 @@ export function AuctionCatalog() {
         <div className={styles.heroInner}>
           <div>
             <p className={styles.eyebrow}>Aukcje z malejącą ceną</p>
-            <h1 id="hero-title">Cena spada.<span>Ty wybierasz moment.</span></h1>
+            <h1 id="hero-title"><span className={styles.heroPrimary}>Cena spada.</span><span>Ty wybierasz moment.</span></h1>
           </div>
           <div className={styles.heroAside}>
             <p>Każda decyzja ma swoją cenę.</p>

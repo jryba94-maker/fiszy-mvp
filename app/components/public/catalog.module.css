@@ -83,6 +83,11 @@
   color: #7a36ff;
 }
 
+.hero h1 .heroPrimary {
+  color: inherit;
+  white-space: nowrap;
+}
+
 .heroAside {
   align-self: end;
   max-width: 390px;
@@ -608,3 +613,11 @@
 .retryButton:hover, .moreButton:hover { background: #7b2cff; }
 .notice, .errorBox, .emptyBox { border-color: rgba(255,255,255,.16); background: #111114; color: #c8c4cf; }
 .skeleton { background: linear-gradient(100deg,#121216 30%,#222128 50%,#121216 70%); background-size:250% 100%; }
+
+@media (max-width: 680px) {
+  .hero h1 {
+    font-size: clamp(2.9rem, 14vw, 4rem);
+    letter-spacing: -.06em;
+    line-height: .9;
+  }
+}
