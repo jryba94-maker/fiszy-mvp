@@ -154,7 +154,8 @@ export function PwaManager() {
   };
 
   const activateUpdate = () => updateReady?.postMessage({ type: "SKIP_WAITING" });
-  const showInstall = Boolean(pathname !== "/" && installPrompt && !installDismissed && !isStandalone());
+  const isPortalRoute = pathname === "/moje-fiszy" || pathname.startsWith("/aukcje");
+  const showInstall = Boolean(isPortalRoute && installPrompt && !installDismissed && !isStandalone());
   if (!offline && !updateReady && !showInstall) return null;
 
   return (
