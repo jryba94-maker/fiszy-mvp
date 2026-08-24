@@ -194,7 +194,7 @@ export function WaitlistLanding() {
               <label className={styles.consent}>
                 <input type="checkbox" checked={consent} required onChange={(event) => setConsent(event.target.checked)} />
                 <span>
-                  Chcę otrzymać e-mail o starcie pierwszej aukcji. Zgodę mogę wycofać w każdej chwili. Szczegóły w <Link href="/prywatnosc">polityce prywatności</Link>.
+                  Chcę otrzymać e-mail o starcie pierwszej aukcji. Zgodę mogę wycofać w każdej chwili. Szczegóły w <Link href="/prywatnosc" target="_blank" rel="noopener noreferrer">polityce prywatności</Link>.
                 </span>
               </label>
               <p id="waitlist-note" className={styles.formNote}>Bez spamu. Jedna wiadomość, kiedy nadejdzie właściwy moment.</p>
