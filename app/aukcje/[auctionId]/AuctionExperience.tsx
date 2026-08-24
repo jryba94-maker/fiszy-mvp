@@ -168,17 +168,29 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
     };
 
     void load();
-    const poller = window.setInterval(() => void load(), pollingDelay);
+    const refreshIfVisible = () => {
+      if (document.visibilityState === "visible") void load();
+    };
+    const poller = window.setInterval(refreshIfVisible, pollingDelay);
+    document.addEventListener("visibilitychange", refreshIfVisible);
     return () => {
       active = false;
       controller.abort();
       window.clearInterval(poller);
+      document.removeEventListener("visibilitychange", refreshIfVisible);
     };
   }, [auctionId, pollingDelay, reloadKey]);
 
   useEffect(() => {
-    const timer = window.setInterval(() => setClock(Date.now()), 250);
-    return () => window.clearInterval(timer);
+    const tick = () => {
+      if (document.visibilityState === "visible") setClock(Date.now());
+    };
+    const timer = window.setInterval(tick, 250);
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", tick);
+    };
   }, []);
 
   useEffect(() => {

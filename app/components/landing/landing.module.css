@@ -456,8 +456,8 @@
   .formRow { grid-template-columns: 1fr; border-radius: 19px; }
   .emailField { min-height: 53px; padding: 4px 12px; }
   .formRow button { min-height: 53px; width: 100%; border-radius: 14px; }
-  .consent { margin-top: 10px; font-size: .66rem; }
-  .formNote, .error { margin-left: 25px; font-size: .64rem; }
+  .consent { margin-top: 10px; font-size: .71rem; }
+  .formNote, .error { margin-left: 25px; font-size: .7rem; }
   .scrollCue { display: none; }
 
   .teaser {

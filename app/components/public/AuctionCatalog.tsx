@@ -150,10 +150,15 @@ export function AuctionCatalog() {
 
     const controller = new AbortController();
     void loadInitial(controller.signal);
-    const timer = window.setInterval(() => void loadInitial(controller.signal), 10_000);
+    const refreshIfVisible = () => {
+      if (document.visibilityState === "visible") void loadInitial(controller.signal);
+    };
+    const timer = window.setInterval(refreshIfVisible, 10_000);
+    document.addEventListener("visibilitychange", refreshIfVisible);
     return () => {
       controller.abort();
       window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", refreshIfVisible);
     };
   }, [loadInitial]);
 
