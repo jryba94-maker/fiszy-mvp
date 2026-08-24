@@ -27,6 +27,7 @@ import {
   refundCheckoutSessionPayment,
   verifyStripeWebhook,
 } from "../lib/stripe.ts";
+import { rateLimitFingerprint } from "../lib/rate-limit-identity.ts";
 
 const BASE_URL = "http://127.0.0.1:3000";
 const SESSION_MARKER = "fiszy-admin-session-v1";
@@ -1025,10 +1026,7 @@ test("Development fault suite: rate limits, webhook replay/order and winner CAS"
   const purchaseBidder = `fault-purchase-${suffix}`;
   const reorderedBidder = `fault-reordered-${suffix}`;
   const rateIp = `198.51.100.${Number.parseInt(suffix.slice(0, 2), 16) % 250 + 1}`;
-  const rateFingerprint = createHash("sha256")
-    .update(rateIp)
-    .digest("hex")
-    .slice(0, 24);
+  const rateFingerprint = rateLimitFingerprint("admin.login.ip", rateIp, 24);
   const rateKey = `fiszy:development:admin:login-attempts:${rateFingerprint}`;
   const casAuctionId = `fault-cas-${suffix}`;
   const casRunId = `run-${suffix}`;

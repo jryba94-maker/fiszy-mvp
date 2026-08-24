@@ -23,6 +23,7 @@ import {
   normalizeSupportTicketInput,
 } from "../lib/portal-storage.ts";
 import { hasSameOrigin } from "../lib/request-origin.ts";
+import { rateLimitFingerprint } from "../lib/rate-limit-identity.ts";
 import { listWaitlistSignups, normalizeWaitlistEmail, normalizeWaitlistSignup, WAITLIST_CONSENT_VERSION } from "../lib/waitlist-storage.ts";
 
 test("auction categories are explicit for new records and safely inferred for legacy records", () => {
@@ -316,6 +317,38 @@ test("account rate limit uses a pseudonymous expiring key", async () => {
     if (previousEnv.url === undefined) delete process.env.KV_REST_API_URL; else process.env.KV_REST_API_URL = previousEnv.url;
     if (previousEnv.token === undefined) delete process.env.KV_REST_API_TOKEN; else process.env.KV_REST_API_TOKEN = previousEnv.token;
     if (previousEnv.environment === undefined) delete process.env.VERCEL_ENV; else process.env.VERCEL_ENV = previousEnv.environment;
+  }
+});
+
+test("rate-limit identities are purpose-separated and fail closed in production", () => {
+  const previous = {
+    environment: process.env.VERCEL_ENV,
+    rateSecret: process.env.FISZY_RATE_LIMIT_SECRET,
+    adminSecret: process.env.FISZY_ADMIN_SECRET,
+  };
+  try {
+    process.env.VERCEL_ENV = "development";
+    process.env.FISZY_RATE_LIMIT_SECRET = "unit-rate-limit-secret-with-at-least-32-characters";
+    const value = "198.51.100.12";
+    const first = rateLimitFingerprint("waitlist.ip", value);
+    const second = rateLimitFingerprint("admin.login.ip", value);
+    assert.match(first, /^[a-f0-9]{32}$/);
+    assert.notEqual(first, second);
+
+    process.env.VERCEL_ENV = "production";
+    delete process.env.FISZY_RATE_LIMIT_SECRET;
+    delete process.env.FISZY_ADMIN_SECRET;
+    assert.throws(
+      () => rateLimitFingerprint("waitlist.ip", value),
+      /requires a dedicated server secret/,
+    );
+  } finally {
+    if (previous.environment === undefined) delete process.env.VERCEL_ENV;
+    else process.env.VERCEL_ENV = previous.environment;
+    if (previous.rateSecret === undefined) delete process.env.FISZY_RATE_LIMIT_SECRET;
+    else process.env.FISZY_RATE_LIMIT_SECRET = previous.rateSecret;
+    if (previous.adminSecret === undefined) delete process.env.FISZY_ADMIN_SECRET;
+    else process.env.FISZY_ADMIN_SECRET = previous.adminSecret;
   }
 });
 

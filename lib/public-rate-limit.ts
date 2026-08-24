@@ -1,20 +1,10 @@
-import { createHmac } from "node:crypto";
 import type { NextRequest } from "next/server";
 import { redisCommand } from "./redis";
+import { rateLimitFingerprint } from "./rate-limit-identity";
 
 const WINDOW_SECONDS = 10 * 60;
 const IP_LIMIT = 30;
 const BIDDER_LIMIT = 6;
-
-function digest(value: string) {
-  const salt =
-    process.env.FISZY_RATE_LIMIT_SECRET ||
-    process.env.FISZY_ADMIN_SECRET ||
-    // Compatibility fallback until every environment has a dedicated salt.
-    process.env.STRIPE_SECRET_KEY ||
-    "fiszy-local-rate-limit";
-  return createHmac("sha256", salt).update(value).digest("hex").slice(0, 24);
-}
 
 function clientAddress(request: NextRequest) {
   const forwarded = request.headers.get("x-forwarded-for");
@@ -31,8 +21,8 @@ export async function consumeEntryCheckoutRateLimit(
 ) {
   const environment = process.env.VERCEL_ENV ?? "local";
   const scope = `${auctionId}:${runId}`;
-  const ipKey = `fiszy:${environment}:rate:v1:entry:ip:${digest(`${scope}:${clientAddress(request)}`)}`;
-  const bidderKey = `fiszy:${environment}:rate:v1:entry:bidder:${digest(`${scope}:${bidderId}`)}`;
+  const ipKey = `fiszy:${environment}:rate:v1:entry:ip:${rateLimitFingerprint("entry.ip", `${scope}\0${clientAddress(request)}`, 24)}`;
+  const bidderKey = `fiszy:${environment}:rate:v1:entry:bidder:${rateLimitFingerprint("entry.bidder", `${scope}\0${bidderId}`, 24)}`;
   const script = `
 local ipCount = redis.call("INCR", KEYS[1])
 if ipCount == 1 then redis.call("EXPIRE", KEYS[1], ARGV[1]) end

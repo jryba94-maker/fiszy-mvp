@@ -1,5 +1,6 @@
-import { createHash, createHmac } from "node:crypto";
+import { createHash } from "node:crypto";
 import { redisCommand } from "./redis";
+import { rateLimitFingerprint } from "./rate-limit-identity";
 import { listSortedSetPage } from "./sorted-set-pagination";
 
 export const WAITLIST_CONSENT_VERSION = "first-auction-v1-2026-08-24";
@@ -215,14 +216,7 @@ export async function listWaitlistSignups(input: {
 }
 
 export async function consumeWaitlistRateLimit(clientAddress: string) {
-  const salt =
-    process.env.FISZY_RATE_LIMIT_SECRET?.trim() ||
-    process.env.FISZY_ADMIN_SECRET?.trim() ||
-    "fiszy-local-rate-limit-v1";
-  const fingerprint = createHmac("sha256", salt)
-    .update(`waitlist:${clientAddress}`)
-    .digest("hex")
-    .slice(0, 32);
+  const fingerprint = rateLimitFingerprint("waitlist.ip", clientAddress);
   const key = `${prefix()}:rate:v1:waitlist:${fingerprint}`;
   const result = await redisCommand<Array<number>>([
     "EVAL",
