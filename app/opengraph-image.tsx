@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 
-export const alt = "Fiszy — aukcje, w których cena spada";
+export const alt = "Fiszy — pierwsza aukcja nadchodzi";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -14,8 +14,8 @@ export default function OpenGraphImage() {
         flexDirection: "column",
         justifyContent: "space-between",
         padding: "72px",
-        background: "#f7f4ec",
-        color: "#10120f",
+        background: "#050507",
+        color: "#f8f7fb",
         fontFamily: "Arial, sans-serif",
       }}
     >
@@ -24,13 +24,13 @@ export default function OpenGraphImage() {
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
         <div style={{ display: "flex", maxWidth: "960px", fontSize: 76, fontWeight: 900, lineHeight: 1.02 }}>
-          Cena spada. Ty wybierasz moment.
+          Coś zacznie spadać.
         </div>
-        <div style={{ display: "flex", color: "#565852", fontSize: 30 }}>
-          Aukcje live z jednym zwycieskim kliknieciem.
+        <div style={{ display: "flex", color: "#aaa5b0", fontSize: 30 }}>
+          Zostaw e-mail. Dowiesz się jako pierwszy.
         </div>
       </div>
-      <div style={{ display: "flex", width: "100%", height: "12px", borderRadius: "999px", background: "linear-gradient(90deg, #7a36ff, #ffbe0b)" }} />
+      <div style={{ display: "flex", width: "100%", height: "12px", borderRadius: "999px", background: "linear-gradient(90deg, #7a36ff, #b999ff)" }} />
     </div>,
     size,
   );

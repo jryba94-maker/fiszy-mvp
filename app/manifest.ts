@@ -33,7 +33,7 @@ export default function manifest(): MetadataRoute.Manifest {
         name: "Aktualne aukcje",
         short_name: "Aukcje",
         description: "Otwórz katalog aktualnych aukcji Fiszy.",
-        url: "/#aukcje",
+        url: "/aukcje",
       },
       {
         name: "Moje Fiszy",

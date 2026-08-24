@@ -170,7 +170,10 @@ export function PortalOperationsPanel({ onSessionExpired }: { onSessionExpired: 
     <section className={styles.portalOperations} aria-labelledby="portal-operations-title" aria-busy={loading}>
       <div className={styles.sectionHeader}>
         <div><p className={styles.eyebrow}>Relacje i bezpieczeństwo</p><h2 id="portal-operations-title">Użytkownicy i pomoc</h2></div>
-        <button className={styles.secondaryButton} type="button" onClick={() => void load()} disabled={loading}>Odśwież</button>
+        <div className={styles.headerActions}>
+          <a className={styles.secondaryButton} href="/api/admin/waitlist?format=csv" download>Pobierz listę e-mail</a>
+          <button className={styles.secondaryButton} type="button" onClick={() => void load()} disabled={loading}>Odśwież</button>
+        </div>
       </div>
       {error ? <div className={styles.inlineError} role="alert">{error}</div> : null}
       <div className={styles.portalOperationsGrid}>

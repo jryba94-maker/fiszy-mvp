@@ -1,0 +1,492 @@
+.page {
+  --violet: #7b2cff;
+  --violet-light: #a77aff;
+  --ink: #050507;
+  --white: #f8f7fb;
+  min-height: 100vh;
+  overflow: hidden;
+  background: var(--ink);
+  color: var(--white);
+}
+
+.hero {
+  position: relative;
+  display: flex;
+  min-height: 100svh;
+  flex-direction: column;
+  isolation: isolate;
+  padding: 0 clamp(20px, 5vw, 72px) 24px;
+}
+
+.hero::before {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background:
+    linear-gradient(rgba(255, 255, 255, .035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, .035) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: linear-gradient(to bottom, black, transparent 84%);
+  content: "";
+}
+
+.heroGlow {
+  position: absolute;
+  top: -42vw;
+  right: -27vw;
+  z-index: -1;
+  width: min(84vw, 1040px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle at 42% 42%, #b794ff 0, var(--violet) 32%, #3d069d 62%, transparent 63%);
+  filter: blur(2px);
+  opacity: .72;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: min(1240px, 100%);
+  margin: 0 auto;
+  padding: 25px 0;
+}
+
+.logo {
+  color: inherit;
+  font-size: 1.9rem;
+  font-weight: 950;
+  letter-spacing: -.08em;
+  text-decoration: none;
+}
+
+.logo span {
+  color: var(--violet);
+}
+
+.launchBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(255, 255, 255, .17);
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: rgba(8, 5, 14, .52);
+  backdrop-filter: blur(12px);
+  font-size: .68rem;
+  font-weight: 900;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+
+.launchBadge i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--violet);
+  box-shadow: 0 0 0 5px rgba(123, 44, 255, .14);
+  animation: pulse 2.6s ease-in-out infinite;
+}
+
+.heroContent {
+  position: relative;
+  width: min(940px, 100%);
+  margin: auto;
+  padding: clamp(28px, 6vh, 72px) 0 68px;
+}
+
+.orbit {
+  position: absolute;
+  top: -1rem;
+  right: 3%;
+  width: clamp(64px, 9vw, 112px);
+  aspect-ratio: 1;
+}
+
+.orbitCore {
+  position: absolute;
+  inset: 24%;
+  border-radius: 50%;
+  background: var(--violet);
+  box-shadow: 0 0 45px rgba(123, 44, 255, .72), 0 18px 45px rgba(52, 10, 129, .5);
+  animation: float 4s ease-in-out infinite;
+}
+
+.orbitRing {
+  position: absolute;
+  inset: 0;
+  border: 1px solid rgba(167, 122, 255, .32);
+  border-radius: 50%;
+}
+
+.eyebrow {
+  margin: 0 0 18px;
+  color: #8d8796;
+  font-size: .72rem;
+  font-weight: 900;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+}
+
+.hero h1 {
+  max-width: 850px;
+  margin: 0;
+  font-size: clamp(4rem, 10vw, 8.8rem);
+  line-height: .82;
+  letter-spacing: -.09em;
+  text-wrap: balance;
+}
+
+.hero h1 em {
+  display: block;
+  color: var(--violet-light);
+  font-style: normal;
+  text-shadow: 0 0 65px rgba(123, 44, 255, .26);
+}
+
+.lead {
+  max-width: 620px;
+  margin: 28px 0 30px;
+  color: #aaa5b0;
+  font-size: clamp(1.05rem, 2vw, 1.35rem);
+  line-height: 1.45;
+  text-wrap: balance;
+}
+
+.lead strong {
+  color: #f8f7fb;
+  font-weight: 800;
+}
+
+.form {
+  width: min(770px, 100%);
+}
+
+.formRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  border: 1px solid rgba(255, 255, 255, .13);
+  border-radius: 22px;
+  padding: 7px;
+  background: rgba(255, 255, 255, .07);
+  box-shadow: 0 28px 80px rgba(0, 0, 0, .45);
+  backdrop-filter: blur(18px);
+}
+
+.emailField {
+  display: grid;
+  align-content: center;
+  min-width: 0;
+  padding: 5px 11px;
+}
+
+.emailField span {
+  color: #8f8997;
+  font-size: .67rem;
+  font-weight: 850;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.emailField input {
+  width: 100%;
+  min-height: 32px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #fff;
+  font-size: 1rem;
+}
+
+.emailField input::placeholder {
+  color: #6d6872;
+}
+
+.formRow:focus-within {
+  outline: 3px solid rgba(123, 44, 255, .32);
+  outline-offset: 3px;
+}
+
+.formRow button {
+  display: flex;
+  min-height: 60px;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  border: 0;
+  border-radius: 16px;
+  padding: 0 20px;
+  background: #fff;
+  color: #08070a;
+  cursor: pointer;
+  font-weight: 950;
+  white-space: nowrap;
+  transition: background 180ms ease, color 180ms ease, transform 180ms ease;
+}
+
+.formRow button b {
+  font-size: 1.15rem;
+}
+
+.formRow button:hover:not(:disabled) {
+  background: var(--violet);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.formRow button:disabled {
+  cursor: wait;
+  opacity: .7;
+}
+
+.consent {
+  display: flex;
+  max-width: 700px;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 13px;
+  color: #aaa4b0;
+  font-size: .71rem;
+  line-height: 1.45;
+}
+
+.consent input {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  margin: 1px 0 0;
+  accent-color: var(--violet);
+}
+
+.consent a {
+  color: inherit;
+  text-underline-offset: 3px;
+}
+
+.formNote,
+.error {
+  margin: 7px 0 0 25px;
+  color: #96909c;
+  font-size: .7rem;
+}
+
+.error {
+  min-height: 1.1em;
+  color: #ff8f7d;
+  font-weight: 800;
+}
+
+.success {
+  display: flex;
+  width: min(680px, 100%);
+  align-items: center;
+  gap: 16px;
+  border: 1px solid rgba(167, 122, 255, .3);
+  border-radius: 22px;
+  padding: 20px;
+  background: rgba(255, 255, 255, .08);
+  box-shadow: 0 25px 80px rgba(0, 0, 0, .4);
+  backdrop-filter: blur(18px);
+}
+
+.success > span {
+  display: grid;
+  width: 46px;
+  aspect-ratio: 1;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--violet);
+  color: #fff;
+  font-size: 1.3rem;
+  font-weight: 900;
+}
+
+.success strong,
+.success p {
+  display: block;
+  margin: 0;
+}
+
+.success p {
+  margin-top: 4px;
+  color: #aaa5b0;
+  font-size: .88rem;
+  line-height: 1.4;
+}
+
+.scrollCue {
+  display: flex;
+  width: min(1240px, 100%);
+  align-items: center;
+  gap: 10px;
+  margin: 0 auto;
+  color: #66616b;
+  font-size: .67rem;
+  font-weight: 850;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.scrollCue span {
+  width: 26px;
+  height: 1px;
+  background: currentColor;
+}
+
+.teaser {
+  display: grid;
+  grid-template-columns: minmax(0, .8fr) minmax(420px, 1.2fr);
+  gap: clamp(50px, 8vw, 110px);
+  align-items: center;
+  min-height: 100svh;
+  padding: clamp(80px, 11vw, 150px) max(24px, calc((100vw - 1180px) / 2));
+  background: #030304;
+}
+
+.teaserCopy h2 {
+  max-width: 540px;
+  margin: 0;
+  font-size: clamp(3rem, 7vw, 6.8rem);
+  letter-spacing: -.08em;
+  line-height: .9;
+}
+
+.teaserMeta {
+  display: grid;
+  gap: 8px;
+  margin: 30px 0 0;
+}
+
+.teaserMeta div {
+  display: grid;
+  grid-template-columns: 85px 1fr;
+  border-top: 1px solid rgba(255, 255, 255, .14);
+  padding-top: 8px;
+}
+
+.teaserMeta dt { color: #77717f; }
+.teaserMeta dd { margin: 0; font-weight: 800; }
+
+.mysteryCard {
+  position: relative;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, .11);
+  border-radius: clamp(24px, 4vw, 48px);
+  background: #050505;
+  box-shadow: 0 45px 120px rgba(55, 10, 145, .23);
+}
+
+.mysteryCard::after {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(120deg, transparent 32%, rgba(255, 255, 255, .07) 49%, transparent 66%);
+  transform: translateX(-100%);
+  animation: sheen 7s ease-in-out infinite;
+  content: "";
+}
+
+.mysteryCard img {
+  object-fit: cover;
+}
+
+.mysteryProduct {
+  position: absolute;
+  inset: 16%;
+  display: grid;
+  place-items: center;
+  border-radius: 47% 53% 43% 57% / 58% 39% 61% 42%;
+  background: #130827;
+}
+
+.mysteryProduct span {
+  font-size: clamp(6rem, 15vw, 11rem);
+  font-weight: 950;
+}
+
+.logo:focus-visible,
+.consent a:focus-visible,
+.formRow button:focus-visible {
+  outline: 3px solid var(--violet-light);
+  outline-offset: 4px;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+@keyframes pulse {
+  50% { box-shadow: 0 0 0 9px rgba(123, 44, 255, 0); }
+}
+
+@keyframes float {
+  50% { transform: translateY(9px); }
+}
+
+@keyframes sheen {
+  0%, 62% { transform: translateX(-100%); }
+  86%, 100% { transform: translateX(100%); }
+}
+
+@media (max-width: 760px) {
+  .hero {
+    min-height: 100svh;
+    padding-right: 18px;
+    padding-bottom: 14px;
+    padding-left: 18px;
+  }
+  .hero::before { display: none; }
+  .header { padding: 18px 0; }
+  .logo { font-size: 1.65rem; }
+  .launchBadge { padding: 7px 9px; font-size: .6rem; }
+  .heroGlow { top: -12vw; right: -63vw; width: 126vw; opacity: .55; }
+  .heroContent { padding: 20px 0 38px; }
+  .orbit { top: -8px; right: 1%; width: 62px; }
+  .eyebrow { max-width: 230px; margin-bottom: 14px; font-size: .64rem; }
+  .hero h1 { max-width: 360px; font-size: clamp(3.7rem, 17vw, 5rem); }
+  .lead { max-width: 345px; margin: 20px 0 22px; font-size: .96rem; }
+  .formRow { grid-template-columns: 1fr; border-radius: 19px; }
+  .emailField { min-height: 53px; padding: 4px 12px; }
+  .formRow button { min-height: 53px; width: 100%; border-radius: 14px; }
+  .consent { margin-top: 10px; font-size: .66rem; }
+  .formNote, .error { margin-left: 25px; font-size: .64rem; }
+  .scrollCue { display: none; }
+
+  .teaser {
+    grid-template-columns: 1fr;
+    gap: 50px;
+    min-height: auto;
+    padding: 92px 20px;
+  }
+  .teaserCopy h2 { font-size: clamp(3.1rem, 14vw, 4.8rem); }
+  .mysteryCard { width: 100%; border-radius: 28px; }
+
+}
+
+@media (max-height: 730px) and (max-width: 760px) {
+  .header { padding: 12px 0; }
+  .heroContent { padding-top: 4px; padding-bottom: 18px; }
+  .hero h1 { font-size: clamp(3.2rem, 15vw, 4.3rem); }
+  .lead { margin: 14px 0 15px; }
+  .emailField { min-height: 45px; }
+  .formRow button { min-height: 47px; }
+  .consent { line-height: 1.28; }
+  .formNote { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .launchBadge i,
+  .orbitCore,
+  .mysteryCard::after {
+    animation: none;
+  }
+  .formRow button { transition: none; }
+}

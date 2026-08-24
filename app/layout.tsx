@@ -10,10 +10,10 @@ import "./globals.css";
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl()),
   title: {
-    default: "Fiszy | Aukcje, w których cena spada",
+    default: "Fiszy | Pierwsza aukcja nadchodzi",
     template: "%s | Fiszy",
   },
-  description: "Wejdź do aukcji, obserwuj spadającą cenę i kup jednym kliknięciem.",
+  description: "Zostaw e-mail i dowiedz się jako pierwszy, kiedy wystartuje pierwsza aukcja Fiszy.",
   applicationName: "Fiszy",
   appleWebApp: {
     capable: true,
@@ -25,14 +25,14 @@ export const metadata: Metadata = {
     type: "website",
     locale: "pl_PL",
     siteName: "Fiszy",
-    title: "Fiszy | Aukcje, w których cena spada",
-    description: "Wejdź do aukcji, obserwuj spadającą cenę i kup jednym kliknięciem.",
+    title: "Fiszy | Pierwsza aukcja nadchodzi",
+    description: "Coś zacznie spadać. Zostaw e-mail i dowiedz się pierwszy.",
     url: "/",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Fiszy | Aukcje, w których cena spada",
-    description: "Wejdź do aukcji, obserwuj spadającą cenę i kup jednym kliknięciem.",
+    title: "Fiszy | Pierwsza aukcja nadchodzi",
+    description: "Coś zacznie spadać. Zostaw e-mail i dowiedz się pierwszy.",
   },
   robots:
     process.env.VERCEL_ENV === "production"

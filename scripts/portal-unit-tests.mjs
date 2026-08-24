@@ -22,6 +22,7 @@ import {
   normalizeSupportTicketInput,
 } from "../lib/portal-storage.ts";
 import { hasSameOrigin } from "../lib/request-origin.ts";
+import { normalizeWaitlistEmail, normalizeWaitlistSignup } from "../lib/waitlist-storage.ts";
 
 test("auction categories are explicit for new records and safely inferred for legacy records", () => {
   const definition = {
@@ -321,4 +322,38 @@ test("account support history accepts the first page without an invalid cursor p
     if (previousEnv.token === undefined) delete process.env.KV_REST_API_TOKEN; else process.env.KV_REST_API_TOKEN = previousEnv.token;
     if (previousEnv.environment === undefined) delete process.env.VERCEL_ENV; else process.env.VERCEL_ENV = previousEnv.environment;
   }
+});
+
+test("waitlist accepts a consented normalized email and bounded campaign source", () => {
+  assert.equal(normalizeWaitlistEmail("  TEST+Social@Example.COM "), "test+social@example.com");
+  assert.equal(normalizeWaitlistEmail("not-an-email"), null);
+  assert.deepEqual(normalizeWaitlistSignup({
+    email: "  Test@Example.com ",
+    consent: true,
+    source: {
+      utmSource: " instagram ",
+      utmMedium: "social",
+      utmCampaign: "first-drop",
+      utmContent: null,
+      utmTerm: null,
+      referrerHost: "l.instagram.com",
+    },
+  }), {
+    email: "test@example.com",
+    consent: true,
+    source: {
+      utmSource: "instagram",
+      utmMedium: "social",
+      utmCampaign: "first-drop",
+      utmContent: null,
+      utmTerm: null,
+      referrerHost: "l.instagram.com",
+    },
+  });
+  assert.equal(normalizeWaitlistSignup({ email: "test@example.com", consent: false, source: {} }), null);
+  assert.equal(normalizeWaitlistSignup({
+    email: "test@example.com",
+    consent: true,
+    source: { utmSource: "x".repeat(161) },
+  }), null);
 });
