@@ -11,7 +11,7 @@ import { logEvent } from "../../../../lib/observability";
 import { paymentProviderHealth } from "../../../../lib/payment-provider";
 import { checkoutOriginConfiguration } from "../../../../lib/request-origin";
 import { siteUrl } from "../../../../lib/site";
-import { transactionalEmailConfigured } from "../../../../lib/transactional-email";
+import { systemAlertsConfigured, transactionalEmailConfigured } from "../../../../lib/transactional-email";
 
 export const dynamic = "force-dynamic";
 
@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
       authenticationConfigured,
       emailDeliveryConfigured,
       inAppNotificationsConfigured: true,
-      externalErrorAlertsConfigured: Boolean(process.env.SENTRY_DSN),
+      externalErrorAlertsConfigured: systemAlertsConfigured(),
       canonicalSiteUrl: siteUrl(),
       canonicalSiteUrlExplicit: Boolean(process.env.NEXT_PUBLIC_SITE_URL),
       redisConfigured: Boolean(redisUrl && redisTokenConfigured),

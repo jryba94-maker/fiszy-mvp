@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/system-health",
+      "schedule": "0 7 * * *"
+    }
+  ]
+}

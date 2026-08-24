@@ -82,7 +82,7 @@ export function HealthPanel({ health }: HealthPanelProps) {
         {
           label: "Alerty zewnętrzne",
           status: health.externalErrorAlertsConfigured ? "ready" : "planned",
-          detail: health.externalErrorAlertsConfigured ? "Tracker błędów skonfigurowany" : "Opcjonalna integracja do wyboru",
+          detail: health.externalErrorAlertsConfigured ? "Codzienny monitoring i alert e-mail" : "Opcjonalna integracja do wyboru",
         },
       ]
     : [];
