@@ -19,6 +19,8 @@ import {
 } from "../../../../../../lib/order-storage";
 import { errorDetails, logEvent } from "../../../../../../lib/observability";
 import { looksLikeSortedSetCursor } from "../../../../../../lib/sorted-set-pagination";
+import { readAccountProfile } from "../../../../../../lib/portal-storage";
+import { sendOrderFulfillmentUpdate } from "../../../../../../lib/transactional-email";
 
 export const dynamic = "force-dynamic";
 
@@ -156,10 +158,40 @@ export async function PATCH(request: NextRequest, context: Context) {
         status: result.fulfillment.status,
         revision: result.fulfillment.revision,
       });
+      let emailNotification: "sent" | "skipped" | "failed" = "skipped";
+      const accountId = order.bidderId.startsWith("clerk:")
+        ? order.bidderId.slice("clerk:".length)
+        : null;
+      const recipient = order.customer.email;
+      if (accountId && recipient) {
+        try {
+          const profile = await readAccountProfile(accountId);
+          if (profile?.preferences.emailOrderUpdates !== false) {
+            await sendOrderFulfillmentUpdate({
+              email: recipient,
+              orderId: order.orderId,
+              product: order.product,
+              status: result.fulfillment.status,
+              revision: result.fulfillment.revision,
+              carrier: result.fulfillment.tracking?.carrier,
+              trackingNumber: result.fulfillment.tracking?.trackingNumber,
+            });
+            emailNotification = "sent";
+          }
+        } catch (emailError) {
+          emailNotification = "failed";
+          logEvent("order_fulfillment_email_failed", {
+            orderId,
+            status: result.fulfillment.status,
+            ...errorDetails(emailError),
+          }, "warning");
+        }
+      }
       return NextResponse.json({
         outcome: "updated",
         fulfillment: fulfillmentResponse(result.fulfillment),
         auditEventId: result.auditEvent.eventId,
+        emailNotification,
       });
     }
     if (result.outcome === "not_found") {

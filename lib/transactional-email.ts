@@ -19,6 +19,22 @@ function configuredAlertRecipient() {
     : null;
 }
 
+function validRecipient(value: string) {
+  const email = value.trim().toLowerCase();
+  return email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+    ? email
+    : null;
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
 export function transactionalEmailConfigured() {
   return Boolean(configuredApiKey() && configuredSender());
 }
@@ -92,5 +108,51 @@ export async function sendSystemAlert(issues: string[], checkedAt: string) {
       text: `Automatyczna diagnostyka wykryła problemy:\n\n${safeIssues.map((issue) => `- ${issue}`).join("\n")}\n\nCzas kontroli: ${checkedAt}`,
     },
     `system-health-v1-${day}-${createHash("sha256").update(safeIssues.join("|")).digest("hex")}`,
+  );
+}
+
+export async function sendOrderFulfillmentUpdate(input: {
+  email: string;
+  orderId: string;
+  product: string;
+  status: "new" | "preparing" | "shipped" | "delivered";
+  revision: number;
+  carrier?: string | null;
+  trackingNumber?: string | null;
+}) {
+  const from = configuredSender();
+  const to = validRecipient(input.email);
+  if (!from || !to) throw new Error("Order e-mail is not configured.");
+  const labels = {
+    new: "Zamówienie przyjęte",
+    preparing: "Przygotowujemy Twoje zamówienie",
+    shipped: "Twoje zamówienie zostało wysłane",
+    delivered: "Zamówienie zostało dostarczone",
+  } as const;
+  const label = labels[input.status];
+  const tracking = input.carrier && input.trackingNumber
+    ? `Przewoźnik: ${input.carrier}\nNumer przesyłki: ${input.trackingNumber}`
+    : null;
+  const htmlTracking = input.carrier && input.trackingNumber
+    ? `<p style="font-size:15px;line-height:1.6;margin:20px 0 0"><strong>${escapeHtml(input.carrier)}</strong><br>${escapeHtml(input.trackingNumber)}</p>`
+    : "";
+  await sendEmail(
+    {
+      from,
+      to: [to],
+      reply_to: "rodo@fiszy.pl",
+      subject: `${label} · Fiszy`,
+      text: [
+        label,
+        "",
+        input.product,
+        `Zamówienie: ${input.orderId}`,
+        ...(tracking ? ["", tracking] : []),
+        "",
+        "Aktualny status zobaczysz także w sekcji Moje Fiszy.",
+      ].join("\n"),
+      html: `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:40px 24px;color:#111114"><p style="font-size:28px;font-weight:700;margin:0 0 24px">Fiszy<span style="color:#7b2cff">.</span></p><h1 style="font-size:30px;line-height:1.15;margin:0 0 20px">${escapeHtml(label)}</h1><p style="font-size:17px;line-height:1.6;margin:0">${escapeHtml(input.product)}</p><p style="font-size:13px;line-height:1.5;color:#6d6875;margin:8px 0 0">Zamówienie ${escapeHtml(input.orderId)}</p>${htmlTracking}<p style="font-size:13px;line-height:1.5;color:#6d6875;margin:36px 0 0">Aktualny status zobaczysz także w sekcji Moje Fiszy.</p></div>`,
+    },
+    `order-fulfillment-v1-${createHash("sha256").update(`${input.orderId}\u0000${input.revision}\u0000${input.status}`).digest("hex")}`,
   );
 }
