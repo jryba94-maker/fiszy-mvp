@@ -1549,6 +1549,14 @@
   background: var(--admin-surface-soft);
 }
 
+.waitlistPanel { grid-column: 1 / -1; }
+.waitlistRows { display: grid; gap: 8px; margin-bottom: 14px; }
+.waitlistRow { display: flex; align-items: center; justify-content: space-between; gap: 14px; border: 1px solid var(--admin-border); border-radius: 13px; padding: 11px 12px; background: #fff; }
+.waitlistRow span, .waitlistRow strong, .waitlistRow small { display: block; min-width: 0; }
+.waitlistRow strong { overflow: hidden; text-overflow: ellipsis; }
+.waitlistRow small { margin-top: 3px; color: var(--admin-muted); }
+.waitlistRow time { flex: 0 0 auto; color: var(--admin-muted); font-size: .7rem; font-weight: 750; }
+
 .subpanelTitle,
 .ticketTop {
   display: flex;
@@ -1600,6 +1608,7 @@
   .portalOperations { padding: 16px; }
   .userDetail dl { grid-template-columns: 1fr; }
   .userRow { align-items: flex-start; flex-direction: column; }
+  .waitlistRow { align-items: flex-start; flex-direction: column; }
 }
 
 @media (max-width: 900px) {

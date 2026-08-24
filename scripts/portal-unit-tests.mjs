@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import test from "node:test";
 
 import { adminPermissions, configuredAdminRole } from "../lib/admin-auth.ts";
@@ -22,7 +23,7 @@ import {
   normalizeSupportTicketInput,
 } from "../lib/portal-storage.ts";
 import { hasSameOrigin } from "../lib/request-origin.ts";
-import { normalizeWaitlistEmail, normalizeWaitlistSignup } from "../lib/waitlist-storage.ts";
+import { listWaitlistSignups, normalizeWaitlistEmail, normalizeWaitlistSignup, WAITLIST_CONSENT_VERSION } from "../lib/waitlist-storage.ts";
 
 test("auction categories are explicit for new records and safely inferred for legacy records", () => {
   const definition = {
@@ -380,4 +381,51 @@ test("waitlist accepts a consented normalized email and bounded campaign source"
     consent: true,
     source: { utmSource: "x".repeat(161) },
   }), null);
+});
+
+test("admin waitlist pages use an opaque cursor and return validated subscribers", async () => {
+  const previousFetch = globalThis.fetch;
+  const previousEnv = {
+    url: process.env.KV_REST_API_URL,
+    token: process.env.KV_REST_API_TOKEN,
+    environment: process.env.VERCEL_ENV,
+  };
+  const email = "social@example.com";
+  const subscriberId = createHash("sha256").update(email).digest("hex");
+  const record = {
+    schemaVersion: 1,
+    subscriberId,
+    email,
+    consent: true,
+    source: {
+      utmSource: "instagram",
+      utmMedium: "social",
+      utmCampaign: "post_3",
+      utmContent: null,
+      utmTerm: null,
+      referrerHost: "l.instagram.com",
+    },
+    consentVersion: WAITLIST_CONSENT_VERSION,
+    status: "active",
+    createdAt: "2026-08-24T12:00:00.000Z",
+  };
+  process.env.KV_REST_API_URL = "https://redis.portal-unit.invalid";
+  process.env.KV_REST_API_TOKEN = "portal-unit";
+  process.env.VERCEL_ENV = "development";
+  globalThis.fetch = async (_url, init = {}) => {
+    const command = JSON.parse(init.body);
+    if (command[0] === "EVAL") return Response.json({ result: [1, subscriberId] });
+    if (command[0] === "ZCARD") return Response.json({ result: 1 });
+    if (command[0] === "MGET") return Response.json({ result: [JSON.stringify(record)] });
+    return Response.json({ result: null });
+  };
+  try {
+    const page = await listWaitlistSignups({ limit: 20 });
+    assert.deepEqual(page, { signups: [record], total: 1, nextCursor: null });
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousEnv.url === undefined) delete process.env.KV_REST_API_URL; else process.env.KV_REST_API_URL = previousEnv.url;
+    if (previousEnv.token === undefined) delete process.env.KV_REST_API_TOKEN; else process.env.KV_REST_API_TOKEN = previousEnv.token;
+    if (previousEnv.environment === undefined) delete process.env.VERCEL_ENV; else process.env.VERCEL_ENV = previousEnv.environment;
+  }
 });

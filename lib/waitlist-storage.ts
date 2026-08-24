@@ -1,5 +1,6 @@
 import { createHash, createHmac } from "node:crypto";
 import { redisCommand } from "./redis";
+import { listSortedSetPage } from "./sorted-set-pagination";
 
 export const WAITLIST_CONSENT_VERSION = "first-auction-v1-2026-08-24";
 
@@ -179,6 +180,38 @@ export async function listRecentWaitlistSignups(limit = 500) {
     return record?.subscriberId === members[index] ? [record] : [];
   });
   return { signups, total: count ?? signups.length };
+}
+
+export async function listWaitlistSignups(input: {
+  cursor?: string | null;
+  limit?: number;
+}) {
+  const limit = input.limit ?? 20;
+  const [page, count] = await Promise.all([
+    listSortedSetPage({
+      indexKey: waitlistIndexKey(),
+      purpose: "waitlist.signups.v1",
+      cursor: input.cursor,
+      limit,
+    }),
+    redisCommand<number>(["ZCARD", waitlistIndexKey()]),
+  ]);
+  if (!page) return null;
+  if (!page.members.length) {
+    return { signups: [] as WaitlistRecord[], total: count ?? 0, nextCursor: null };
+  }
+  const raw = await redisCommand<Array<string | null>>([
+    "MGET",
+    ...page.members.map(waitlistSubscriberKey),
+  ]);
+  if (!raw || raw.length !== page.members.length) {
+    throw new Error("Stored waitlist page is invalid.");
+  }
+  const signups = raw.flatMap((value, index) => {
+    const record = parseWaitlistRecord(value);
+    return record?.subscriberId === page.members[index] ? [record] : [];
+  });
+  return { signups, total: count ?? signups.length, nextCursor: page.nextCursor };
 }
 
 export async function consumeWaitlistRateLimit(clientAddress: string) {

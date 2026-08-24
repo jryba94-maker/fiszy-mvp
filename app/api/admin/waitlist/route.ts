@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { hasAdminPermission, isAdminConfigured } from "../../../../lib/admin-auth";
-import { listRecentWaitlistSignups } from "../../../../lib/waitlist-storage";
+import { listWaitlistSignups, type WaitlistRecord } from "../../../../lib/waitlist-storage";
 
 export const dynamic = "force-dynamic";
 
@@ -17,11 +17,23 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const result = await listRecentWaitlistSignups(500);
     if (request.nextUrl.searchParams.get("format") === "csv") {
+      const signups: WaitlistRecord[] = [];
+      let cursor: string | null = null;
+      let total = 0;
+      do {
+        const page = await listWaitlistSignups({ cursor, limit: 50 });
+        if (!page) return NextResponse.json({ outcome: "invalid_request" }, { status: 400 });
+        total = page.total;
+        if (total > 10_000) {
+          return NextResponse.json({ outcome: "export_too_large" }, { status: 409 });
+        }
+        signups.push(...page.signups);
+        cursor = page.nextCursor;
+      } while (cursor);
       const rows = [
         ["email", "zapisano", "utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "referrer"],
-        ...result.signups.map((signup) => [
+        ...signups.map((signup) => [
           signup.email,
           signup.createdAt,
           signup.source.utmSource,
@@ -38,10 +50,19 @@ export async function GET(request: NextRequest) {
           "Cache-Control": "private, no-store, max-age=0",
           "Content-Disposition": "attachment; filename=fiszy-pierwsza-aukcja.csv",
           "Content-Type": "text/csv; charset=utf-8",
-          "X-Waitlist-Total": String(result.total),
+          "X-Waitlist-Total": String(total),
         },
       });
     }
+
+    const cursor = request.nextUrl.searchParams.get("cursor");
+    const requestedLimit = request.nextUrl.searchParams.get("limit");
+    const limit = requestedLimit === null ? 20 : Number(requestedLimit);
+    if (!Number.isInteger(limit) || limit < 1 || limit > 50) {
+      return NextResponse.json({ outcome: "invalid_request" }, { status: 400 });
+    }
+    const result = await listWaitlistSignups({ cursor, limit });
+    if (!result) return NextResponse.json({ outcome: "invalid_request" }, { status: 400 });
     return NextResponse.json(
       { outcome: "ok", ...result },
       { headers: { "Cache-Control": "private, no-store, max-age=0" } },

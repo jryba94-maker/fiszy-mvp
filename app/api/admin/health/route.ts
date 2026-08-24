@@ -71,7 +71,6 @@ export async function GET(request: NextRequest) {
     payment.modeMatchesEnvironment &&
     payment.webhookConfigured &&
     checkoutOrigin.productionReady &&
-    isAdminSecretStrong() &&
     authenticationConfigured;
 
   if (!healthy) {
