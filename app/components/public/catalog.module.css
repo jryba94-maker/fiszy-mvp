@@ -612,6 +612,23 @@
 .retryButton, .moreButton { border-color: rgba(255,255,255,.28); color: #fff; }
 .retryButton:hover, .moreButton:hover { background: #7b2cff; }
 .notice, .errorBox, .emptyBox { border-color: rgba(255,255,255,.16); background: #111114; color: #c8c4cf; }
+.emptyBox p { margin: 0; }
+.emptyBox span { display: block; margin-top: 8px; color: #918d99; }
+.resetButton {
+  min-height: 42px;
+  margin-top: 18px;
+  border: 1px solid rgba(255,255,255,.24);
+  border-radius: 999px;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: .82rem;
+  font-weight: 600;
+  padding: 0 16px;
+}
+.resetButton:hover { border-color: #a77aff; background: rgba(123,44,255,.16); }
+.resetButton:focus-visible { outline: 3px solid #7b2cff; outline-offset: 3px; }
 .skeleton { background: linear-gradient(100deg,#121216 30%,#222128 50%,#121216 70%); background-size:250% 100%; }
 
 @media (max-width: 680px) {

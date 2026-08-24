@@ -26,8 +26,10 @@ export function AuctionCard({ auction, watched = false, watchBusy = false, onWat
   watchBusy?: boolean;
   onWatchToggle?: (auctionId: string, watched: boolean) => void;
 }) {
+  const titleId = `auction-card-${auction.auctionId.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+  const displayedPriceLabel = auction.status === "waiting" ? "Cena startowa" : "Aktualna cena";
   return (
-    <article className={styles.auctionCard}>
+    <article className={styles.auctionCard} aria-labelledby={titleId}>
       <SafeAuctionImage
         src={auction.productImageUrl}
         alt={auction.product}
@@ -45,10 +47,10 @@ export function AuctionCard({ auction, watched = false, watchBusy = false, onWat
           </div>
           <span className={styles.duration}>{auction.durationMinutes} min</span>
         </div>
-        <h3 className={styles.cardTitle}>{auction.product}</h3>
+        <h3 className={styles.cardTitle} id={titleId}>{auction.product}</h3>
         <div className={styles.priceRow}>
           <div>
-            <span className={styles.priceLabel}>Aktualna cena</span>
+            <span className={styles.priceLabel}>{displayedPriceLabel}</span>
             <span className={styles.price}>{auction.currentPrice} zł</span>
           </div>
           <span className={styles.regularPrice}>{auction.regularPrice} zł</span>
@@ -56,13 +58,15 @@ export function AuctionCard({ auction, watched = false, watchBusy = false, onWat
         <div className={styles.cardMeta}>{startLabel(auction)}</div>
         <div className={styles.cardTools}>
           <WatchButton auctionId={auction.auctionId} watched={watched} busy={watchBusy} onToggle={onWatchToggle} />
-          <a
-            className={styles.calendarLink}
-            href={`/api/auctions/${encodeURIComponent(auction.auctionId)}/calendar`}
-            aria-label={`Dodaj start aukcji ${auction.product} do kalendarza`}
-          >
-            + Kalendarz
-          </a>
+          {auction.status === "waiting" ? (
+            <a
+              className={styles.calendarLink}
+              href={`/api/auctions/${encodeURIComponent(auction.auctionId)}/calendar`}
+              aria-label={`Dodaj start aukcji ${auction.product} do kalendarza`}
+            >
+              + Kalendarz
+            </a>
+          ) : null}
         </div>
         <Link
           className={styles.cardLink}

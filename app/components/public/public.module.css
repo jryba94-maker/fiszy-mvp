@@ -176,6 +176,11 @@
 .categoryBadge { background: #202026; color: #bbb7c2; }
 .offerBadge { background: rgba(123,44,255,.18); color: #c6a9ff; }
 .duration, .priceLabel { color: #9995a1; }
+.cardMeta { color: #b2aeb9; }
+.watchButton, .calendarLink { border-color: rgba(255,255,255,.18); color: #e5e1ea; }
+.watchButtonActive { border-color: #7b2cff; background: rgba(123,44,255,.18); color: #cdb8ff; }
+.cardLink { background: #7b2cff; }
+.cardLink:hover { background: #8d49ff; }
 
 .auctionCard:hover {
   transform: translateY(-4px);

@@ -490,7 +490,7 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
                     Spróbuj ponownie
                   </button>
                 ) : null}
-                <Link className={styles.stateLink} href="/">Wróć do katalogu</Link>
+                <Link className={styles.stateLink} href="/aukcje">Wróć do katalogu</Link>
               </div>
             </div>
           ) : (
@@ -509,7 +509,7 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
     <main className={styles.page}>
       <PublicHeader />
       <div className={styles.content}>
-        <Link className={styles.backLink} href="/"><span aria-hidden="true">←</span> Wszystkie aukcje</Link>
+        <Link className={styles.backLink} href="/aukcje"><span aria-hidden="true">←</span> Wszystkie aukcje</Link>
 
         <section className={styles.auctionShell} aria-labelledby="auction-title">
           <SafeAuctionImage
@@ -531,8 +531,8 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
 
             <div className={styles.priceArea}>
               <div className={styles.priceTopline}>
-                <span className={styles.priceLabel}>Aktualna cena</span>
-                <span className={styles.regularPrice}>regularnie {auction.regularPrice} zł</span>
+                <span className={styles.priceLabel}>{displayStatus === "waiting" ? "Cena startowa" : "Aktualna cena"}</span>
+                <span className={styles.regularPrice}>cena regularna {auction.regularPrice} zł</span>
               </div>
               <span className={styles.currentPrice} aria-live="off" aria-label={`Aktualna cena ${visiblePrice} zł`}>
                 {visiblePrice} zł
@@ -609,9 +609,9 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
         </section>
 
         <section className={styles.proof} aria-label="Zasady bezpieczeństwa aukcji">
-          <div className={styles.proofItem}><strong>Jedna cena</strong><span>Rezerwujemy kwotę widoczną w chwili zwycięskiego kliknięcia.</span></div>
-          <div className={styles.proofItem}><strong>Jeden zwycięzca</strong><span>Serwer rozstrzyga kliknięcia, także gdy wpadają niemal równocześnie.</span></div>
-          <div className={styles.proofItem}><strong>Bezpieczna płatność</strong><span>Wejście i zakup produktu obsługuje szyfrowany Checkout Stripe.</span></div>
+          <div className={styles.proofItem}><strong>Wejście przed startem</strong><span>Dołączasz do wybranej rundy do chwili jej rozpoczęcia.</span></div>
+          <div className={styles.proofItem}><strong>Jedna decyzja</strong><span>Serwer zapisuje pierwsze poprawne kliknięcie i widoczną wtedy cenę.</span></div>
+          <div className={styles.proofItem}><strong>Bezpieczne rozliczenie</strong><span>Wejście i zakup odbywają się w szyfrowanym systemie operatora płatności.</span></div>
         </section>
       </div>
 

@@ -226,11 +226,18 @@ export function AuctionCatalog() {
     const matchesSearch = !query || auction.product.toLocaleLowerCase("pl-PL").includes(query);
     const matchesStatus = statusFilter === "all" ||
       (statusFilter === "available" && (auction.status === "waiting" || auction.status === "live")) ||
-      (statusFilter === "live" && auction.status === "live") ||
-      (statusFilter === "finished" && ["ended", "sold", "payment_pending"].includes(auction.status));
+      (statusFilter === "upcoming" && auction.status === "waiting") ||
+      (statusFilter === "live" && auction.status === "live");
     const matchesCategory = categoryFilter === "all" || auction.category === categoryFilter;
     return matchesSearch && matchesStatus && matchesCategory;
   });
+  const filtersActive = Boolean(searchQuery.trim() || statusFilter !== "all" || categoryFilter !== "all");
+
+  const resetFilters = () => {
+    setSearchQuery("");
+    setStatusFilter("all");
+    setCategoryFilter("all");
+  };
 
   return (
     <main className={styles.page}>
@@ -268,8 +275,8 @@ export function AuctionCatalog() {
             <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
               <option value="all">Wszystkie statusy</option>
               <option value="available">Dostępne</option>
+              <option value="upcoming">Nadchodzące</option>
               <option value="live">Trwają teraz</option>
-              <option value="finished">Zakończone</option>
             </select>
           </label>
           <label>
@@ -312,7 +319,12 @@ export function AuctionCatalog() {
               />
             ))}
             {!filteredAuctions.length && !error ? (
-              <p className={styles.emptyBox}>Nie ma teraz aktywnych aukcji.<br />Kolejne pojawią się wkrótce.</p>
+              <div className={styles.emptyBox}>
+                <p>{filtersActive ? "Nie znaleźliśmy aukcji spełniających wybrane kryteria." : "Nie ma teraz aktywnych aukcji."}</p>
+                {filtersActive ? (
+                  <button className={styles.resetButton} type="button" onClick={resetFilters}>Wyczyść filtry</button>
+                ) : <span>Kolejne pojawią się wkrótce.</span>}
+              </div>
             ) : null}
             {error ? (
               <div className={styles.errorBox} role="alert">
