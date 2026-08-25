@@ -7,6 +7,7 @@
     "stripe:listen": "node scripts/stripe-listen.mjs",
     "backup:export": "node scripts/export-environment-backup.mjs",
     "test:race": "node scripts/race-test.mjs",
+    "test:concurrency": "node --no-warnings --loader ./scripts/typescript-loader.mjs scripts/concurrency-claim-test.mjs",
     "test:portal": "node scripts/portal-smoke-test.mjs",
     "test:admin:unit": "node --no-warnings --loader ./scripts/typescript-loader.mjs --test --test-concurrency=1 scripts/fulfillment-unit-tests.mjs",
     "test:history:unit": "node --no-warnings --loader ./scripts/typescript-loader.mjs --test --test-concurrency=1 scripts/history-storage-unit-tests.mjs",

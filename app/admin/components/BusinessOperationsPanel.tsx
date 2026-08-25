@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import styles from "../AdminDashboard.module.css";
 
 type Funnel = { totals: Record<string, number>; conversion: Record<string, number>; campaigns: Array<{ label: string; signups: number }> };
-type Message = { messageId: string; template: string; state: string; attempts: number; recipient: string; updatedAt: string };
+type Message = { messageId: string; template: string; state: string; attempts: number; recipient: string; updatedAt: string; deliveryStatus?: string | null };
 type ServiceCase = { caseId: string; kind: string; subject: string; description: string; orderId: string | null; expectation: string | null; status: string; contactEmail: string; responseDueAt: string; revision: number; adminResponse: string | null; resolution: string | null; refundStatus: string };
 type PrivacyRequest = { requestId: string; kind: string; status: string; dueAt: string; revision: number };
 
@@ -111,6 +111,18 @@ export function BusinessOperationsPanel({ onSessionExpired }: Props) {
     } finally { setBusy(false); }
   };
 
+  const retryMessage = async (message: Message) => {
+    setBusy(true); setError(""); setNotice("");
+    try {
+      await api(`/api/admin/operations/messages/${encodeURIComponent(message.messageId)}/retry`, { method: "POST", body: "{}" });
+      setNotice(`Wiadomość ${message.messageId} wróciła do bezpiecznej kolejki.`);
+      await load();
+    } catch (caught) {
+      if ((caught as { status?: number }).status === 401) onSessionExpired();
+      else setError("Nie udało się ponowić wiadomości. Odśwież stan przed kolejną próbą.");
+    } finally { setBusy(false); }
+  };
+
   const updateCase = async (serviceCase: ServiceCase) => {
     setBusy(true); setError("");
     try {
@@ -160,7 +172,7 @@ export function BusinessOperationsPanel({ onSessionExpired }: Props) {
         })}</div>{!loading && !cases.length ? <p className={styles.emptyState}>Brak spraw klientów.</p> : null}</div>
         <div className={styles.adminSubpanel}><div className={styles.subpanelTitle}><h3>Wnioski RODO</h3><span>{privacy.length}</span></div><div className={styles.operationsList}>{privacy.map((item) => <article className={styles.compactOperation} key={item.requestId}><div><strong>{item.kind}</strong><span>{item.status} · termin {new Date(item.dueAt).toLocaleDateString("pl-PL")}</span></div><div className={styles.cardActions}>{item.status === "requested" ? <button type="button" className={styles.secondaryButton} disabled={busy} onClick={() => void updatePrivacy(item, "verified")}>Zweryfikuj</button> : null}{item.status === "verified" ? <button type="button" className={styles.secondaryButton} disabled={busy} onClick={() => void updatePrivacy(item, "processing")}>Przetwarzaj</button> : null}</div></article>)}</div>{!privacy.length ? <p className={styles.emptyState}>Brak nowych wniosków.</p> : null}</div>
       </div>
-      <div className={styles.adminSubpanel}><div className={styles.subpanelTitle}><h3>Kolejka wiadomości</h3><span>{messages.length}</span></div><div className={styles.operationsList}>{messages.slice(0, 100).map((message) => <div className={styles.compactOperation} key={message.messageId}><div><strong>{message.template}</strong><span>{message.state} · próby: {message.attempts}</span></div><time dateTime={message.updatedAt}>{new Date(message.updatedAt).toLocaleString("pl-PL")}</time></div>)}</div>{!loading && !messages.length ? <p className={styles.emptyState}>Kolejka jest pusta.</p> : null}</div>
+      <div className={styles.adminSubpanel}><div className={styles.subpanelTitle}><h3>Kolejka wiadomości</h3><span>{messages.length}</span></div><div className={styles.operationsList}>{messages.slice(0, 100).map((message) => <div className={styles.compactOperation} key={message.messageId}><div><strong>{message.template}</strong><span>{message.state} · dostarczenie: {message.deliveryStatus ?? "oczekuje"} · próby: {message.attempts}</span></div><div className={styles.cardActions}><time dateTime={message.updatedAt}>{new Date(message.updatedAt).toLocaleString("pl-PL")}</time>{message.state === "dead" ? <button type="button" className={styles.secondaryButton} disabled={busy} onClick={() => void retryMessage(message)}>Ponów bezpiecznie</button> : null}</div></div>)}</div>{!loading && !messages.length ? <p className={styles.emptyState}>Kolejka jest pusta.</p> : null}</div>
     </section>
   );
 }

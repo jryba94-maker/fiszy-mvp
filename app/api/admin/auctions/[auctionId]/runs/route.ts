@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   type AuctionConfig,
   type PublicAuctionStatus,
+  auctionPublishIssues,
   getAuctionEndsAt,
   getTimedAuctionState,
   normalizeAuctionId,
@@ -318,6 +319,10 @@ export async function POST(
     const definition = parseAuctionDefinition(record);
     if (!definition) {
       return NextResponse.json({ outcome: "invalid_request" }, { status: 400 });
+    }
+    if (publish) {
+      const issues = auctionPublishIssues(definition);
+      if (issues.length) return NextResponse.json({ outcome: "auction_not_ready", issues }, { status: 400 });
     }
     const config: AuctionConfig = {
       schemaVersion: 2,

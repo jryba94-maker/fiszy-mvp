@@ -27,6 +27,7 @@ import { HealthPanel } from "./components/HealthPanel";
 import { KpiGrid } from "./components/KpiGrid";
 import { OrdersPanel } from "./components/OrdersPanel";
 import { PortalOperationsPanel } from "./components/PortalOperationsPanel";
+import { LaunchChecklist } from "./components/LaunchChecklist";
 import { RunHistoryPanel } from "./components/RunHistoryPanel";
 import styles from "./AdminDashboard.module.css";
 import type {
@@ -530,7 +531,7 @@ export default function AdminPage() {
       {activeSection === "overview" ? (
         <div className={styles.sectionStack}>
           <KpiGrid auctions={auctions} orders={orders} />
-          <HealthPanel health={health} />
+          <HealthPanel health={health} auctions={auctions} />
         </div>
       ) : null}
 
@@ -580,7 +581,7 @@ export default function AdminPage() {
 
       {activeSection === "users" ? <div className={styles.sectionStack}><PortalOperationsPanel onSessionExpired={handleExpiredSession} /></div> : null}
 
-      {activeSection === "operations" ? <div className={styles.sectionStack}><BusinessOperationsPanel onSessionExpired={handleExpiredSession} /></div> : null}
+      {activeSection === "operations" ? <div className={styles.sectionStack}><LaunchChecklist /><BusinessOperationsPanel onSessionExpired={handleExpiredSession} /></div> : null}
 
       <footer className={styles.footer}>
         <span>Fiszy / panel operacyjny</span>

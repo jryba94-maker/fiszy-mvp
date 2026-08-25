@@ -390,10 +390,10 @@ test("stale pending winner does not block a new run when expiry webhook is lost"
   const runId = "stale-winner-unit-run";
   const definition = {
     productName: "Stale winner product",
-    productImageUrl: null,
+    productImageUrl: "/stale-winner-unit.jpg",
     regularPrice: 120,
-    startPrice: 100,
-    floorPrice: 90,
+    startPrice: 120,
+    floorPrice: 1,
     durationMinutes: 1,
   };
   const config = {

@@ -18,6 +18,7 @@ export type AuditAction =
   | "support.ticket.updated"
   | "service_case.updated"
   | "privacy.request.updated"
+  | "outbox.message.retried"
   | "operations.reconciled";
 
 export type AuditEvent = {
@@ -78,6 +79,7 @@ const ACTION_RESOURCE_TYPES: Record<AuditAction, string> = {
   "support.ticket.updated": "support_ticket",
   "service_case.updated": "service_case",
   "privacy.request.updated": "privacy_request",
+  "outbox.message.retried": "outbox_message",
   "operations.reconciled": "operations_run",
 };
 
@@ -250,6 +252,10 @@ function normalizeAuditDetails(
       !PRIVACY_REQUEST_STATUSES.has(String(details.status)) ||
       !isRevision(details.revision)
     ) return null;
+  } else if (action === "outbox.message.retried") {
+    if (!hasExactKeys(details, ["previousState"]) || details.previousState !== "dead") {
+      return null;
+    }
   } else if (action === "operations.reconciled") {
     if (
       !hasExactKeys(details, ["changed", "errors", "processed"]) ||

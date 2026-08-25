@@ -65,6 +65,11 @@ async function sendEmail(payload: Record<string, unknown>, idempotencyKey: strin
   if (!response.ok) {
     throw new Error(`Transactional email provider returned ${response.status}.`);
   }
+  const result = await response.json() as { id?: unknown };
+  if (typeof result.id !== "string" || !/^[A-Za-z0-9-]{8,100}$/.test(result.id)) {
+    throw new Error("Transactional email provider returned an invalid message id.");
+  }
+  return result.id;
 }
 
 export type TransactionalMessageTemplate =
@@ -118,7 +123,7 @@ export async function sendTransactionalMessage(input: {
   const actionHtml = actionLabel && actionUrl
     ? `<p style="margin:28px 0 0"><a href="${escapeHtml(actionUrl)}" style="display:inline-block;background:#7b2cff;color:#fff;text-decoration:none;font-weight:700;padding:14px 20px;border-radius:999px">${escapeHtml(actionLabel)}</a></p>`
     : "";
-  await sendEmail(
+  return sendEmail(
     {
       from,
       to: [to],

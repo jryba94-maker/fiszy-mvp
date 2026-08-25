@@ -211,6 +211,7 @@ Skrypt:
 | `FISZY_ALLOWED_CHECKOUT_ORIGINS` | oba lokalne originy | wyłącznie zatwierdzone originy Preview | kanoniczna domena i tylko potrzebne aliasy HTTPS | lista dokładnych originów dopuszczonych do powrotu |
 | `FISZY_RACE_TEST_REDIS_URL_SHA256` | wymagany przez testy mutujące | nie ustawiaj | nie ustawiaj | odcisk zatwierdzonego Development Redis |
 | `RESEND_API_KEY` | osobny klucz testowy lub brak | osobny klucz Preview | klucz zasobu Production | serwerowa wysyłka wiadomości przez Resend |
+| `RESEND_WEBHOOK_SECRET` | sekret lokalnego tunelu lub brak | sekret endpointu Preview | sekret endpointu `https://fiszy.pl/api/resend/webhook` | weryfikacja podpisanych potwierdzeń dostarczenia Resend |
 | `FISZY_EMAIL_FROM` | zatwierdzony nadawca testowy | nadawca Preview | nadawca w zweryfikowanej domenie `fiszy.pl` | adres nadawcy wiadomości transakcyjnych |
 | `FISZY_ALERT_EMAIL` | adres testowy | adres testowy | skrzynka operacyjna, obecnie `rodo@fiszy.pl` | odbiorca alertów diagnostycznych |
 | `CRON_SECRET` | opcjonalny lokalnie | osobny sekret | silny losowy sekret Production | autoryzacja wywołania codziennej diagnostyki |

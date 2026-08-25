@@ -30,6 +30,10 @@ export type OutboxMessage = {
   nextAttemptAt: string;
   deliveredAt: string | null;
   lastErrorCode: string | null;
+  providerMessageId?: string | null;
+  deliveryStatus?: "sent" | "delivered" | "delayed" | "bounced" | "failed" | "suppressed" | "complained" | null;
+  deliveryUpdatedAt?: string | null;
+  deliveryOccurredAtMs?: number | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -58,6 +62,11 @@ function dueIndexKey() {
 
 function historyIndexKey() {
   return `${prefix()}:index:v1:outbox:history`;
+}
+
+function providerMessageKey(providerMessageId: string) {
+  if (!/^[A-Za-z0-9-]{8,100}$/.test(providerMessageId)) throw new Error("Invalid provider message id.");
+  return `${prefix()}:outbox:provider:resend:${providerMessageId}`;
 }
 
 function dedupeKey(value: string) {
@@ -110,7 +119,15 @@ function parseOutboxMessage(raw: unknown): OutboxMessage | null {
       !Number.isFinite(Date.parse(value.createdAt)) ||
       !Number.isFinite(Date.parse(value.updatedAt)) ||
       (value.deliveredAt !== null &&
-        (typeof value.deliveredAt !== "string" || !Number.isFinite(Date.parse(value.deliveredAt))))
+        (typeof value.deliveredAt !== "string" || !Number.isFinite(Date.parse(value.deliveredAt)))) ||
+      (value.providerMessageId !== undefined && value.providerMessageId !== null &&
+        (typeof value.providerMessageId !== "string" || !/^[A-Za-z0-9-]{8,100}$/.test(value.providerMessageId))) ||
+      (value.deliveryStatus !== undefined && value.deliveryStatus !== null &&
+        !["sent", "delivered", "delayed", "bounced", "failed", "suppressed", "complained"].includes(String(value.deliveryStatus))) ||
+      (value.deliveryUpdatedAt !== undefined && value.deliveryUpdatedAt !== null &&
+        (typeof value.deliveryUpdatedAt !== "string" || !Number.isFinite(Date.parse(value.deliveryUpdatedAt)))) ||
+      (value.deliveryOccurredAtMs !== undefined && value.deliveryOccurredAtMs !== null &&
+        (!Number.isSafeInteger(value.deliveryOccurredAtMs) || value.deliveryOccurredAtMs < 0))
     ) return null;
     return { ...value, scheduledAt: value.scheduledAt ?? null } as OutboxMessage;
   } catch {
@@ -161,6 +178,10 @@ export async function enqueueTransactionalMessage(input: {
     nextAttemptAt: now,
     deliveredAt: null,
     lastErrorCode: null,
+    providerMessageId: null,
+    deliveryStatus: null,
+    deliveryUpdatedAt: null,
+    deliveryOccurredAtMs: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -233,7 +254,7 @@ return encoded
   return parseOutboxMessage(result);
 }
 
-async function settleMessage(message: OutboxMessage, delivered: boolean, now: number) {
+async function settleMessage(message: OutboxMessage, delivered: boolean, now: number, providerMessageId: string | null = null) {
   const nextDelay = Math.min(24 * 60 * 60_000, 30_000 * 2 ** Math.min(message.attempts, 10));
   const terminal = delivered || message.attempts >= 8;
   const next: OutboxMessage = {
@@ -241,6 +262,10 @@ async function settleMessage(message: OutboxMessage, delivered: boolean, now: nu
     state: delivered ? "delivered" : terminal ? "dead" : "retry",
     deliveredAt: delivered ? new Date(now).toISOString() : null,
     lastErrorCode: delivered ? null : "provider_error",
+    providerMessageId: delivered ? providerMessageId : message.providerMessageId ?? null,
+    deliveryStatus: delivered ? "sent" : message.deliveryStatus ?? null,
+    deliveryUpdatedAt: delivered ? new Date(now).toISOString() : message.deliveryUpdatedAt ?? null,
+    deliveryOccurredAtMs: delivered ? now : message.deliveryOccurredAtMs ?? null,
     nextAttemptAt: new Date(delivered || terminal ? now : now + nextDelay).toISOString(),
     updatedAt: new Date(now).toISOString(),
   };
@@ -253,17 +278,20 @@ local ok, current = pcall(cjson.decode, raw)
 if not ok or type(current) ~= "table" or current.state ~= "sending" or current.attempts ~= tonumber(ARGV[1]) then return 0 end
 redis.call("SET", KEYS[1], ARGV[2], "EX", ARGV[3])
 if ARGV[4] == "1" then redis.call("ZREM", KEYS[2], ARGV[5]) else redis.call("ZADD", KEYS[2], ARGV[6], ARGV[5]) end
+if ARGV[7] ~= "" then redis.call("SET", KEYS[3], ARGV[5], "EX", ARGV[3]) end
 return 1
 `,
-    2,
+    3,
     messageKey(message.messageId),
     dueIndexKey(),
+    providerMessageId ? providerMessageKey(providerMessageId) : `${prefix()}:outbox:provider:none`,
     message.attempts,
     JSON.stringify(next),
     RETENTION_SECONDS,
     terminal ? 1 : 0,
     message.messageId,
     Date.parse(next.nextAttemptAt),
+    providerMessageId ?? "",
   ]);
   return result === 1 ? next : null;
 }
@@ -288,7 +316,7 @@ export async function processMessageOutbox(input: { limit?: number; now?: number
     if (!message) continue;
     stats.processed += 1;
     try {
-      await sendTransactionalMessage({
+      const providerMessageId = await sendTransactionalMessage({
         to: message.recipient,
         template: message.template,
         idempotencyKey: message.dedupeKey,
@@ -298,7 +326,7 @@ export async function processMessageOutbox(input: { limit?: number; now?: number
         actionUrl: message.actionUrl,
         scheduledAt: message.scheduledAt,
       });
-      const settled = await settleMessage(message, true, Date.now());
+      const settled = await settleMessage(message, true, Date.now(), providerMessageId);
       if (!settled) throw new Error("Message settlement conflicted.");
       stats.delivered += 1;
     } catch {
@@ -309,6 +337,83 @@ export async function processMessageOutbox(input: { limit?: number; now?: number
     }
   }
   return stats;
+}
+
+export async function applyResendDeliveryEvent(input: {
+  eventId: string;
+  providerMessageId: string;
+  status: NonNullable<OutboxMessage["deliveryStatus"]>;
+  occurredAt: string;
+}) {
+  if (!/^msg_[A-Za-z0-9]+$/.test(input.eventId) || !/^[A-Za-z0-9-]{8,100}$/.test(input.providerMessageId) || !Number.isFinite(Date.parse(input.occurredAt))) return null;
+  const eventKey = `${prefix()}:outbox:webhook:resend:${input.eventId}`;
+  const mappedMessageId = await redisCommand<string>(["GET", providerMessageKey(input.providerMessageId)]);
+  if (!mappedMessageId || !MESSAGE_ID_PATTERN.test(mappedMessageId)) return { outcome: "unmatched" as const };
+  const result = await redisCommand<number>([
+    "EVAL",
+    `
+if redis.call("EXISTS", KEYS[1]) == 1 then return 2 end
+local raw = redis.call("GET", KEYS[2])
+if not raw then return 0 end
+local ok, current = pcall(cjson.decode, raw)
+if not ok or type(current) ~= "table" or current.messageId ~= ARGV[1] or current.providerMessageId ~= ARGV[2] then return 0 end
+local currentTime = tonumber(current.deliveryOccurredAtMs or 0)
+if currentTime <= tonumber(ARGV[3]) then
+  current.deliveryStatus = ARGV[4]
+  current.deliveryOccurredAtMs = tonumber(ARGV[3])
+  current.deliveryUpdatedAt = ARGV[5]
+  current.updatedAt = ARGV[6]
+  redis.call("SET", KEYS[2], cjson.encode(current), "EX", ARGV[7])
+end
+redis.call("SET", KEYS[1], "1", "EX", ARGV[7])
+return 1
+`,
+    2,
+    eventKey,
+    messageKey(mappedMessageId),
+    mappedMessageId,
+    input.providerMessageId,
+    Date.parse(input.occurredAt),
+    input.status,
+    input.occurredAt,
+    new Date().toISOString(),
+    RETENTION_SECONDS,
+  ]);
+  return { outcome: result === 2 ? "duplicate" as const : result === 1 ? "updated" as const : "unmatched" as const };
+}
+
+export async function retryDeadOutboxMessage(messageId: string) {
+  if (!MESSAGE_ID_PATTERN.test(messageId)) return null;
+  const now = new Date().toISOString();
+  const result = await redisCommand<string>([
+    "EVAL",
+    `
+local raw = redis.call("GET", KEYS[1])
+if not raw then return nil end
+local ok, current = pcall(cjson.decode, raw)
+if not ok or type(current) ~= "table" or current.messageId ~= ARGV[1] then return nil end
+if current.state ~= "dead" then return "conflict" end
+current.state = "retry"
+current.attempts = 0
+current.nextAttemptAt = ARGV[2]
+current.updatedAt = ARGV[2]
+current.lastErrorCode = nil
+local encoded = cjson.encode(current)
+redis.call("SET", KEYS[1], encoded, "EX", ARGV[3])
+redis.call("ZADD", KEYS[2], ARGV[4], ARGV[1])
+return encoded
+`,
+    2,
+    messageKey(messageId),
+    dueIndexKey(),
+    messageId,
+    now,
+    RETENTION_SECONDS,
+    Date.parse(now),
+  ]);
+  if (result === "conflict") return { outcome: "conflict" as const, message: null };
+  const message = parseOutboxMessage(result);
+  return message ? { outcome: "retried" as const, message } : null;
 }
 
 export async function listOutboxMessages(input: { cursor?: string | null; limit?: number }) {

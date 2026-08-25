@@ -166,6 +166,7 @@ export type AdminHealth = {
   paymentWebhookConfigured: boolean;
   authenticationConfigured: boolean;
   emailDeliveryConfigured: boolean;
+  emailWebhookConfigured: boolean;
   inAppNotificationsConfigured: boolean;
   externalErrorAlertsConfigured: boolean;
   canonicalSiteUrl: string | null;

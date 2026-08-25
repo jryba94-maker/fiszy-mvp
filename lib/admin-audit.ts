@@ -20,6 +20,7 @@ export async function recordSuccessfulAdminAudit(
       | "product"
       | "service_case"
       | "privacy_request"
+      | "outbox_message"
       | "operations_run";
     resourceId: string;
     details: AuditDetails;

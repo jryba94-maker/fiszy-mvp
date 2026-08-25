@@ -16,6 +16,9 @@
 .navLinkPrimary { background: #7b2cff; }
 
 .brand {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   color: inherit;
   font-size: 1.65rem;
   font-weight: 950;
@@ -36,10 +39,11 @@
 .authControl {
   display: inline-flex;
   align-items: center;
-  min-height: 40px;
+  min-height: 44px;
 }
 
 .signInButton {
+  min-height: 44px;
   border: 1px solid rgba(16, 18, 15, 0.2);
   border-radius: 999px;
   background: #fffdf7;
@@ -67,6 +71,9 @@
 }
 
 .navLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   border-radius: 999px;
   color: inherit;
   font-size: 0.82rem;
@@ -385,12 +392,12 @@
   }
 
   .navLink {
-    padding: 9px 11px;
+    padding: 11px;
     font-size: 0.75rem;
   }
 
   .signInButton {
-    padding: 8px 10px;
+    padding: 10px;
     font-size: 0.75rem;
   }
 
