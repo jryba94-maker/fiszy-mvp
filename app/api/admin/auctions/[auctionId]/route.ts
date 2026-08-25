@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   type AuctionRecordState,
+  auctionPublishIssues,
   getTimedAuctionState,
   normalizeAuctionId,
   parseAuctionDefinition,
@@ -121,6 +122,10 @@ export async function PATCH(request: NextRequest, context: Context) {
       (requestedState === "published" && !config)
     ) {
       return NextResponse.json({ outcome: "invalid_request" }, { status: 400 });
+    }
+    if (requestedState === "published") {
+      const issues = auctionPublishIssues(definition);
+      if (issues.length) return NextResponse.json({ outcome: "auction_not_ready", issues }, { status: 400 });
     }
 
     const definitionChanged =

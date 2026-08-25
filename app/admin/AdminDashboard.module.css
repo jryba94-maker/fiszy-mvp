@@ -1448,6 +1448,42 @@
   gap: 9px;
 }
 
+.readinessBlock {
+  display: grid;
+  gap: 18px;
+  margin-top: 28px;
+  padding-top: 24px;
+  border-top: 1px solid var(--admin-border);
+}
+
+.readinessBlock h3 {
+  margin: 0;
+  font-size: clamp(1.2rem, 2vw, 1.55rem);
+}
+
+.checklistGrid {
+  display: grid;
+  gap: 10px;
+}
+
+.checklistItem {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  border: 1px solid var(--admin-border);
+  border-radius: 14px;
+  background: var(--admin-surface-soft);
+  line-height: 1.45;
+}
+
+.checklistItem input {
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  accent-color: #7b2cff;
+}
+
 .healthItem {
   display: flex;
   align-items: center;

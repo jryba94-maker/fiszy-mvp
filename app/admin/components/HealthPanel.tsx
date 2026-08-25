@@ -1,8 +1,10 @@
-import type { AdminHealth } from "../types";
+import { evaluateLaunchReadiness } from "../../../lib/launch-readiness";
+import type { AdminAuction, AdminHealth } from "../types";
 import styles from "../AdminDashboard.module.css";
 
 type HealthPanelProps = {
   health: AdminHealth | null;
+  auctions: AdminAuction[];
 };
 
 type HealthItem = {
@@ -11,7 +13,8 @@ type HealthItem = {
   detail: string;
 };
 
-export function HealthPanel({ health }: HealthPanelProps) {
+export function HealthPanel({ health, auctions }: HealthPanelProps) {
+  const readiness = health ? evaluateLaunchReadiness(health, auctions) : null;
   const providerName = health
     ? health.paymentProvider.toLowerCase() === "stripe"
       ? "Stripe"
@@ -78,8 +81,8 @@ export function HealthPanel({ health }: HealthPanelProps) {
         },
         {
           label: "E-mail transakcyjny",
-          status: health.emailDeliveryConfigured ? "ready" : "planned",
-          detail: health.emailDeliveryConfigured ? "Resend i nadawca skonfigurowani" : "Czeka na zweryfikowaną domenę nadawcy",
+          status: health.emailDeliveryConfigured && health.emailWebhookConfigured ? "ready" : "planned",
+          detail: health.emailDeliveryConfigured && health.emailWebhookConfigured ? "Resend, nadawca i potwierdzenia dostarczenia gotowe" : health.emailDeliveryConfigured ? "Wysyłka działa; brakuje webhooka potwierdzeń" : "Czeka na zweryfikowaną domenę nadawcy",
         },
         {
           label: "Alerty zewnętrzne",
@@ -104,6 +107,7 @@ export function HealthPanel({ health }: HealthPanelProps) {
       </div>
 
       {health ? (
+        <>
         <div className={styles.healthGrid}>
           {items.map((item) => (
             <div className={styles.healthItem} key={item.label}>
@@ -121,6 +125,32 @@ export function HealthPanel({ health }: HealthPanelProps) {
             </div>
           ))}
         </div>
+        {readiness ? (
+          <div className={styles.readinessBlock}>
+            <div className={styles.subpanelTitle}>
+              <div>
+                <p className={styles.eyebrow}>Brama przed startem</p>
+                <h3>Gotowość pierwszej aukcji</h3>
+              </div>
+              <span className={readiness.status === "ready" ? styles.healthReady : styles.healthDegraded}>
+                {readiness.status === "ready"
+                  ? "Można startować"
+                  : readiness.status === "warning"
+                    ? `${readiness.warnings} ostrzeżenia`
+                    : `${readiness.blockers} blokady`}
+              </span>
+            </div>
+            <div className={styles.healthGrid}>
+              {readiness.checks.map((check) => (
+                <div className={styles.healthItem} key={check.id}>
+                  <span className={check.status === "ready" ? styles.healthDotReady : check.status === "warning" ? styles.healthDotPlanned : styles.healthDotError} aria-hidden="true" />
+                  <div><strong>{check.label}</strong><span>{check.detail}</span></div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+        </>
       ) : (
         <div className={styles.emptyState}>
           <strong>Brak danych diagnostycznych</strong>

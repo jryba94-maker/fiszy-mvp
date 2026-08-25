@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createAuditEvent } from "../lib/audit-storage.ts";
+import { evaluateLaunchReadiness } from "../lib/launch-readiness.ts";
+import { verifyResendWebhook } from "../lib/resend-webhook.ts";
+import { createHmac } from "node:crypto";
 import {
   adminPermissions,
   individualAdminAccountsConfigured,
@@ -36,6 +39,39 @@ function withEnvironment(values, callback) {
     }
   }
 }
+
+test("launch readiness blocks incomplete auctions and warns about sandbox payments", () => {
+  const health = {
+    redisConfigured: true, redisReachable: true, paymentConfigured: true,
+    paymentWebhookConfigured: true, paymentTestMode: true,
+    authenticationConfigured: true, emailDeliveryConfigured: true, emailWebhookConfigured: true,
+    canonicalSiteUrlExplicit: true, externalErrorAlertsConfigured: true,
+  };
+  const blocked = evaluateLaunchReadiness(health, []);
+  assert.equal(blocked.status, "blocked");
+  assert.equal(blocked.blockers, 1);
+  const readyAuction = {
+    auctionId: "first", productName: "Produkt", productImageUrl: "/product.jpg",
+    recordState: "published", status: "waiting", startsAt: "2026-09-01T18:00:00.000Z",
+    entryFee: 5, regularPrice: 1000, startPrice: 1000, floorPrice: 1,
+    durationMinutes: 10, postAuctionOffer: { enabled: true, validityDays: 7 },
+  };
+  const warning = evaluateLaunchReadiness(health, [readyAuction], Date.parse("2026-08-25T12:00:00.000Z"));
+  assert.equal(warning.status, "warning");
+  assert.equal(warning.blockers, 0);
+  assert.equal(warning.warnings, 1);
+});
+
+test("Resend webhook verification accepts exact fresh payload and rejects replay", () => {
+  const secretBytes = Buffer.from("0123456789abcdef0123456789abcdef");
+  const secret = `whsec_${secretBytes.toString("base64")}`;
+  const payload = '{"type":"email.delivered"}';
+  const id = "msg_unit12345678";
+  const timestamp = "1787659200";
+  const signature = `v1,${createHmac("sha256", secretBytes).update(`${id}.${timestamp}.${payload}`).digest("base64")}`;
+  assert.equal(verifyResendWebhook({ payload, id, timestamp, signature, secret, now: 1_787_659_200_000 }), true);
+  assert.equal(verifyResendWebhook({ payload, id, timestamp, signature, secret, now: 1_787_660_000_000 }), false);
+});
 
 test("product input keeps auction invariants and normalizes SKU", () => {
   const input = normalizeProductInput({
@@ -180,7 +216,7 @@ test("new operational audit actions reject extra or sensitive metadata", () => {
   }), /Invalid audit event/);
 });
 
-test("waitlist messages pass through the durable outbox exactly once", async () => {
+test("scheduled transactional messages pass through the durable outbox exactly once", async () => {
   const previousFetch = globalThis.fetch;
   const previousEnvironment = {
     KV_REST_API_URL: process.env.KV_REST_API_URL,
@@ -199,7 +235,7 @@ test("waitlist messages pass through the durable outbox exactly once", async () 
   globalThis.fetch = async (url, init) => {
     if (String(url) === "https://api.resend.com/emails") {
       sent.push(JSON.parse(String(init.body)));
-      return { ok: true, status: 200, async json() { return {}; } };
+      return { ok: true, status: 200, async json() { return { id: "resend-unit-message-123" }; } };
     }
     const command = JSON.parse(String(init.body));
     let result = null;
@@ -231,9 +267,10 @@ test("waitlist messages pass through the durable outbox exactly once", async () 
       due.set(args[0], Number(args[5]));
       result = encoded;
     } else if (command[0] === "EVAL" && String(command[1]).includes('current.state ~= "sending"')) {
-      const keys = command.slice(3, 5);
-      const args = command.slice(5);
+      const keys = command.slice(3, 6);
+      const args = command.slice(6);
       values.set(keys[0], args[1]);
+      if (args[6]) values.set(keys[2], args[4]);
       if (String(args[3]) === "1") due.delete(args[4]);
       else due.set(args[4], Number(args[5]));
       result = 1;
@@ -247,15 +284,17 @@ test("waitlist messages pass through the durable outbox exactly once", async () 
     const queued = await enqueueTransactionalMessage({
       dedupeKey: "waitlist.unit.12345",
       recipient: "person@example.invalid",
-      template: "waitlist_confirmation",
-      title: "Jesteś na liście",
-      text: "Damy Ci znać przed pierwszym startem.",
+      template: "auction_reminder",
+      title: "Aukcja startuje za godzinę",
+      text: "Przygotuj swój moment.",
+      scheduledAt: "2026-08-26T18:00:00.000Z",
     });
     assert.equal(queued.created, true);
     const processed = await processMessageOutbox({ limit: 5 });
     assert.deepEqual(processed, { processed: 1, delivered: 1, retried: 0, dead: 0, errors: 0 });
     assert.equal(sent.length, 1);
     assert.deepEqual(sent[0].to, ["person@example.invalid"]);
+    assert.equal(sent[0].scheduled_at, "2026-08-26T18:00:00.000Z");
   } finally {
     globalThis.fetch = previousFetch;
     for (const [key, value] of Object.entries(previousEnvironment)) {

@@ -550,6 +550,7 @@ export async function loadHealth(): Promise<AdminHealth> {
     ),
     authenticationConfigured: asBoolean(record.authenticationConfigured),
     emailDeliveryConfigured: asBoolean(record.emailDeliveryConfigured),
+    emailWebhookConfigured: asBoolean(record.emailWebhookConfigured),
     inAppNotificationsConfigured: asBoolean(record.inAppNotificationsConfigured),
     externalErrorAlertsConfigured: asBoolean(record.externalErrorAlertsConfigured),
     canonicalSiteUrl: firstString(record.canonicalSiteUrl),

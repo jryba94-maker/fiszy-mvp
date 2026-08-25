@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   type AuctionConfig,
   type AuctionRecord,
+  auctionPublishIssues,
   normalizeAuctionId,
   parseAuctionDefinition,
 } from "../../../../lib/auction";
@@ -53,7 +54,6 @@ export async function GET(request: NextRequest) {
   ) {
     return NextResponse.json({ outcome: "invalid_request" }, { status: 400 });
   }
-
   try {
     const page = await listAdminAuctions({ cursor, limit });
     if (!page) {
@@ -95,6 +95,10 @@ export async function POST(request: NextRequest) {
     (requestedState !== "draft" && requestedState !== "published")
   ) {
     return NextResponse.json({ outcome: "invalid_request" }, { status: 400 });
+  }
+  if (requestedState === "published") {
+    const issues = auctionPublishIssues(definition);
+    if (issues.length) return NextResponse.json({ outcome: "auction_not_ready", issues }, { status: 400 });
   }
 
   let startsAt: Date | null = null;

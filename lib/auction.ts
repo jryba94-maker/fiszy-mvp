@@ -29,6 +29,17 @@ export type AuctionDefinition = {
   durationMinutes: number;
 };
 
+export function auctionPublishIssues(definition: AuctionDefinition) {
+  const issues: string[] = [];
+  if (!definition.productImageUrl) issues.push("product_image_missing");
+  if (definition.regularPrice !== definition.startPrice) issues.push("start_price_must_equal_regular_price");
+  if (definition.floorPrice !== 1) issues.push("floor_price_must_equal_one");
+  if (definition.entryFee < 1 || definition.entryFee >= definition.regularPrice) issues.push("entry_fee_invalid");
+  if (definition.durationMinutes < 1 || definition.durationMinutes > 120) issues.push("duration_invalid");
+  if (!definition.postAuctionOffer.enabled || definition.postAuctionOffer.validityDays < 1) issues.push("post_auction_offer_invalid");
+  return issues;
+}
+
 export type PostAuctionOfferDefinition = {
   enabled: boolean;
   validityDays: number;

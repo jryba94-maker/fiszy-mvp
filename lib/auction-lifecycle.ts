@@ -12,6 +12,9 @@ import {
 } from "./auction-storage";
 import { readAuctionOrder } from "./order-storage";
 import { redisCommand } from "./redis";
+import { issueAndQueueRunDiscountEmails } from "./auction-email-notifications";
+import { processMessageOutbox } from "./message-outbox";
+import { errorDetails, logEvent } from "./observability";
 
 export const AUCTION_LIFECYCLE_STAGES = [
   "draft",
@@ -190,6 +193,23 @@ return 1
   if (result !== 1) {
     const current = await readAuctionLifecycleCheckpoint(auctionId);
     return current ? { checkpoint: current, changed: false } : null;
+  }
+  if (stage === "ended" && config) {
+    try {
+      await issueAndQueueRunDiscountEmails({
+        auctionId,
+        config,
+        winner: null,
+        order: null,
+      });
+      await processMessageOutbox({ limit: 20 });
+    } catch (emailError) {
+      logEvent("ended_auction_discount_email_failed", {
+        auctionId,
+        runId: config.runId,
+        ...errorDetails(emailError),
+      }, "warning");
+    }
   }
   return { checkpoint: next, changed: true };
 }

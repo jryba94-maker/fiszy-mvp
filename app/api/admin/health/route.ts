@@ -102,6 +102,7 @@ export async function GET(request: NextRequest) {
       authenticationProvider: "clerk",
       authenticationConfigured,
       emailDeliveryConfigured,
+      emailWebhookConfigured: Boolean(process.env.RESEND_WEBHOOK_SECRET?.trim().startsWith("whsec_")),
       inAppNotificationsConfigured: true,
       externalErrorAlertsConfigured: systemAlertsConfigured(),
       canonicalSiteUrl: siteUrl(),

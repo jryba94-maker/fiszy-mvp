@@ -447,6 +447,11 @@
 }
 
 .footerLinks a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 8px 2px;
   color: #4e504b;
   font-weight: 750;
   text-underline-offset: 3px;

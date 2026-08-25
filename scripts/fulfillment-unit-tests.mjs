@@ -544,7 +544,7 @@ test("fulfillment e-mail is idempotent and escapes order content", async () => {
   process.env.FISZY_EMAIL_FROM = "Fiszy <powiadomienia@fiszy.pl>";
   globalThis.fetch = async (_url, init) => {
     request = init;
-    return { ok: true };
+    return { ok: true, async json() { return { id: "resend-fulfillment-unit-123" }; } };
   };
   try {
     await sendOrderFulfillmentUpdate({

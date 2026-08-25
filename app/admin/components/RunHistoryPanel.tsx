@@ -36,6 +36,11 @@ function mergeParticipants(
   return [...byId.values()];
 }
 
+function csvCell(value: string | number | null) {
+  const text = value === null ? "" : String(value);
+  return `"${text.replaceAll('"', '""')}"`;
+}
+
 export function RunHistoryPanel({
   auctions,
   onSessionExpired,
@@ -162,6 +167,21 @@ export function RunHistoryPanel({
     }));
   };
 
+  const downloadReport = () => {
+    const auction = auctions.find((item) => item.auctionId === selectedAuctionId);
+    const rows = [
+      ["aukcja", "produkt", "runda", "start", "koniec", "status", "uczestnicy", "cena_sprzedazy", "oplacono"],
+      ...runs.map((run) => [run.auctionId, auction?.productName ?? "", run.runId, run.startsAt, run.endsAt, run.status, run.participantCount, run.soldPrice, run.paidAt]),
+    ];
+    const csv = `\uFEFF${rows.map((row) => row.map((value) => csvCell(value)).join(";")).join("\r\n")}`;
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `fiszy-raport-${selectedAuctionId}-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <section className={styles.panelSection} aria-labelledby="runs-heading">
       <div className={styles.sectionHeader}>
@@ -170,9 +190,10 @@ export function RunHistoryPanel({
           <h2 id="runs-heading">Rundy i uczestnicy</h2>
         </div>
         {selectedAuctionId ? (
-          <span className={styles.sectionCount} aria-label={`${runs.length} załadowanych rund`}>
-            {runs.length}
-          </span>
+          <div className={styles.cardActions}>
+            {runs.length ? <button className={styles.secondaryButton} type="button" onClick={downloadReport}>Pobierz raport CSV</button> : null}
+            <span className={styles.sectionCount} aria-label={`${runs.length} załadowanych rund`}>{runs.length}</span>
+          </div>
         ) : null}
       </div>
 
