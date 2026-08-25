@@ -16,3 +16,5 @@ skills-lock.json
 
 # Local development server logs.
 .codex-dev.*.log
+
+.env*

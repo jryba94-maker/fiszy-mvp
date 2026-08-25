@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   configuredAdminRole,
   hasValidAdminRequest,
+  individualAdminAccountsConfigured,
   isAdminConfigured,
   isAdminSecretStrong,
 } from "../../../../lib/admin-auth";
@@ -11,6 +12,7 @@ import { logEvent } from "../../../../lib/observability";
 import { paymentProviderHealth } from "../../../../lib/payment-provider";
 import { checkoutOriginConfiguration } from "../../../../lib/request-origin";
 import { siteUrl } from "../../../../lib/site";
+import { systemAlertsConfigured, transactionalEmailConfigured } from "../../../../lib/transactional-email";
 
 export const dynamic = "force-dynamic";
 
@@ -50,9 +52,7 @@ export async function GET(request: NextRequest) {
   const authenticationConfigured = Boolean(
     process.env.CLERK_SECRET_KEY && process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
   );
-  const emailDeliveryConfigured = Boolean(
-    process.env.RESEND_API_KEY && process.env.FISZY_EMAIL_FROM,
-  );
+  const emailDeliveryConfigured = transactionalEmailConfigured();
 
   let redisReachable = false;
   let redisLatencyMs: number | null = null;
@@ -72,7 +72,6 @@ export async function GET(request: NextRequest) {
     payment.modeMatchesEnvironment &&
     payment.webhookConfigured &&
     checkoutOrigin.productionReady &&
-    isAdminSecretStrong() &&
     authenticationConfigured;
 
   if (!healthy) {
@@ -95,14 +94,16 @@ export async function GET(request: NextRequest) {
       outcome: "ok",
       healthy,
       environment,
-      adminSecretConfigured: true,
+      adminConfigured: isAdminConfigured(),
+      adminSecretConfigured: Boolean(process.env.FISZY_ADMIN_SECRET?.trim()),
       adminSecretStrong: isAdminSecretStrong(),
+      individualAdminAccountsConfigured: individualAdminAccountsConfigured(),
       adminRole: configuredAdminRole(),
       authenticationProvider: "clerk",
       authenticationConfigured,
       emailDeliveryConfigured,
       inAppNotificationsConfigured: true,
-      externalErrorAlertsConfigured: Boolean(process.env.SENTRY_DSN),
+      externalErrorAlertsConfigured: systemAlertsConfigured(),
       canonicalSiteUrl: siteUrl(),
       canonicalSiteUrlExplicit: Boolean(process.env.NEXT_PUBLIC_SITE_URL),
       redisConfigured: Boolean(redisUrl && redisTokenConfigured),

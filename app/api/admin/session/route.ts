@@ -1,18 +1,19 @@
-import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import {
   ADMIN_SESSION_COOKIE,
   ADMIN_SESSION_SECONDS,
+  adminPrincipalSessionToken,
   adminPermissions,
   adminSessionToken,
   configuredAdminRole,
-  hasValidAdminRequest,
+  resolveAdminPrincipal,
   isAdminConfigured,
   isSameOriginAdminMutation,
   isValidAdminSecret,
 } from "../../../../lib/admin-auth";
 import { redisCommand } from "../../../../lib/redis";
 import { logEvent } from "../../../../lib/observability";
+import { rateLimitFingerprint } from "../../../../lib/rate-limit-identity";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +23,7 @@ const MAX_LOGIN_ATTEMPTS = 10;
 function loginAttemptKey(request: NextRequest) {
   const forwardedFor = request.headers.get("x-forwarded-for") ?? "unknown";
   const client = forwardedFor.split(",")[0]?.trim() || "unknown";
-  const fingerprint = createHash("sha256").update(client).digest("hex").slice(0, 24);
+  const fingerprint = rateLimitFingerprint("admin.login.ip", client, 24);
   const environment = process.env.VERCEL_ENV ?? "local";
   return `fiszy:${environment}:admin:login-attempts:${fingerprint}`;
 }
@@ -55,16 +56,22 @@ function cookieOptions(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
-  return NextResponse.json(
+  const principal = await resolveAdminPrincipal(request);
+  const response = NextResponse.json(
     {
       outcome: "ok",
       configured: isAdminConfigured(),
-      authenticated: hasValidAdminRequest(request),
-      role: configuredAdminRole(),
-      permissions: adminPermissions(),
+      authenticated: Boolean(principal),
+      role: principal?.role ?? configuredAdminRole(),
+      permissions: principal?.permissions ?? adminPermissions(),
+      authenticationMethod: principal?.actorType ?? null,
     },
     { headers: { "Cache-Control": "no-store" } },
   );
+  if (principal?.actorType === "admin_clerk" && principal.actorRef) {
+    response.cookies.set(ADMIN_SESSION_COOKIE, adminPrincipalSessionToken(principal), cookieOptions(request));
+  }
+  return response;
 }
 
 export async function POST(request: NextRequest) {

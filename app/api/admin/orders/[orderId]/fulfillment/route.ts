@@ -19,6 +19,9 @@ import {
 } from "../../../../../../lib/order-storage";
 import { errorDetails, logEvent } from "../../../../../../lib/observability";
 import { looksLikeSortedSetCursor } from "../../../../../../lib/sorted-set-pagination";
+import { readAccountProfile } from "../../../../../../lib/portal-storage";
+import { enqueueTransactionalMessage, processMessageOutbox } from "../../../../../../lib/message-outbox";
+import { absoluteSiteUrl } from "../../../../../../lib/site";
 
 export const dynamic = "force-dynamic";
 
@@ -156,10 +159,51 @@ export async function PATCH(request: NextRequest, context: Context) {
         status: result.fulfillment.status,
         revision: result.fulfillment.revision,
       });
+      let emailNotification: "sent" | "queued" | "skipped" | "failed" = "skipped";
+      const accountId = order.bidderId.startsWith("clerk:")
+        ? order.bidderId.slice("clerk:".length)
+        : null;
+      const recipient = order.customer.email;
+      if (accountId && recipient) {
+        try {
+          const profile = await readAccountProfile(accountId);
+          if (profile?.preferences.emailOrderUpdates !== false) {
+            const labels = {
+              new: "Zamówienie przyjęte",
+              preparing: "Przygotowujemy Twoje zamówienie",
+              shipped: "Twoje zamówienie zostało wysłane",
+              delivered: "Zamówienie zostało dostarczone",
+            } as const;
+            const tracking = result.fulfillment.tracking
+              ? `\nPrzewoźnik: ${result.fulfillment.tracking.carrier}\nNumer przesyłki: ${result.fulfillment.tracking.trackingNumber}`
+              : "";
+            await enqueueTransactionalMessage({
+              dedupeKey: `order.fulfillment.${order.orderId}.${result.fulfillment.revision}`,
+              accountId,
+              recipient,
+              template: "order_update",
+              title: labels[result.fulfillment.status],
+              text: `${order.product}\nZamówienie: ${order.orderId}${tracking}`,
+              actionLabel: "Sprawdź zamówienie",
+              actionUrl: absoluteSiteUrl("/moje-fiszy#historia"),
+            });
+            const processed = await processMessageOutbox({ limit: 10 });
+            emailNotification = processed?.delivered ? "sent" : "queued";
+          }
+        } catch (emailError) {
+          emailNotification = "failed";
+          logEvent("order_fulfillment_email_failed", {
+            orderId,
+            status: result.fulfillment.status,
+            ...errorDetails(emailError),
+          }, "warning");
+        }
+      }
       return NextResponse.json({
         outcome: "updated",
         fulfillment: fulfillmentResponse(result.fulfillment),
         auditEventId: result.auditEvent.eventId,
+        emailNotification,
       });
     }
     if (result.outcome === "not_found") {

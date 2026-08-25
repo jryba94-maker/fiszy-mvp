@@ -494,3 +494,23 @@
     transform: none;
   }
 }
+
+.page { background: #070708; color: #f8f7fb; }
+.backLink, .message, .entryNote, .proofItem span, .stateShell p { color: #aaa6b2; }
+.auctionShell, .stateShell { border-color: rgba(255,255,255,.12); background: #111114; box-shadow: none; }
+.visual { border-color: rgba(255,255,255,.12); }
+.title { font-weight: 600; letter-spacing: -.06em; }
+.priceArea { border-color: rgba(255,255,255,.12); }
+.priceLabel, .regularPrice, .duration { color: #9995a1; }
+.currentPrice { color: #f8f7fb; font-family: var(--font-geist-mono); font-weight: 600; letter-spacing: -.075em; }
+.progressTrack { background: #27262d; }
+.progressBar { background: linear-gradient(90deg,#a77aff,#7b2cff); }
+.clockBox { background: #050507; }
+.primaryButton { background: #7b2cff; color: #fff; font-weight: 600; }
+.primaryButton:hover:not(:disabled) { background: #8d49ff; }
+.proofItem { border-color: rgba(255,255,255,.12); background: #111114; }
+.feedback { border-color: rgba(255,255,255,.14); background: #18181c; color: #d6d2dc; }
+.offerNote { border-left-color: #7b2cff; background: rgba(123,44,255,.13); color: #cbb9eb; }
+.mobileAction { border-color: rgba(255,255,255,.14); background: rgba(10,10,12,.95); }
+.stateButton { border-color: #7b2cff; background: #7b2cff; }
+.stateLink { border-color: rgba(255,255,255,.24); color: #fff; }

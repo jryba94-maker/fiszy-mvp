@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { PublicHeader } from "../public/PublicHeader";
+import publicStyles from "../public/public.module.css";
 import styles from "./legal.module.css";
 
 export type LegalSection = { title: string; paragraphs?: string[]; bullets?: string[] };
@@ -12,7 +12,16 @@ export function LegalPage({ eyebrow, title, lead, sections }: {
 }) {
   return (
     <main className={styles.page}>
-      <PublicHeader />
+      <header className={publicStyles.header}>
+        <Link className={publicStyles.brand} href="/" aria-label="Fiszy — strona główna">
+          Fiszy<span className={publicStyles.brandDot}>.</span>
+        </Link>
+        <nav className={publicStyles.nav} aria-label="Główna nawigacja">
+          <Link className={publicStyles.navLink} href="/aukcje#jak-to-dziala">Jak to działa</Link>
+          <Link className={publicStyles.navLink} href="/faq">Pomoc</Link>
+          <Link className={`${publicStyles.navLink} ${publicStyles.navLinkPrimary}`} href="/moje-fiszy">Moje Fiszy</Link>
+        </nav>
+      </header>
       <div className={styles.main}>
         <header className={styles.hero}>
           <p className={styles.eyebrow}>{eyebrow}</p>

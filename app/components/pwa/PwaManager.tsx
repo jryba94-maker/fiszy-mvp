@@ -1,6 +1,7 @@
 "use client";
 
 import { useUser } from "@clerk/nextjs";
+import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { fetchAuctionDetail, type PublicAuction } from "../public/auction-data";
 import {
@@ -55,6 +56,7 @@ async function showAuctionReminder(auction: PublicAuction, title: string, body: 
 
 export function PwaManager() {
   const { isLoaded, isSignedIn } = useUser();
+  const pathname = usePathname();
   const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
   const [updateReady, setUpdateReady] = useState<ServiceWorker | null>(null);
   const [offline, setOffline] = useState(false);
@@ -152,7 +154,8 @@ export function PwaManager() {
   };
 
   const activateUpdate = () => updateReady?.postMessage({ type: "SKIP_WAITING" });
-  const showInstall = Boolean(installPrompt && !installDismissed && !isStandalone());
+  const isPortalRoute = pathname === "/moje-fiszy" || pathname.startsWith("/aukcje");
+  const showInstall = Boolean(isPortalRoute && installPrompt && !installDismissed && !isStandalone());
   if (!offline && !updateReady && !showInstall) return null;
 
   return (

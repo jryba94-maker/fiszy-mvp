@@ -1,6 +1,6 @@
 # Fiszy
 
-Fiszy to portal aukcji ze spadającą ceną. Użytkownik opłaca wejście za 5 zł, obserwuje cenę malejącą w czasie i może spróbować kupić produkt jednym kliknięciem. Pierwszy poprawnie zapisany klik wygrywa; cena widoczna w chwili kliknięcia zostaje zamrożona dla zwycięzcy.
+Fiszy to portal aukcji ze spadającą ceną. Użytkownik opłaca wejście w kwocie ustawionej dla danej aukcji, obserwuje cenę malejącą w czasie i może spróbować kupić produkt jednym kliknięciem. Pierwszy poprawnie zapisany klik wygrywa; cena widoczna w chwili kliknięcia zostaje zamrożona dla zwycięzcy.
 
 Repozytorium: `jryba94-maker/fiszy-mvp`
 
@@ -11,8 +11,9 @@ Technologia: Next.js 15 (App Router), React 19, TypeScript, Redis REST, neutraln
 ## Co działa
 
 - publiczny katalog wielu aukcji;
+- lekki landing marketingowy z zapisem na pierwszą aukcję, zgodą, źródłami UTM i eksportem listy e-mail w panelu;
 - osobna strona każdej aukcji z zegarem, bieżącą ceną i stanami `waiting`, `live`, `payment_pending`, `sold` oraz `ended`;
-- konfigurowalna oferta dla przegranych: jednorazowy rabat równy opłacie wejściowej, termin 1–90 dni i opcjonalny limit sztuk;
+- standardowa oferta dla przegranych: jednorazowy rabat równy opłacie wejściowej i konfigurowalny termin 1–90 dni;
 - płatne wejście przez Stripe Checkout;
 - atomowy wybór jednego zwycięzcy, również przy niemal równoczesnych kliknięciach;
 - weryfikacja, że cena przesłana przez kupującego jest nadal aktualną ceną serwera;
@@ -22,6 +23,8 @@ Technologia: Next.js 15 (App Router), React 19, TypeScript, Redis REST, neutraln
 - panel `/admin`: logowanie, globalne wskaźniki, wyszukiwanie i filtrowanie, tworzenie, edycja, archiwizowanie i przywracanie aukcji oraz planowanie kolejnych rund;
 - automatyczne pobieranie wszystkich stron aukcji i zamówień do bezpiecznego limitu MVP 5000 rekordów na zbiór, dzięki czemu wskaźniki i filtry nie kończą się na pierwszej stronie;
 - obsługa realizacji zamówień w stanach `new`, `preparing`, `shipped` i `delivered`, z przewoźnikiem, numerem przesyłki, notatką i ochroną przed nadpisaniem nowszej zmiany;
+- wiadomość potwierdzająca zapis na listę, e-maile o zmianach realizacji zamówienia oraz codzienny alert stanu Production przez zweryfikowany Resend;
+- powiadomienia w „Moje Fiszy” prowadzące bezpośrednio do wygranej, rabatu, wysyłki albo odpowiedzi pomocy;
 - eksport aktualnie przefiltrowanego widoku zamówień do CSV z neutralizacją wartości mogących zostać zinterpretowanych przez arkusz jako formuły;
 - historia rund i uczestników oraz pomocniczy dziennik utworzenia i zmian aukcji, planowania rund i realizacji zamówień;
 - zgodność ze starszymi trasami jednej aukcji podczas migracji MVP;
@@ -38,6 +41,7 @@ flowchart LR
   P --> S["Stripe Checkout — bieżący adapter"]
   S --> W["Podpisany webhook /api/stripe/webhook"]
   W --> R
+  API --> E["Resend — potwierdzenia, statusy i alerty"]
   API --> O["Vercel Logs, Analytics i Speed Insights"]
 ```
 
@@ -64,7 +68,8 @@ Cena maleje całkowitą liczbą złotych od ceny startowej do minimalnej. Ostatn
 
 | Trasa | Dostęp | Przeznaczenie |
 | --- | --- | --- |
-| `/` | publiczny | katalog opublikowanych aukcji |
+| `/` | publiczny | landing i zapis e-mail na pierwszą aukcję |
+| `/aukcje` | publiczny | katalog opublikowanych aukcji |
 | `/aukcje/[auctionId]` | publiczny | udział w wybranej aukcji |
 | `/moje-fiszy` | konto Clerk | profil, historia, zamówienia, obserwowane i pomoc |
 | `/admin` | chroniony | panel operacyjny administratora |
@@ -72,20 +77,33 @@ Cena maleje całkowitą liczbą złotych od ceny startowej do minimalnej. Ostatn
 | `/api/admin/health` | administrator | diagnostyka Redis, Stripe, webhooka, sekretu i originu Checkout |
 | `/api/auctions` | publiczny | stronicowany katalog aukcji |
 | `/api/auctions/[auctionId]` | publiczny | stan jednej aukcji |
-| `/api/auctions/[auctionId]/runs/[runId]/entry` | publiczny | stan wejścia i utworzenie Checkout opłaty wejściowej |
-| `/api/auctions/[auctionId]/runs/[runId]/buy` | publiczny | atomowa próba wygrania i Checkout produktu |
-| `/api/auctions/[auctionId]/runs/[runId]/purchase/cancel` | publiczny | anulowanie nieopłaconego Checkout zwycięzcy |
+| `/api/auctions/[auctionId]/runs/[runId]/entry` | konto Clerk | stan wejścia i utworzenie Checkout opłaty wejściowej |
+| `/api/auctions/[auctionId]/runs/[runId]/buy` | konto Clerk | atomowa próba wygrania i Checkout produktu |
+| `/api/auctions/[auctionId]/runs/[runId]/purchase/cancel` | konto Clerk | anulowanie nieopłaconego Checkout zwycięzcy |
 | `/api/account/activity` | konto Clerk | historia udziału, wygranych, zamówień i ofert po aukcji |
 | `/api/account/discounts/[discountId]/checkout` | konto Clerk | rezerwacja oferty i utworzenie Checkout zakupu z rabatem |
+| `/api/account/cases` | konto Clerk | lista i utworzenie sprawy pomocy, reklamacji, zwrotu lub odstąpienia |
+| `/api/account/privacy` | konto Clerk | rejestr zgód i wniosków dotyczących danych osobowych |
+| `/api/waitlist` | publiczny | zapis adresu e-mail ze zgodą i źródłem kampanii |
 | `/api/stripe/webhook` | Stripe | podpisane potwierdzenia płatności i wygaśnięcia Checkout |
 | `/api/admin/session` | administrator | utworzenie, sprawdzenie i usunięcie sesji |
 | `/api/admin/auctions` | administrator | lista i tworzenie aukcji |
 | `/api/admin/auctions/[auctionId]` | administrator | odczyt i edycja aukcji |
+| `/api/admin/auctions/[auctionId]/duplicate` | administrator | utworzenie niezależnego szkicu na podstawie aukcji |
 | `/api/admin/auctions/[auctionId]/runs` | administrator | stronicowana historia rund (`GET`) i zaplanowanie kolejnej rundy (`POST`) |
 | `/api/admin/auctions/[auctionId]/runs/[runId]/participants` | administrator | stronicowana lista uczestników rundy z prawem wejścia i oznaczeniem zwycięzcy |
+| `/api/admin/products` | administrator | katalog produktów, SKU, zdjęcia, status i stan magazynowy |
+| `/api/admin/products/[productId]/auction-draft` | administrator | szkic aukcji z szablonu produktu |
 | `/api/admin/orders` | administrator | stronicowana lista opłaconych zamówień |
 | `/api/admin/orders/[orderId]/fulfillment` | administrator | odczyt stanu i historii realizacji (`GET`) oraz zmiana statusu, trackingu i notatki z kontrolą rewizji (`PATCH`) |
+| `/api/admin/cases` | administrator | kolejka spraw użytkowników i ich obsługa z kontrolą rewizji |
+| `/api/admin/privacy` | administrator | kolejka wniosków RODO i ich statusów |
+| `/api/admin/analytics` | administrator | zagregowany lejek biznesowy bez surowych identyfikatorów użytkowników |
+| `/api/admin/operations` | administrator | stan kolejki wiadomości i ręczne uzgodnienie procesów |
 | `/api/admin/audit` | administrator | stronicowany pomocniczy dziennik zapisanych zmian, opcjonalnie filtrowany po typie i identyfikatorze zasobu |
+| `/api/admin/waitlist` | administrator | stronicowana lista zapisów i pełny eksport CSV do limitu 10 000 rekordów |
+| `/api/cron/system-health` | Vercel Cron | codzienna kontrola Production i alert e-mail przy degradacji |
+| `/api/cron/operations` | Vercel Cron | uzgodnienie cyklu aukcji i ponowienia kolejki wiadomości |
 
 Trasy `/api/auction/**` i `/api/admin/auction/start` są adapterami zgodności dla wcześniejszej, pojedynczej aukcji. Nowe funkcje powinny korzystać z tras `/api/auctions/**`.
 
@@ -185,10 +203,17 @@ Skrypt:
 | `STRIPE_SECRET_KEY` | `sk_test_...` | `sk_test_...` | `sk_live_...` | serwerowy klucz Stripe |
 | `STRIPE_WEBHOOK_SECRET` | sekret lokalnego listenera | sekret endpointu Preview, jeśli jest używany | sekret live endpointu Production | weryfikacja podpisu webhooka |
 | `FISZY_ADMIN_SECRET` | osobny, co najmniej 32 losowe znaki | inny sekret Preview | inny sekret Production | podpis sesji i awaryjne uwierzytelnienie API |
+| `FISZY_ADMIN_USERS_JSON` | opcjonalna mapa kont Clerk | mapa testowych administratorów | zatwierdzona mapa kont i ról | indywidualne role `owner`, `operator`, `support`, `viewer` i pseudonimowy aktor audytu |
 | `FISZY_RATE_LIMIT_SECRET` | co najmniej 32 losowe bajty | inny sekret Preview | inny sekret Production | niezależna sól HMAC dla kluczy limitu publicznych żądań |
+| `FISZY_PAYMENT_PROVIDER` | `stripe` | `stripe` | `stripe` do zatwierdzonej migracji | wybór adaptera; ustawienie `przelewy24` pozostaje fail-closed |
+| `P24_MERCHANT_ID`, `P24_POS_ID`, `P24_CRC`, `P24_API_KEY`, `P24_SANDBOX` | opcjonalne | testowe po osobnej zgodzie | nie ustawiaj przed testami | przygotowana konfiguracja przyszłego adaptera Przelewy24, bez aktywnych wywołań sieciowych |
 | `FISZY_DEFAULT_CHECKOUT_ORIGIN` | `http://127.0.0.1:3000` | stały HTTPS alias Preview albo automatyczny `VERCEL_URL` | wymagany kanoniczny adres HTTPS | bazowy powrót ze Stripe Checkout |
 | `FISZY_ALLOWED_CHECKOUT_ORIGINS` | oba lokalne originy | wyłącznie zatwierdzone originy Preview | kanoniczna domena i tylko potrzebne aliasy HTTPS | lista dokładnych originów dopuszczonych do powrotu |
 | `FISZY_RACE_TEST_REDIS_URL_SHA256` | wymagany przez testy mutujące | nie ustawiaj | nie ustawiaj | odcisk zatwierdzonego Development Redis |
+| `RESEND_API_KEY` | osobny klucz testowy lub brak | osobny klucz Preview | klucz zasobu Production | serwerowa wysyłka wiadomości przez Resend |
+| `FISZY_EMAIL_FROM` | zatwierdzony nadawca testowy | nadawca Preview | nadawca w zweryfikowanej domenie `fiszy.pl` | adres nadawcy wiadomości transakcyjnych |
+| `FISZY_ALERT_EMAIL` | adres testowy | adres testowy | skrzynka operacyjna, obecnie `rodo@fiszy.pl` | odbiorca alertów diagnostycznych |
+| `CRON_SECRET` | opcjonalny lokalnie | osobny sekret | silny losowy sekret Production | autoryzacja wywołania codziennej diagnostyki |
 
 Kod akceptuje również nazwy Redis tworzone przez niektóre integracje Vercel: `STORAGE_KV_REST_API_URL` + `STORAGE_KV_REST_API_TOKEN` albo `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN`. Skonfiguruj jedną pasującą parę, nie mieszaj adresu z tokenem innego zasobu.
 
@@ -232,6 +257,8 @@ Chronionego Vercel Preview nie należy otwierać publicznie tylko po to, aby prz
 
 Panel działa pod `/admin`. Sekret jest wysyłany tylko podczas logowania i zamieniany na podpisaną sesję w ciasteczku `HttpOnly`, `SameSite=Strict`; sesja trwa maksymalnie 8 godzin. Logowanie ma limit 10 prób na 15 minut dla jednego źródła.
 
+Alternatywnie `FISZY_ADMIN_USERS_JSON` mapuje konkretne identyfikatory Clerk na role. Po zalogowaniu Clerk trasa sesji wystawia krótką, podpisaną sesję panelu, a audyt zapisuje pseudonimowy identyfikator pracownika bez przechowywania jego identyfikatora Clerk. Produkcyjne wymuszenie MFA nadal konfiguruje się po stronie Clerk; sama aplikacja nie powinna udawać, że potrafi potwierdzić ten zewnętrzny stan.
+
 Po zalogowaniu panel pobiera kolejne strony aukcji i zamówień po 50 rekordów. Bezpieczny limit MVP wynosi 100 stron, czyli 5000 rekordów na zbiór. Jeżeli API zwróci zapętlony kursor albo limit zostanie osiągnięty, panel przerywa operację z widocznym błędem zamiast pokazywać niepełne wskaźniki jako kompletne dane.
 
 Typowy proces pracy:
@@ -246,6 +273,26 @@ Typowy proces pracy:
 8. Prowadź realizację od `new` przez `preparing` i `shipped` do `delivered`. Status wysłany lub doręczony wymaga przewoźnika i numeru przesyłki. Konflikt rewizji `409` oznacza, że dane zmieniono w innym oknie i trzeba je odświeżyć.
 9. W pomocniczym dzienniku działań sprawdź utworzenie i zmiany aukcji, planowanie rund oraz zmiany realizacji. Wspólny sekret administratora pozwala rozpoznać typ sesji, ale nie konkretną osobę. Zdarzenia są przechowywane przez 180 dni. Zmiana realizacji i jej wpis powstają atomowo; wpisy dotyczące aukcji są dopisywane po udanej operacji i przy awarii tego drugiego zapisu mogą wymagać odtworzenia z logów.
 10. Po pracy wyloguj sesję administratora.
+
+### Operacje uruchamiane automatycznie
+
+- stan cyklu aukcji jest wyliczany z serwerowego czasu, zwycięzcy i zamówienia, a kontrolny checkpoint rozpoznaje `entry_open`, `live`, `ended`, `payment_pending`, `payment_recovery_required`, `sold` i `archived`;
+- Vercel Cron raz dziennie uzgadnia checkpointy wszystkich aukcji oraz ponawia wiadomości z kolejki; bieżące zapisy i zmiany zamówień próbują wysłać wiadomość również od razu;
+- kolejka wiadomości ma deduplikację, dzierżawę, wykładnicze ponowienia, stan `dead` po ośmiu próbach oraz retencję 90 dni;
+- panel „Operacje” pozwala uruchomić uzgodnienie ręcznie i pokazuje wiadomości wymagające uwagi;
+- płatność już zapisanego zamówienia nie jest cofana przez rozbieżność magazynową; taka sytuacja trafia do logów jako obowiązkowe uzgodnienie produktu.
+
+### Katalog produktów i szkice
+
+Produkt jest niezależnym rekordem z SKU, kategorią, maksymalnie sześcioma adresami zdjęć, statusem, opcjonalnie śledzonym stanem magazynowym i szablonem aukcji. Z produktu można utworzyć szkic aukcji, a istniejącą aukcję zduplikować. Każdy szkic nadal wymaga sprawdzenia i osobnej publikacji. Powiązanie produktu z aukcją umożliwia idempotentne zmniejszenie śledzonego stanu dopiero po zapisaniu opłaconego zamówienia.
+
+### Sprawy klientów, analityka i prywatność
+
+- użytkownik może utworzyć pomoc, reklamację, zwrot lub odstąpienie; zwrot i odstąpienie wymagają numeru zamówienia, a sprawa ma numer, termin odpowiedzi, rewizję, status i odpowiedź zespołu;
+- panel pokazuje kolejkę spraw oraz wniosków dotyczących dostępu, sprostowania, usunięcia, ograniczenia i sprzeciwu;
+- zmiana zgód marketingowych i analitycznych tworzy niezmienny, wersjonowany wpis; bieżący stan profilu i historia zgód są eksportowane razem z danymi konta;
+- lejek zapisuje tylko dzienne liczniki zdarzeń i kampanii, bez adresów e-mail oraz identyfikatorów kont;
+- zakończenie wniosku o usunięcie pozostaje kontrolowaną procedurą operatora, ponieważ trzeba osobno uwzględnić Clerk, Resend oraz ustawowe okresy przechowywania zamówień i płatności.
 
 Stan rekordu aukcji jest niezależny od stanu rundy. Stany rekordu:
 
@@ -272,9 +319,9 @@ Slug powinien być stabilny, małymi literami, bez polskich znaków, np. `playst
 
 ## Status bieżącej iteracji
 
-Ta iteracja rozbudowuje lokalny panel administratora i przygotowuje neutralną granicę integracji płatności. Zgodnie z decyzją projektową nie wykonywano w niej testów płatności Stripe ani webhooka. Stripe pozostaje dostawcą działającym w piaskownicy, a migracja do Przelewy24 jest odłożona do osobnego etapu wraz z projektem nowego adaptera i pełną weryfikacją płatności.
+Ta iteracja rozszerza portal o katalog produktów i szablony, duplikowanie szkiców, checkpointy cyklu aukcji, trwałą kolejkę wiadomości, indywidualne role administratorów, sprawy reklamacji/zwrotów, zagregowany lejek, rejestr zgód i wniosków prywatności oraz neutralny kontrakt sesji płatniczej. Stripe pozostaje jedynym aktywnym adapterem; Przelewy24 jest przygotowane konfiguracyjnie, lecz celowo zablokowane do osobnego etapu z podpisami webhooka i pełną weryfikacją płatności.
 
-W tej iteracji nie zmieniano, nie wdrażano ani nie konfigurowano Production.
+W Production skonfigurowano domenę `fiszy.pl`, Clerk, Redis, Resend oraz codzienny mechanizm alertów. Sentry nie został włączony z powodu błędu instalacji Marketplace; niezależne alerty krytyczne realizuje obecnie kontrola Cron + Resend. Bieżące zmiany kodu przed kolejnym wdrożeniem nadal wymagają pełnej suity testów i kontroli deploymentu.
 
 ## Weryfikacja przed wysłaniem zmian
 
@@ -291,7 +338,7 @@ npm run build
 
 `npm run build` uruchamiaj po zatrzymaniu `npm run dev`, ponieważ oba procesy korzystają z katalogu `.next`.
 
-Testy `test:admin:unit` i `test:history:unit` są deterministyczne, nie łączą się z operatorem płatności ani z zewnętrznym Redis i są wykonywane w CI.
+Testy `test:admin:unit`, `test:history:unit`, `test:portal:unit` i `test:operations:unit` są deterministyczne, nie łączą się z operatorem płatności ani z zewnętrznym Redis i są wykonywane w CI. Test operacji potwierdza między innymi reguły katalogu, spraw klientów, fail-closed Przelewy24, schemat audytu i pełne przejście wiadomości listy przez kolejkę.
 
 Przed ponownym wdrożeniem przepływu płatności lub decyzją o Production uruchom osobno odłożone testy integracyjne płatności w zatwierdzonym Development:
 
@@ -445,7 +492,8 @@ Po incydencie utwórz osobną gałąź naprawczą i nowe Preview. Nie „naprawi
 - kontrola dokładnego originu również dla zmian profilu, obserwowanych, zgłoszeń i powiadomień użytkownika;
 - kontrola rewizji przy równoległej edycji aukcji;
 - walidacja cen, czasu, slugów i adresów zdjęć;
-- nagłówki `nosniff`, `DENY` dla ramek, ograniczenia uprawnień, COOP/CORP oraz HSTS na Production;
+- nagłówki `nosniff`, `DENY` dla ramek, podstawowe restrykcje CSP, ograniczenia uprawnień, COOP/CORP oraz HSTS na Production;
+- separowane HMAC dla pseudonimowych liczników ruchu; Production odmawia działania limitu bez sekretu serwerowego;
 - brak indeksowania Development i Preview przez roboty;
 - izolacja kluczy Redis według środowiska;
 - testy destrukcyjne z blokadą na zatwierdzony Development Redis i Stripe Test Mode.
@@ -456,9 +504,9 @@ Po zalogowaniu przez Clerk ekran `/moje-fiszy` korzysta z trwałych danych Redis
 
 Kategoria produktu jest częścią definicji aukcji i jest ustawiana w panelu administratora. Starsze rekordy bez tego pola otrzymują bezpieczną kategorię na podstawie nazwy produktu, dlatego migracja jest addytywna i nie wymaga przepisywania danych. Production publikuje również manifest aplikacji, grafikę Open Graph, canonicale, dynamiczne metadane aukcji oraz sitemapę ograniczoną do publicznych treści.
 
-Panel administratora zawiera użytkowników, blokadę uczestnictwa, notatki wewnętrzne i zgłoszenia. `FISZY_ADMIN_ROLE` może przyjąć `owner`, `operator`, `support` albo `viewer`; mutacje aukcji, realizacji, kont i zgłoszeń są sprawdzane osobno. Jest to etap przejściowy: jedna wspólna sesja nadal nie identyfikuje konkretnego pracownika. Przed zaproszeniem zespołu należy zastąpić ją indywidualnymi kontami z MFA i rolami Clerk Organizations albo równoważnym systemem.
+Panel administratora zawiera katalog produktów, aukcje, zamówienia, użytkowników, sprawy klientów, wnioski prywatności, analitykę, operacje i audyt. `FISZY_ADMIN_ROLE` oraz indywidualna mapa `FISZY_ADMIN_USERS_JSON` obsługują role `owner`, `operator`, `support` i `viewer`; mutacje aukcji, realizacji, kont i obsługi są sprawdzane osobno. Wspólny sekret pozostaje dostępem awaryjnym, natomiast sesja konkretnego konta Clerk otrzymuje pseudonimowy identyfikator audytu. Wymuszenie MFA i cykl zapraszania/usuwania pracowników pozostają obowiązkiem konfiguracji Clerk.
 
-Powiadomienia wymagające działania są generowane w portalu. Wysyłka e-mail pozostaje wyłączona, dopóki nie zostaną skonfigurowane `RESEND_API_KEY`, `FISZY_EMAIL_FROM`, zweryfikowana domena i szablony zaakceptowane biznesowo. Nie należy używać przypadkowego nadawcy ani klucza z innego środowiska.
+Powiadomienia wymagające działania są generowane w portalu i prowadzą do właściwej sekcji. Potwierdzenie listy, zmiana realizacji i odpowiedź na sprawę klienta przechodzą przez trwałą kolejkę wiadomości. Wysyłka ma limit czasu, klucz idempotencji i nie cofa poprawnie zapisanej operacji, gdy dostawca poczty jest chwilowo niedostępny. Codzienny Cron ponawia kolejkę oraz wysyła alert wyłącznie przy wykryciu degradacji; powodzenie zapisuje w logach bez generowania wiadomości.
 
 Strony `/regulamin`, `/zasady-aukcji`, `/prywatnosc`, `/cookies`, `/reklamacje` i `/faq` są kompletnym szkieletem operacyjnym, ale jawnie oznaczonym jako roboczy. Przed publiczną sprzedażą prawnik musi uzupełnić dane operatora, podstawy prawne, terminy, formularz odstąpienia i zasady opłaty za wejście.
 
@@ -478,18 +526,18 @@ Minimalny test odzyskiwania raz w miesiącu: utworzenie snapshotu, odtworzenie d
 ## Znane ograniczenia i dalszy rozwój
 
 - starsze, anonimowe wpisy zapisane przed wdrożeniem Clerk mogą pozostać wyłącznie w `localStorage`; nie są automatycznie przypisywane do nowego konta bez bezpiecznego procesu migracji;
-- profil i historia konta działają przez Clerk, ale finalna polityka retencji, eksportu i usuwania danych wymaga zatwierdzenia prawnego;
-- administrator korzysta jeszcze ze wspólnego sekretu; role ograniczają operacje, ale bez indywidualnych kont i MFA dziennik rozpoznaje typ dostępu, nie konkretną osobę. To nie jest jeszcze formalny audyt zgodności;
+- profil i historia konta działają przez Clerk, a portal rejestruje zgody i wnioski prywatności; finalne okresy retencji oraz procedura usunięcia danych z Clerk, Resend i dokumentów finansowych wymagają zatwierdzenia prawnego;
+- indywidualne role administratorów są gotowe w aplikacji, ale wymuszenie MFA, procedura nadawania dostępu i okresowy przegląd uprawnień muszą zostać skonfigurowane i udokumentowane w Clerk;
 - wpisy dziennika i jego indeksy mają automatyczną retencję 180 dni; polityka danych osobowych całego portalu nadal wymaga formalnego zatwierdzenia;
-- brak panelu zwrotów, faktur i automatycznych wiadomości e-mail; wysyłka wiadomości zostanie dodana dopiero po wyborze dostawcy poczty i zasad dostarczalności;
-- brak wbudowanego uploadu i optymalizacji zdjęć produktów;
+- sprawy reklamacji, zwrotów i odstąpień mają kolejkę i statusy, ale automatyczne zwroty środków, etykiety zwrotne, faktury i księgowość pozostają poza aplikacją;
 - przed publiczną sprzedażą trzeba formalnie wdrożyć zasady retencji i usuwania danych osobowych;
-- automatyczne alerty zewnętrzne oraz system śledzenia błędów są odłożone i wymagają wyboru oraz konfiguracji usługi operacyjnej;
+- alert e-mail stanu Production działa raz dziennie, ale brak zewnętrznego error trackera, alertów czasu rzeczywistego oraz dyżuru operacyjnego;
 - warstwa `payment-provider` nadal deleguje do Stripe; rzeczywista integracja Przelewy24, migracja danych referencyjnych i testy nowego przepływu są odłożone;
 - mechanika wejścia za opłatą i aukcji wymaga weryfikacji prawnej, regulaminu i zasad ochrony konsumenta;
-- przed dopuszczeniem wielu pracowników do panelu wspólny sekret należy zastąpić zarządzanym uwierzytelnianiem z MFA i rolami.
+- katalog przyjmuje adresy zdjęć, ale nie ma jeszcze zarządzanego uploadu, transformacji i moderacji plików;
+- Cron na planie Hobby działa raz dziennie; krytyczne procesy wymagające krótszego SLA powinny później dostać kolejkę/Workflow albo zatwierdzony wyższy plan.
 
-Najbliższy etap po weryfikacji Preview powinien objąć indywidualne konta administratorów z MFA, formalną obsługę zwrotów, zweryfikowaną pocztę transakcyjną, zewnętrzne alerty oraz finalną akceptację prawną. Migracja płatności do Przelewy24 pozostaje osobnym etapem po ustaleniu wymagań i kosztów operatora.
+Najbliższy etap po weryfikacji Preview powinien objąć konfigurację MFA i realnych kont zespołu, próbę operacyjną zwrotu od zgłoszenia do księgowania, alerty czasu rzeczywistego, finalną akceptację prawną i zatwierdzenie retencji. Migracja płatności do Przelewy24 pozostaje osobnym etapem po ustaleniu wymagań, podpisów webhooka i pełnej suity płatniczej.
 
 ## Najczęstsze problemy
 

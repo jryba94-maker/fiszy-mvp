@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import test from "node:test";
 
 import { adminPermissions, configuredAdminRole } from "../lib/admin-auth.ts";
@@ -22,6 +23,8 @@ import {
   normalizeSupportTicketInput,
 } from "../lib/portal-storage.ts";
 import { hasSameOrigin } from "../lib/request-origin.ts";
+import { rateLimitFingerprint } from "../lib/rate-limit-identity.ts";
+import { listWaitlistSignups, normalizeWaitlistEmail, normalizeWaitlistSignup, WAITLIST_CONSENT_VERSION } from "../lib/waitlist-storage.ts";
 
 test("auction categories are explicit for new records and safely inferred for legacy records", () => {
   const definition = {
@@ -141,11 +144,32 @@ test("post-auction discount belongs only to an eligible loser and expires determ
     price: 730,
     claimedAt: "2026-08-18T10:05:00.000Z",
   };
+  const order = {
+    orderId: "FISZY-UNIT-DISCOUNT-WINNER",
+    auctionId: participant.auctionId,
+    runId: config.runId,
+    bidderId: winner.bidderId,
+    product: config.productName,
+    amount: winner.price,
+    currency: "pln",
+    paymentSessionId: "cs_discount_winner",
+    paidAt: "2026-08-18T10:06:00.000Z",
+    customer: { name: null, email: null, phone: null },
+    shippingAddress: null,
+  };
+  assert.equal(preparePostAuctionDiscount({
+    accountId: "user_loser",
+    participant,
+    config,
+    winner,
+    now,
+  }), null, "a pending winner must not create loser discounts");
   const discount = preparePostAuctionDiscount({
     accountId: "user_loser",
     participant,
     config,
     winner,
+    order,
     now,
   });
   assert.equal(discount?.discountAmount, 5);
@@ -159,6 +183,7 @@ test("post-auction discount belongs only to an eligible loser and expires determ
       participant: { ...participant, participantId: winner.bidderId },
       config,
       winner,
+      order,
       now,
     }),
     null,
@@ -174,6 +199,7 @@ test("post-auction discount belongs only to an eligible loser and expires determ
       },
       config,
       winner,
+      order,
       now,
     }),
     null,
@@ -183,6 +209,7 @@ test("post-auction discount belongs only to an eligible loser and expires determ
     participant,
     config,
     winner,
+    order,
     now: Date.parse("2026-08-26T10:05:00.000Z"),
   })?.state, "expired");
 });
@@ -293,6 +320,38 @@ test("account rate limit uses a pseudonymous expiring key", async () => {
   }
 });
 
+test("rate-limit identities are purpose-separated and fail closed in production", () => {
+  const previous = {
+    environment: process.env.VERCEL_ENV,
+    rateSecret: process.env.FISZY_RATE_LIMIT_SECRET,
+    adminSecret: process.env.FISZY_ADMIN_SECRET,
+  };
+  try {
+    process.env.VERCEL_ENV = "development";
+    process.env.FISZY_RATE_LIMIT_SECRET = "unit-rate-limit-secret-with-at-least-32-characters";
+    const value = "198.51.100.12";
+    const first = rateLimitFingerprint("waitlist.ip", value);
+    const second = rateLimitFingerprint("admin.login.ip", value);
+    assert.match(first, /^[a-f0-9]{32}$/);
+    assert.notEqual(first, second);
+
+    process.env.VERCEL_ENV = "production";
+    delete process.env.FISZY_RATE_LIMIT_SECRET;
+    delete process.env.FISZY_ADMIN_SECRET;
+    assert.throws(
+      () => rateLimitFingerprint("waitlist.ip", value),
+      /requires a dedicated server secret/,
+    );
+  } finally {
+    if (previous.environment === undefined) delete process.env.VERCEL_ENV;
+    else process.env.VERCEL_ENV = previous.environment;
+    if (previous.rateSecret === undefined) delete process.env.FISZY_RATE_LIMIT_SECRET;
+    else process.env.FISZY_RATE_LIMIT_SECRET = previous.rateSecret;
+    if (previous.adminSecret === undefined) delete process.env.FISZY_ADMIN_SECRET;
+    else process.env.FISZY_ADMIN_SECRET = previous.adminSecret;
+  }
+});
+
 test("account support history accepts the first page without an invalid cursor purpose", async () => {
   const previousFetch = globalThis.fetch;
   const previousEnv = {
@@ -315,6 +374,87 @@ test("account support history accepts the first page without an invalid cursor p
     );
     assert.equal(commands.length, 1);
     assert.equal(commands[0][0], "EVAL");
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousEnv.url === undefined) delete process.env.KV_REST_API_URL; else process.env.KV_REST_API_URL = previousEnv.url;
+    if (previousEnv.token === undefined) delete process.env.KV_REST_API_TOKEN; else process.env.KV_REST_API_TOKEN = previousEnv.token;
+    if (previousEnv.environment === undefined) delete process.env.VERCEL_ENV; else process.env.VERCEL_ENV = previousEnv.environment;
+  }
+});
+
+test("waitlist accepts a consented normalized email and bounded campaign source", () => {
+  assert.equal(normalizeWaitlistEmail("  TEST+Social@Example.COM "), "test+social@example.com");
+  assert.equal(normalizeWaitlistEmail("not-an-email"), null);
+  assert.deepEqual(normalizeWaitlistSignup({
+    email: "  Test@Example.com ",
+    consent: true,
+    source: {
+      utmSource: " instagram ",
+      utmMedium: "social",
+      utmCampaign: "first-drop",
+      utmContent: null,
+      utmTerm: null,
+      referrerHost: "l.instagram.com",
+    },
+  }), {
+    email: "test@example.com",
+    consent: true,
+    source: {
+      utmSource: "instagram",
+      utmMedium: "social",
+      utmCampaign: "first-drop",
+      utmContent: null,
+      utmTerm: null,
+      referrerHost: "l.instagram.com",
+    },
+  });
+  assert.equal(normalizeWaitlistSignup({ email: "test@example.com", consent: false, source: {} }), null);
+  assert.equal(normalizeWaitlistSignup({
+    email: "test@example.com",
+    consent: true,
+    source: { utmSource: "x".repeat(161) },
+  }), null);
+});
+
+test("admin waitlist pages use an opaque cursor and return validated subscribers", async () => {
+  const previousFetch = globalThis.fetch;
+  const previousEnv = {
+    url: process.env.KV_REST_API_URL,
+    token: process.env.KV_REST_API_TOKEN,
+    environment: process.env.VERCEL_ENV,
+  };
+  const email = "social@example.com";
+  const subscriberId = createHash("sha256").update(email).digest("hex");
+  const record = {
+    schemaVersion: 1,
+    subscriberId,
+    email,
+    consent: true,
+    source: {
+      utmSource: "instagram",
+      utmMedium: "social",
+      utmCampaign: "post_3",
+      utmContent: null,
+      utmTerm: null,
+      referrerHost: "l.instagram.com",
+    },
+    consentVersion: WAITLIST_CONSENT_VERSION,
+    status: "active",
+    createdAt: "2026-08-24T12:00:00.000Z",
+  };
+  process.env.KV_REST_API_URL = "https://redis.portal-unit.invalid";
+  process.env.KV_REST_API_TOKEN = "portal-unit";
+  process.env.VERCEL_ENV = "development";
+  globalThis.fetch = async (_url, init = {}) => {
+    const command = JSON.parse(init.body);
+    if (command[0] === "EVAL") return Response.json({ result: [1, subscriberId] });
+    if (command[0] === "ZCARD") return Response.json({ result: 1 });
+    if (command[0] === "MGET") return Response.json({ result: [JSON.stringify(record)] });
+    return Response.json({ result: null });
+  };
+  try {
+    const page = await listWaitlistSignups({ limit: 20 });
+    assert.deepEqual(page, { signups: [record], total: 1, nextCursor: null });
   } finally {
     globalThis.fetch = previousFetch;
     if (previousEnv.url === undefined) delete process.env.KV_REST_API_URL; else process.env.KV_REST_API_URL = previousEnv.url;

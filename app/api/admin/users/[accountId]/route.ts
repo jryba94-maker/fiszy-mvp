@@ -41,7 +41,9 @@ export async function GET(
         entryStatus: participant.entryStatus,
         isWinner: winner?.bidderId === participant.participantId,
         winnerPrice: winner?.bidderId === participant.participantId ? winner.price : null,
-        order: order ? { orderId: order.orderId, amount: order.amount, paidAt: order.paidAt } : null,
+        order: order?.bidderId === participant.participantId
+          ? { orderId: order.orderId, amount: order.amount, paidAt: order.paidAt }
+          : null,
       })),
     }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {

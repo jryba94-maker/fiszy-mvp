@@ -62,12 +62,19 @@ type Activity = {
 
 type HistoryFilter = "all" | "active" | "wins" | "orders";
 
+type PortalNotification = {
+  id: string;
+  title: string;
+  text: string;
+  href: string;
+};
+
 type Ticket = {
-  ticketId: string;
-  category: "account" | "auction" | "order" | "complaint" | "other";
+  caseId: string;
+  kind: "support" | "complaint" | "return" | "withdrawal";
   subject: string;
-  status: "open" | "in_progress" | "resolved";
-  adminNote: string | null;
+  status: "submitted" | "reviewing" | "waiting_for_customer" | "accepted" | "rejected" | "completed";
+  adminResponse: string | null;
 };
 
 type ProfileDraft = {
@@ -154,6 +161,12 @@ async function accountRequest<T>(path: string, init?: RequestInit): Promise<T> {
       ? "Sesja wygasła. Zaloguj się ponownie."
       : outcome === "sold_out"
         ? "Pula produktów w tej ofercie została już wykorzystana."
+        : outcome === "order_not_found"
+          ? "Nie znaleźliśmy zamówienia przypisanego do Twojego konta. Sprawdź numer."
+          : outcome === "invalid_request"
+            ? "Sprawdź wymagane pola i wprowadzone dane."
+            : outcome === "rate_limited"
+              ? "Zbyt wiele prób. Odczekaj kilka minut i spróbuj ponownie."
         : outcome === "discount_expired"
           ? "Termin wykorzystania tego rabatu już minął."
           : outcome === "discount_unavailable"
@@ -172,6 +185,7 @@ export function DeviceProfile() {
   const [activity, setActivity] = useState<Activity[]>([]);
   const [historyCursor, setHistoryCursor] = useState<string | null>(null);
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [ticketCursor, setTicketCursor] = useState<string | null>(null);
   const [watchedIds, setWatchedIds] = useState<string[]>([]);
   const [watchedAuctions, setWatchedAuctions] = useState<PublicAuction[]>([]);
   const [readNotificationIds, setReadNotificationIds] = useState<Set<string>>(() => new Set());
@@ -179,8 +193,9 @@ export function DeviceProfile() {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<string | null>(null);
   const [historyFilter, setHistoryFilter] = useState<HistoryFilter>("all");
-  const [ticketDraft, setTicketDraft] = useState({ category: "other" as Ticket["category"], subject: "", message: "", orderId: "" });
+  const [ticketDraft, setTicketDraft] = useState({ kind: "support" as Ticket["kind"], subject: "", description: "", orderId: "", expectation: "" });
 
   const loadPortal = useCallback(async () => {
     if (!isSignedIn) return;
@@ -191,7 +206,7 @@ export function DeviceProfile() {
         accountRequest<{ profile: Profile }>("/api/account/profile"),
         accountRequest<{ activity: Activity[]; nextCursor: string | null }>("/api/account/activity"),
         accountRequest<{ auctionIds: string[] }>("/api/account/watchlist"),
-        accountRequest<{ tickets: Ticket[] }>("/api/account/support"),
+        accountRequest<{ cases: Ticket[]; nextCursor: string | null }>("/api/account/cases"),
         accountRequest<{ readIds: string[] }>("/api/account/notifications"),
       ]);
       if (profileResult.status === "rejected") throw profileResult.reason;
@@ -209,13 +224,17 @@ export function DeviceProfile() {
         );
         setWatchedAuctions(watched.flatMap((result) => result.status === "fulfilled" ? [result.value] : []));
       }
-      if (ticketResult.status === "fulfilled") setTickets(ticketResult.value.tickets);
+      if (ticketResult.status === "fulfilled") {
+        setTickets(ticketResult.value.cases);
+        setTicketCursor(ticketResult.value.nextCursor);
+      }
       if (notificationResult.status === "fulfilled") {
         setReadNotificationIds(new Set(notificationResult.value.readIds));
       }
       if ([watchResult, ticketResult, notificationResult].some((result) => result.status === "rejected")) {
         setError("Historia aukcji jest aktualna, ale nie udało się załadować części dodatków konta.");
       }
+      setLastRefreshedAt(new Date().toISOString());
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Nie udało się załadować konta.");
     } finally {
@@ -235,20 +254,21 @@ export function DeviceProfile() {
     watched: watchedIds.length,
   }), [activity, watchedIds]);
 
-  const allNotifications = useMemo(() => [
+  const allNotifications = useMemo<PortalNotification[]>(() => [
     ...activity.flatMap((item) => {
-      if (item.outcome === "won_payment_pending") return [{ id: `win-${item.runId}`, title: "Masz wygraną do opłacenia", text: item.product }];
-      if (item.discount?.state === "available") return [{ id: `discount-${item.discount.discountId}`, title: `Masz rabat ${money(item.discount.discountAmount)}`, text: item.product }];
-      if (item.order?.fulfillment?.status === "shipped") return [{ id: `ship-${item.order.orderId}`, title: "Przesyłka została nadana", text: item.product }];
-      if (item.order?.fulfillment?.status === "delivered") return [{ id: `done-${item.order.orderId}`, title: "Zamówienie dostarczone", text: item.product }];
+      if (item.outcome === "won_payment_pending") return [{ id: `win-${item.runId}`, title: "Masz wygraną do opłacenia", text: item.product, href: `/aukcje/${encodeURIComponent(item.auctionId)}` }];
+      if (item.discount?.state === "available") return [{ id: `discount-${item.discount.discountId}`, title: `Masz rabat ${money(item.discount.discountAmount)}`, text: item.product, href: "#rabaty" }];
+      if (item.order?.fulfillment?.status === "shipped") return [{ id: `ship-${item.order.orderId}`, title: "Przesyłka została nadana", text: item.product, href: "#historia" }];
+      if (item.order?.fulfillment?.status === "delivered") return [{ id: `done-${item.order.orderId}`, title: "Zamówienie dostarczone", text: item.product, href: "#historia" }];
       return [];
     }),
-    ...tickets.filter((ticket) => ticket.adminNote).map((ticket) => ({ id: ticket.ticketId, title: "Odpowiedź na zgłoszenie", text: ticket.subject })),
+    ...tickets.filter((ticket) => ticket.adminResponse).map((ticket) => ({ id: ticket.caseId, title: "Odpowiedź na zgłoszenie", text: ticket.subject, href: "#pomoc" })),
     ...watchedAuctions.flatMap((auction) => {
       const startsIn = Date.parse(auction.startsAt) - Date.now();
-      if (auction.status === "live") return [{ id: `watch-live-${auction.runId}`, title: "Obserwowana aukcja trwa", text: auction.product }];
+      const href = `/aukcje/${encodeURIComponent(auction.auctionId)}`;
+      if (auction.status === "live") return [{ id: `watch-live-${auction.runId}`, title: "Obserwowana aukcja trwa", text: auction.product, href }];
       if (auction.status === "waiting" && startsIn > 0 && startsIn <= 24 * 60 * 60 * 1000) {
-        return [{ id: `watch-start-${auction.runId}`, title: "Obserwowana aukcja startuje wkrótce", text: `${auction.product} · ${dateLabel(auction.startsAt)}` }];
+        return [{ id: `watch-start-${auction.runId}`, title: "Obserwowana aukcja startuje wkrótce", text: `${auction.product} · ${dateLabel(auction.startsAt)}`, href }];
       }
       return [];
     }),
@@ -327,11 +347,15 @@ export function DeviceProfile() {
     if (!notificationIds.length || busy) return;
     setBusy("notifications"); setError("");
     try {
-      const result = await accountRequest<{ readIds: string[] }>("/api/account/notifications", {
-        method: "PATCH",
-        body: JSON.stringify({ notificationIds }),
-      });
-      setReadNotificationIds((current) => new Set([...current, ...result.readIds]));
+      const readIds: string[] = [];
+      for (let offset = 0; offset < notificationIds.length; offset += 50) {
+        const result = await accountRequest<{ readIds: string[] }>("/api/account/notifications", {
+          method: "PATCH",
+          body: JSON.stringify({ notificationIds: notificationIds.slice(offset, offset + 50) }),
+        });
+        readIds.push(...result.readIds);
+      }
+      setReadNotificationIds((current) => new Set([...current, ...readIds]));
       setNotice("Powiadomienia oznaczono jako przeczytane.");
     } catch (notificationError) {
       setError(notificationError instanceof Error ? notificationError.message : "Nie udało się zapisać powiadomień.");
@@ -387,12 +411,29 @@ export function DeviceProfile() {
   const submitTicket = async (event: FormEvent) => {
     event.preventDefault(); setBusy("ticket"); setError("");
     try {
-      const result = await accountRequest<{ ticket: Ticket }>("/api/account/support", { method: "POST", body: JSON.stringify({ ...ticketDraft, orderId: ticketDraft.orderId || null }) });
-      setTickets((current) => [result.ticket, ...current]);
-      setTicketDraft({ category: "other", subject: "", message: "", orderId: "" });
-      setNotice(`Zgłoszenie ${result.ticket.ticketId} zostało zapisane.`);
+      const result = await accountRequest<{ case: Ticket }>("/api/account/cases", { method: "POST", body: JSON.stringify({ ...ticketDraft, orderId: ticketDraft.orderId || null, expectation: ticketDraft.expectation || null, contactEmail: user?.primaryEmailAddress?.emailAddress }) });
+      setTickets((current) => [result.case, ...current]);
+      setTicketDraft({ kind: "support", subject: "", description: "", orderId: "", expectation: "" });
+      setNotice(`Zgłoszenie ${result.case.caseId} zostało zapisane.`);
     } catch (ticketError) { setError(ticketError instanceof Error ? ticketError.message : "Nie udało się wysłać zgłoszenia."); }
     finally { setBusy(""); }
+  };
+
+  const loadMoreTickets = async () => {
+    if (!ticketCursor || busy) return;
+    setBusy("tickets");
+    try {
+      const result = await accountRequest<{ cases: Ticket[]; nextCursor: string | null }>(`/api/account/cases?cursor=${encodeURIComponent(ticketCursor)}`);
+      setTickets((current) => {
+        const known = new Set(current.map((ticket) => ticket.caseId));
+        return [...current, ...result.cases.filter((ticket) => !known.has(ticket.caseId))];
+      });
+      setTicketCursor(result.nextCursor);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "Nie udało się pobrać starszych zgłoszeń.");
+    } finally {
+      setBusy("");
+    }
   };
 
   const requestDeletion = async () => {
@@ -428,7 +469,11 @@ export function DeviceProfile() {
 
             <section className={styles.accountBar}>
               <div><span className={styles.accountAvatar} aria-hidden="true">{(profile?.fullName || user?.firstName || user?.primaryEmailAddress?.emailAddress || "F").slice(0, 1).toUpperCase()}</span><div><strong>{profile?.fullName || user?.fullName || "Twoje konto Fiszy"}</strong><span>{user?.primaryEmailAddress?.emailAddress}</span></div></div>
-              <a className={styles.secondaryButton} href="/api/account/export">Pobierz moje dane</a>
+              <div className={styles.accountActions}>
+                {lastRefreshedAt ? <span className={styles.refreshedAt}>Aktualne na {new Intl.DateTimeFormat("pl-PL", { hour: "2-digit", minute: "2-digit" }).format(new Date(lastRefreshedAt))}</span> : null}
+                <button className={styles.secondaryButton} type="button" disabled={loading || Boolean(busy)} onClick={() => void loadPortal()}>Odśwież dane</button>
+                <a className={styles.secondaryButton} href="/api/account/export">Pobierz moje dane</a>
+              </div>
             </section>
 
             <div className={styles.stats} role="group" aria-label="Podsumowanie konta">
@@ -455,14 +500,14 @@ export function DeviceProfile() {
             <section className={styles.portalGrid} aria-label="Najważniejsze informacje">
               <article className={styles.panel} id="powiadomienia">
                 <div className={styles.panelHeading}><div><p className={styles.eyebrow}>Teraz</p><h2>Powiadomienia</h2></div><span className={styles.counter}>{notifications.length}</span></div>
-                {notifications.length ? <><div className={styles.notificationList}>{notifications.map((item) => <div className={styles.notification} key={item.id}><div><strong>{item.title}</strong><span>{item.text}</span></div></div>)}</div><button className={styles.notificationButton} type="button" disabled={busy === "notifications"} onClick={() => void markNotificationsRead()}>{busy === "notifications" ? "Zapisuję…" : "Oznacz wszystkie jako przeczytane"}</button></> : <p className={styles.muted}>Nie masz teraz nowych spraw wymagających działania.</p>}
+                {notifications.length ? <><div className={styles.notificationList}>{notifications.map((item) => <Link className={styles.notification} href={item.href} key={item.id}><div><strong>{item.title}</strong><span>{item.text}</span></div><span className={styles.notificationArrow} aria-hidden="true">→</span></Link>)}</div><button className={styles.notificationButton} type="button" disabled={busy === "notifications"} onClick={() => void markNotificationsRead()}>{busy === "notifications" ? "Zapisuję…" : "Oznacz wszystkie jako przeczytane"}</button></> : <p className={styles.muted}>Nie masz teraz nowych spraw wymagających działania.</p>}
                 <DeviceNotifications />
-                <p className={styles.integrationNote}>Powiadomienia w portalu działają. Automatyczny e-mail wymaga jeszcze zweryfikowanej domeny nadawczej.</p>
+                <p className={styles.integrationNote}>Powiadomienia w portalu działają, a ważne wiadomości mogą być wysyłane na adres przypisany do konta zgodnie z Twoimi ustawieniami.</p>
               </article>
               <article className={styles.panel} id="obserwowane">
                 <div className={styles.panelHeading}><div><p className={styles.eyebrow}>Lista</p><h2>Obserwowane</h2></div><span className={styles.counter}>{watchedIds.length}</span></div>
                 {watchedAuctions.length ? <div className={styles.watchList}>{watchedAuctions.map((auction) => <div className={styles.watchItem} key={auction.auctionId}><div><strong>{auction.product}</strong><span>{watchStatus(auction)}</span></div><div className={styles.watchActions}><Link href={`/aukcje/${encodeURIComponent(auction.auctionId)}`}>Otwórz</Link><a href={`/api/auctions/${encodeURIComponent(auction.auctionId)}/calendar`}>Kalendarz</a><button type="button" disabled={busy === `watch-${auction.auctionId}`} onClick={() => void removeWatch(auction.auctionId)}>Usuń</button></div></div>)}</div> : <p className={styles.muted}>Dodaj aukcje do obserwowanych w katalogu.</p>}
-                <Link className={styles.inlineLink} href="/#aukcje">Przejdź do katalogu</Link>
+                <Link className={styles.inlineLink} href="/aukcje">Przejdź do katalogu</Link>
               </article>
             </section>
 
@@ -526,9 +571,7 @@ export function DeviceProfile() {
                 <label><span>Kod pocztowy</span><input value={draft.postalCode} maxLength={20} autoComplete="postal-code" onChange={(event) => setDraft({ ...draft, postalCode: event.target.value })} /></label>
                 <label><span>Miasto</span><input value={draft.city} maxLength={80} autoComplete="address-level2" onChange={(event) => setDraft({ ...draft, city: event.target.value })} /></label>
                 <label className={styles.wide}><span>Kraj</span><input value={draft.country} maxLength={80} autoComplete="country-name" onChange={(event) => setDraft({ ...draft, country: event.target.value })} /></label>
-                <fieldset className={styles.preferences}><legend>Powiadomienia i zgody</legend>{([
-                  ["emailAuctionStart", "Przypomnienia o starcie obserwowanych aukcji"], ["emailWin", "Informacje o wygranej i wymaganym działaniu"], ["emailOrderUpdates", "Zmiany statusu zamówienia i wysyłki"], ["marketing", "Nowe aukcje i promocje"], ["analytics", "Dobrowolna analityka portalu"],
-                ] as const).map(([key, label]) => <label className={styles.checkLabel} key={key}><input type="checkbox" checked={draft.preferences[key]} onChange={(event) => setDraft({ ...draft, preferences: { ...draft.preferences, [key]: event.target.checked } })} /><span>{label}</span></label>)}</fieldset>
+                <fieldset className={styles.preferences}><legend>Wiadomości i prywatność</legend><label className={styles.checkLabel}><input type="checkbox" checked={draft.preferences.emailOrderUpdates} onChange={(event) => setDraft({ ...draft, preferences: { ...draft.preferences, emailOrderUpdates: event.target.checked } })} /><span>Zmiany statusu zamówienia, wysyłki i numer przesyłki</span></label><label className={styles.checkLabel}><input type="checkbox" checked={draft.preferences.marketing} onChange={(event) => setDraft({ ...draft, preferences: { ...draft.preferences, marketing: event.target.checked } })} /><span>Chcę otrzymywać informacje marketingowe o nowych aukcjach i ofertach.</span></label><label className={styles.checkLabel}><input type="checkbox" checked={draft.preferences.analytics} onChange={(event) => setDraft({ ...draft, preferences: { ...draft.preferences, analytics: event.target.checked } })} /><span>Zgadzam się na analitykę pomagającą ulepszać portal.</span></label><p>Zgody są dobrowolne. Ich zmiana jest zapisywana w rejestrze RODO.</p></fieldset>
                 <div className={styles.formActions}><button className={styles.primaryButton} type="submit" disabled={busy === "profile"}>{busy === "profile" ? "Zapisuję…" : "Zapisz profil"}</button><a className={styles.secondaryButton} href="/api/account/export">Eksport danych</a><button className={styles.dangerButton} type="button" disabled={busy === "deletion" || Boolean(profile.deletionRequestedAt)} onClick={() => void requestDeletion()}>{profile.deletionRequestedAt ? "Wniosek przyjęty" : "Poproś o usunięcie danych"}</button></div>
               </form> : null}
             </section>
@@ -536,12 +579,13 @@ export function DeviceProfile() {
             <section className={styles.section} id="pomoc" aria-labelledby="support-title">
               <div className={styles.sectionHeading}><div><p className={styles.eyebrow}>Pomoc i reklamacje</p><h2 id="support-title">Napisz do nas</h2></div><p>Każde zgłoszenie otrzymuje numer i własny status.</p></div>
               <div className={styles.supportGrid}><form className={styles.ticketForm} onSubmit={submitTicket}>
-                <label><span>Rodzaj sprawy</span><select value={ticketDraft.category} onChange={(event) => setTicketDraft({ ...ticketDraft, category: event.target.value as Ticket["category"] })}><option value="account">Konto</option><option value="auction">Aukcja</option><option value="order">Zamówienie</option><option value="complaint">Reklamacja lub zwrot</option><option value="other">Inna sprawa</option></select></label>
+                <label><span>Rodzaj sprawy</span><select value={ticketDraft.kind} onChange={(event) => setTicketDraft({ ...ticketDraft, kind: event.target.value as Ticket["kind"] })}><option value="support">Pomoc</option><option value="complaint">Reklamacja</option><option value="return">Zwrot</option><option value="withdrawal">Odstąpienie od umowy</option></select></label>
                 <label><span>Temat</span><input required minLength={3} maxLength={120} value={ticketDraft.subject} onChange={(event) => setTicketDraft({ ...ticketDraft, subject: event.target.value })} /></label>
-                <label><span>Numer zamówienia (opcjonalnie)</span><input maxLength={200} value={ticketDraft.orderId} onChange={(event) => setTicketDraft({ ...ticketDraft, orderId: event.target.value })} /></label>
-                <label><span>Opis</span><textarea required minLength={10} maxLength={3000} rows={6} value={ticketDraft.message} onChange={(event) => setTicketDraft({ ...ticketDraft, message: event.target.value })} /></label>
+                <label><span>Numer zamówienia{ticketDraft.kind === "return" || ticketDraft.kind === "withdrawal" ? " (wymagany)" : " (opcjonalnie)"}</span><input required={ticketDraft.kind === "return" || ticketDraft.kind === "withdrawal"} maxLength={200} value={ticketDraft.orderId} onChange={(event) => setTicketDraft({ ...ticketDraft, orderId: event.target.value })} /></label>
+                <label><span>Opis</span><textarea required minLength={10} maxLength={4000} rows={6} value={ticketDraft.description} onChange={(event) => setTicketDraft({ ...ticketDraft, description: event.target.value })} /></label>
+                <label><span>Oczekiwane rozwiązanie (opcjonalnie)</span><textarea maxLength={1000} rows={3} value={ticketDraft.expectation} onChange={(event) => setTicketDraft({ ...ticketDraft, expectation: event.target.value })} /></label>
                 <button className={styles.primaryButton} type="submit" disabled={busy === "ticket"}>{busy === "ticket" ? "Wysyłam…" : "Utwórz zgłoszenie"}</button>
-              </form><div className={styles.ticketList}>{tickets.length ? tickets.map((ticket) => <article className={styles.ticket} key={ticket.ticketId}><div><span>{ticket.ticketId}</span><strong>{ticket.subject}</strong></div><span className={styles.ticketStatus}>{ticket.status === "open" ? "Nowe" : ticket.status === "in_progress" ? "W realizacji" : "Zamknięte"}</span>{ticket.adminNote ? <p><strong>Odpowiedź:</strong> {ticket.adminNote}</p> : <p>Oczekuje na odpowiedź zespołu.</p>}</article>) : <div className={styles.emptyCompact}><h3>Brak zgłoszeń</h3><p>Gdy napiszesz do nas, status sprawy zobaczysz tutaj.</p></div>}</div></div>
+              </form><div className={styles.ticketList}>{tickets.length ? tickets.map((ticket) => <article className={styles.ticket} key={ticket.caseId}><div><span>{ticket.caseId}</span><strong>{ticket.subject}</strong></div><span className={styles.ticketStatus}>{ticket.status === "submitted" ? "Nowe" : ticket.status === "reviewing" ? "W analizie" : ticket.status === "waiting_for_customer" ? "Czeka na Ciebie" : ticket.status === "accepted" ? "Uznane" : ticket.status === "rejected" ? "Odrzucone" : "Zakończone"}</span>{ticket.adminResponse ? <p><strong>Odpowiedź:</strong> {ticket.adminResponse}</p> : <p>Oczekuje na odpowiedź zespołu.</p>}</article>) : <div className={styles.emptyCompact}><h3>Brak zgłoszeń</h3><p>Gdy napiszesz do nas, status sprawy zobaczysz tutaj.</p></div>}{ticketCursor ? <button className={styles.moreButton} type="button" disabled={busy === "tickets"} onClick={() => void loadMoreTickets()}>{busy === "tickets" ? "Pobieram…" : "Pokaż starsze zgłoszenia"}</button> : null}</div></div>
             </section>
           </>
         )}

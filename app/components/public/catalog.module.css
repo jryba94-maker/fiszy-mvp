@@ -83,6 +83,11 @@
   color: #7a36ff;
 }
 
+.hero h1 .heroPrimary {
+  color: inherit;
+  white-space: nowrap;
+}
+
 .heroAside {
   align-self: end;
   max-width: 390px;
@@ -318,6 +323,59 @@
   padding-bottom: 112px;
 }
 
+.mechanicsCard {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(320px, .85fr);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, .14);
+  border-radius: 28px;
+  background: linear-gradient(135deg, #7728f6 0%, #5512c8 100%);
+}
+
+.mechanicsLead {
+  min-height: 340px;
+  padding: clamp(32px, 5vw, 64px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.mechanicsLead h3 {
+  max-width: 690px;
+  margin: 0;
+  color: #fff;
+  font-size: clamp(2.3rem, 5vw, 4.9rem);
+  font-weight: 600;
+  letter-spacing: -.06em;
+  line-height: .96;
+}
+
+.mechanicsCopy {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: clamp(32px, 5vw, 58px);
+  border-left: 1px solid rgba(255, 255, 255, .22);
+  background: rgba(10, 8, 14, .36);
+}
+
+.mechanicsCopy p {
+  margin: 0;
+  padding: 20px 0;
+  color: rgba(255, 255, 255, .82);
+  font-size: clamp(1rem, 1.5vw, 1.15rem);
+  line-height: 1.55;
+}
+
+.mechanicsCopy p + p {
+  border-top: 1px solid rgba(255, 255, 255, .18);
+}
+
+.mechanicsCopy strong {
+  color: #fff;
+  font-weight: 600;
+}
+
 .steps {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -486,9 +544,13 @@
 
   .auctionGrid,
   .loadingGrid,
-  .steps {
+  .steps,
+  .mechanicsCard {
     grid-template-columns: 1fr;
   }
+
+  .mechanicsLead { min-height: 300px; }
+  .mechanicsCopy { border-top: 1px solid rgba(255, 255, 255, .22); border-left: 0; }
 
   .catalogTools {
     grid-template-columns: 1fr;
@@ -521,5 +583,58 @@
 @media (prefers-reduced-motion: reduce) {
   .skeleton {
     animation: none;
+  }
+}
+
+/* Shared visual language from the Fiszy launch landing */
+.page { background: #070708; color: #f8f7fb; }
+.hero {
+  border-color: rgba(255,255,255,.12);
+  background:
+    radial-gradient(circle at 82% 18%, rgba(123,44,255,.82) 0, rgba(71,12,165,.48) 22%, transparent 48%),
+    #111114;
+}
+.hero::before, .hero::after { border-color: rgba(167,122,255,.24); }
+.hero h1 { font-weight: 600; letter-spacing: -.065em; line-height: .86; }
+.hero h1 span { color: #a77aff; }
+.eyebrow::before { background: #7b2cff; box-shadow: 0 0 0 6px rgba(123,44,255,.18); }
+.heroAction { border-color: #7b2cff; background: #7b2cff; color: #fff; }
+.heroActionGhost { border-color: rgba(255,255,255,.24); color: #fff; }
+.stats, .catalogTools { border-color: rgba(255,255,255,.12); background: #111114; }
+.stat + .stat { border-color: rgba(255,255,255,.12); }
+.stat span, .sectionHeading p, .resultsCount { color: #aaa6b2; }
+.catalogTools input, .catalogTools select { border-color: rgba(255,255,255,.12); background: #18181c; color: #f8f7fb; }
+.sectionHeading h2 { font-weight: 600; letter-spacing: -.055em; }
+.steps { border-color: rgba(255,255,255,.14); background: #111114; }
+.stepNumber, .step:nth-child(2) .stepNumber, .step:nth-child(3) .stepNumber { background: #7b2cff; color: #fff; }
+.footer { border-color: rgba(255,255,255,.12); color: #8f8b97; }
+.footerLinks a { color: #bcb8c3; }
+.retryButton, .moreButton { border-color: rgba(255,255,255,.28); color: #fff; }
+.retryButton:hover, .moreButton:hover { background: #7b2cff; }
+.notice, .errorBox, .emptyBox { border-color: rgba(255,255,255,.16); background: #111114; color: #c8c4cf; }
+.emptyBox p { margin: 0; }
+.emptyBox span { display: block; margin-top: 8px; color: #918d99; }
+.resetButton {
+  min-height: 42px;
+  margin-top: 18px;
+  border: 1px solid rgba(255,255,255,.24);
+  border-radius: 999px;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: .82rem;
+  font-weight: 600;
+  padding: 0 16px;
+}
+.resetButton:hover { border-color: #a77aff; background: rgba(123,44,255,.16); }
+.resetButton:focus-visible { outline: 3px solid #7b2cff; outline-offset: 3px; }
+.skeleton { background: linear-gradient(100deg,#121216 30%,#222128 50%,#121216 70%); background-size:250% 100%; }
+
+@media (max-width: 680px) {
+  .hero h1 {
+    font-size: clamp(2.9rem, 14vw, 4rem);
+    letter-spacing: -.06em;
+    line-height: .9;
   }
 }

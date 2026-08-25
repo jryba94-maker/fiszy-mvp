@@ -1,5 +1,14 @@
 import { SignIn } from "@clerk/nextjs";
+import Link from "next/link";
+import styles from "../../auth.module.css";
 
 export default function SignInPage() {
-  return <SignIn />;
+  return (
+    <main className={styles.page}>
+      <div className={styles.shell}>
+        <Link className={styles.brand} href="/" aria-label="Fiszy — strona główna">Fiszy<span>.</span></Link>
+        <SignIn />
+      </div>
+    </main>
+  );
 }

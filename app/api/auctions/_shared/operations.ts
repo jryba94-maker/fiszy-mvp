@@ -29,6 +29,7 @@ import {
   isPaymentProviderConfigured,
 } from "../../../../lib/payment-provider";
 import { ensureAccountProfile, isAccountBlocked } from "../../../../lib/portal-storage";
+import { recordBusinessEventSafely } from "../../../../lib/business-analytics";
 
 const PURCHASE_CHECKOUT_WINDOW_SECONDS = 31 * 60;
 
@@ -238,11 +239,12 @@ export async function handleEntryPost(
       amount: active.config.entryFee * 100,
       productName: active.config.productName,
     });
+    await recordBusinessEventSafely({ event: "entry_checkout_started" });
     return NextResponse.json({
       outcome: "checkout",
       auctionId: active.auctionId,
       runId: active.config.runId,
-      checkoutUrl: session.url,
+      checkoutUrl: session.checkoutUrl,
       entryFee: active.config.entryFee,
     });
   } catch (error) {
@@ -388,7 +390,7 @@ export async function handleBuyPost(
     };
 
     const recoverAttachment = async (
-      session: { id: string; url: string | null },
+      session: { reference: string; checkoutUrl: string | null },
       claimedWinner: AuctionWinner,
     ) => {
       let recovered: AuctionWinner | null;
@@ -403,13 +405,13 @@ export async function handleBuyPost(
         recovered?.bidderId === claimedWinner.bidderId &&
         recovered.claimedAt === claimedWinner.claimedAt;
       if (sameClaim && recovered?.paymentSessionId && recovered.paymentCheckoutUrl) {
-        if (recovered.paymentSessionId !== session.id) {
-          await expireUnreturnedCheckout(session.id);
+        if (recovered.paymentSessionId !== session.reference) {
+          await expireUnreturnedCheckout(session.reference);
         }
         return checkoutResponse(recovered, recovered.paymentCheckoutUrl);
       }
 
-      if (!sameClaim) await expireUnreturnedCheckout(session.id);
+      if (!sameClaim) await expireUnreturnedCheckout(session.reference);
       return null;
     };
 
@@ -456,8 +458,8 @@ export async function handleBuyPost(
         attached = await attachAuctionWinnerCheckout(
           active.config.runId,
           claimedWinner.bidderId,
-          session.id,
-          session.url!,
+          session.reference,
+          session.checkoutUrl!,
           new Date(expiresAt * 1000).toISOString(),
           active.auctionId,
           claimedWinner.claimedAt,
@@ -476,7 +478,7 @@ export async function handleBuyPost(
         return NextResponse.json({ outcome: "storage_error" }, { status: 503 });
       }
 
-      return checkoutResponse(claimedWinner, session.url!);
+      return checkoutResponse(claimedWinner, session.checkoutUrl!);
     };
 
     let result: number | null;
@@ -524,6 +526,7 @@ export async function handleBuyPost(
     }
 
     if (result === 1) {
+      await recordBusinessEventSafely({ event: "winner_claimed" });
       return finishWinnerCheckout(winner);
     }
 

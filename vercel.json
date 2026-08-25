@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/system-health",
+      "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/operations",
+      "schedule": "15 7 * * *"
+    }
+  ]
+}

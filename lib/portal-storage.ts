@@ -1,5 +1,6 @@
-import { createHash, createHmac, randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { redisCommand } from "./redis";
+import { rateLimitFingerprint } from "./rate-limit-identity";
 import { listSortedSetPage } from "./sorted-set-pagination";
 
 export type AccountAddress = {
@@ -83,11 +84,10 @@ export async function consumeAccountRateLimit(input: {
   windowSeconds: number;
 }) {
   const accountId = checkedAccountId(input.accountId);
-  const salt = process.env.FISZY_RATE_LIMIT_SECRET?.trim() || "fiszy-local-rate-limit-v1";
-  const fingerprint = createHmac("sha256", salt)
-    .update(`portal:${input.action}:${accountId}`)
-    .digest("hex")
-    .slice(0, 32);
+  const fingerprint = rateLimitFingerprint(
+    `portal.${input.action}`,
+    accountId,
+  );
   const key = `${prefix()}:rate:v1:portal:${input.action}:${fingerprint}`;
   const attempts = await redisCommand<number>([
     "EVAL",

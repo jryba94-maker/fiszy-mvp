@@ -2,18 +2,18 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
-import { ClerkProvider } from "@clerk/nextjs";
+import { GeistSans } from "geist/font/sans";
+import { GeistMono } from "geist/font/mono";
 import { siteUrl } from "../lib/site";
-import { PwaManager } from "./components/pwa/PwaManager";
 import "./globals.css";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl()),
   title: {
-    default: "Fiszy | Aukcje, w których cena spada",
+    default: "Fiszy | Pierwsza aukcja nadchodzi",
     template: "%s | Fiszy",
   },
-  description: "Wejdź do aukcji, obserwuj spadającą cenę i kup jednym kliknięciem.",
+  description: "Zostaw e-mail i dowiedz się jako pierwszy, kiedy wystartuje pierwsza aukcja Fiszy.",
   applicationName: "Fiszy",
   appleWebApp: {
     capable: true,
@@ -25,14 +25,14 @@ export const metadata: Metadata = {
     type: "website",
     locale: "pl_PL",
     siteName: "Fiszy",
-    title: "Fiszy | Aukcje, w których cena spada",
-    description: "Wejdź do aukcji, obserwuj spadającą cenę i kup jednym kliknięciem.",
+    title: "Fiszy | Pierwsza aukcja nadchodzi",
+    description: "Coś zacznie spadać. Zostaw e-mail i dowiedz się pierwszy.",
     url: "/",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Fiszy | Aukcje, w których cena spada",
-    description: "Wejdź do aukcji, obserwuj spadającą cenę i kup jednym kliknięciem.",
+    title: "Fiszy | Pierwsza aukcja nadchodzi",
+    description: "Coś zacznie spadać. Zostaw e-mail i dowiedz się pierwszy.",
   },
   robots:
     process.env.VERCEL_ENV === "production"
@@ -42,12 +42,9 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <html lang="pl">
-      <body>
-        <ClerkProvider>
-          {children}
-          <PwaManager />
-        </ClerkProvider>
+    <html lang="pl" className={`${GeistSans.variable} ${GeistMono.variable}`}>
+      <body className={GeistSans.className}>
+        {children}
         <Analytics />
         <SpeedInsights />
       </body>

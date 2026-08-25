@@ -44,6 +44,27 @@ type Ticket = {
   createdAt: string;
 };
 
+type WaitlistSignup = {
+  subscriberId: string;
+  email: string;
+  createdAt: string;
+  source: {
+    utmSource: string | null;
+    utmMedium: string | null;
+    utmCampaign: string | null;
+    utmContent: string | null;
+    utmTerm: string | null;
+    referrerHost: string | null;
+  };
+};
+
+const WAITLIST_DATE_FORMATTER = new Intl.DateTimeFormat("pl-PL", {
+  day: "2-digit",
+  month: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
 async function adminRequest<T>(path: string, init?: RequestInit) {
   const response = await fetch(path, {
     cache: "no-store",
@@ -58,6 +79,8 @@ async function adminRequest<T>(path: string, init?: RequestInit) {
 export function PortalOperationsPanel({ onSessionExpired }: { onSessionExpired: () => void }) {
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [waitlist, setWaitlist] = useState<WaitlistSignup[]>([]);
+  const [waitlistTotal, setWaitlistTotal] = useState(0);
   const [userCursor, setUserCursor] = useState<string | null>(null);
   const [ticketCursor, setTicketCursor] = useState<string | null>(null);
   const [selected, setSelected] = useState<UserDetail | null>(null);
@@ -73,12 +96,19 @@ export function PortalOperationsPanel({ onSessionExpired }: { onSessionExpired: 
   const load = useCallback(async () => {
     setLoading(true); setError("");
     try {
-      const [userResult, ticketResult] = await Promise.all([
+      const [userResult, ticketResult, waitlistResult] = await Promise.all([
         adminRequest<{ users: UserSummary[]; nextCursor: string | null }>("/api/admin/users?limit=50"),
         adminRequest<{ tickets: Ticket[]; nextCursor: string | null }>("/api/admin/support"),
+        adminRequest<{ signups: WaitlistSignup[]; total: number }>("/api/admin/waitlist?limit=20").catch(() => null),
       ]);
       setUsers(userResult.users); setUserCursor(userResult.nextCursor);
       setTickets(ticketResult.tickets); setTicketCursor(ticketResult.nextCursor);
+      if (waitlistResult) {
+        setWaitlist(waitlistResult.signups); setWaitlistTotal(waitlistResult.total);
+      } else {
+        setWaitlist([]); setWaitlistTotal(0);
+        setError("Użytkownicy i zgłoszenia są aktualne, ale nie udało się pobrać listy zainteresowanych.");
+      }
     } catch (loadError) {
       if ((loadError as { status?: number }).status === 401) onSessionExpired();
       else setError(loadError instanceof Error ? loadError.message : "Nie udało się pobrać danych.");
@@ -170,7 +200,10 @@ export function PortalOperationsPanel({ onSessionExpired }: { onSessionExpired: 
     <section className={styles.portalOperations} aria-labelledby="portal-operations-title" aria-busy={loading}>
       <div className={styles.sectionHeader}>
         <div><p className={styles.eyebrow}>Relacje i bezpieczeństwo</p><h2 id="portal-operations-title">Użytkownicy i pomoc</h2></div>
-        <button className={styles.secondaryButton} type="button" onClick={() => void load()} disabled={loading}>Odśwież</button>
+        <div className={styles.headerActions}>
+          <a className={styles.secondaryButton} href="/api/admin/waitlist?format=csv" download>Pobierz listę e-mail</a>
+          <button className={styles.secondaryButton} type="button" onClick={() => void load()} disabled={loading}>Odśwież</button>
+        </div>
       </div>
       {error ? <div className={styles.inlineError} role="alert">{error}</div> : null}
       <div className={styles.portalOperationsGrid}>
@@ -205,6 +238,18 @@ export function PortalOperationsPanel({ onSessionExpired }: { onSessionExpired: 
           </div>
           {filteredTickets.length ? <div className={styles.ticketAdminList}>{filteredTickets.map((ticket) => <TicketEditor key={ticket.ticketId} ticket={ticket} busy={busy === ticket.ticketId} onSave={updateTicket} />)}</div> : <p className={styles.emptyState}>{tickets.length ? "Brak zgłoszeń pasujących do filtrów." : "Brak zgłoszeń użytkowników."}</p>}
           {ticketCursor ? <button className={styles.secondaryButton} type="button" disabled={busy === "tickets-more"} onClick={() => void loadMoreTickets()}>{busy === "tickets-more" ? "Pobieram…" : "Pokaż kolejne zgłoszenia"}</button> : null}
+        </div>
+
+        <div className={`${styles.adminSubpanel} ${styles.waitlistPanel}`}>
+          <div className={styles.subpanelTitle}><h3>Lista zainteresowanych pierwszą aukcją</h3><span>{waitlistTotal} zapisanych</span></div>
+          {waitlist.length ? <div className={styles.waitlistRows}>{waitlist.map((signup) => {
+            const campaign = [signup.source.utmSource, signup.source.utmCampaign].filter(Boolean).join(" / ") || signup.source.referrerHost || "wejście bezpośrednie";
+            return <div className={styles.waitlistRow} key={signup.subscriberId}>
+              <span><strong>{signup.email}</strong><small>{campaign}</small></span>
+              <time dateTime={signup.createdAt}>{WAITLIST_DATE_FORMATTER.format(new Date(signup.createdAt))}</time>
+            </div>;
+          })}</div> : <p className={styles.emptyState}>Pierwsze zapisy z landing page pojawią się tutaj.</p>}
+          <a className={styles.secondaryButton} href="/api/admin/waitlist?format=csv" download>Pobierz pełną listę CSV</a>
         </div>
       </div>
     </section>

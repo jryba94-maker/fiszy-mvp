@@ -150,10 +150,15 @@ export function AuctionCatalog() {
 
     const controller = new AbortController();
     void loadInitial(controller.signal);
-    const timer = window.setInterval(() => void loadInitial(controller.signal), 10_000);
+    const refreshIfVisible = () => {
+      if (document.visibilityState === "visible") void loadInitial(controller.signal);
+    };
+    const timer = window.setInterval(refreshIfVisible, 10_000);
+    document.addEventListener("visibilitychange", refreshIfVisible);
     return () => {
       controller.abort();
       window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", refreshIfVisible);
     };
   }, [loadInitial]);
 
@@ -226,11 +231,18 @@ export function AuctionCatalog() {
     const matchesSearch = !query || auction.product.toLocaleLowerCase("pl-PL").includes(query);
     const matchesStatus = statusFilter === "all" ||
       (statusFilter === "available" && (auction.status === "waiting" || auction.status === "live")) ||
-      (statusFilter === "live" && auction.status === "live") ||
-      (statusFilter === "finished" && ["ended", "sold", "payment_pending"].includes(auction.status));
+      (statusFilter === "upcoming" && auction.status === "waiting") ||
+      (statusFilter === "live" && auction.status === "live");
     const matchesCategory = categoryFilter === "all" || auction.category === categoryFilter;
     return matchesSearch && matchesStatus && matchesCategory;
   });
+  const filtersActive = Boolean(searchQuery.trim() || statusFilter !== "all" || categoryFilter !== "all");
+
+  const resetFilters = () => {
+    setSearchQuery("");
+    setStatusFilter("all");
+    setCategoryFilter("all");
+  };
 
   return (
     <main className={styles.page}>
@@ -240,13 +252,10 @@ export function AuctionCatalog() {
         <div className={styles.heroInner}>
           <div>
             <p className={styles.eyebrow}>Aukcje z malejącą ceną</p>
-            <h1 id="hero-title">Cena spada.<span>Ty wybierasz moment.</span></h1>
+            <h1 id="hero-title"><span className={styles.heroPrimary}>Cena spada.</span><span>Ty wybierasz moment.</span></h1>
           </div>
           <div className={styles.heroAside}>
-            <p>
-              Obserwujesz cenę na żywo. Klikasz raz. Jeśli jesteś pierwszy —
-              ta cena zostaje Twoja.
-            </p>
+            <p>Każda decyzja ma swoją cenę.</p>
             <div className={styles.heroActions}>
               <Link className={styles.heroAction} href="#aukcje">Zobacz aukcje</Link>
               <Link className={styles.heroActionGhost} href="/moje-fiszy">Moja historia</Link>
@@ -255,16 +264,10 @@ export function AuctionCatalog() {
         </div>
       </section>
 
-      <div className={styles.stats} role="group" aria-label="Najważniejsze zasady Fiszy">
-        <div className={styles.stat}><strong>Ustalane</strong><span>wejście do wybranej aukcji</span></div>
-        <div className={styles.stat}><strong>1 klik</strong><span>decyduje o zwycięstwie</span></div>
-        <div className={styles.stat}><strong>Na żywo</strong><span>czas zsynchronizowany z serwerem</span></div>
-      </div>
-
       <section className={styles.section} id="aukcje" aria-labelledby="auctions-title">
         <div className={styles.sectionHeading}>
-          <h2 id="auctions-title">Wybierz swoją Fiszę</h2>
-          <p>Każda aukcja ma własny czas, cenę i jedno zwycięskie kliknięcie.</p>
+          <h2 id="auctions-title">Aktualne aukcje</h2>
+          <p>Każda aukcja ma własny czas, cenę i jeden moment, który ją kończy.</p>
         </div>
 
         <div className={styles.catalogTools} role="search" aria-label="Wyszukiwanie i filtrowanie aukcji">
@@ -277,8 +280,8 @@ export function AuctionCatalog() {
             <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
               <option value="all">Wszystkie statusy</option>
               <option value="available">Dostępne</option>
+              <option value="upcoming">Nadchodzące</option>
               <option value="live">Trwają teraz</option>
-              <option value="finished">Zakończone</option>
             </select>
           </label>
           <label>
@@ -321,7 +324,12 @@ export function AuctionCatalog() {
               />
             ))}
             {!filteredAuctions.length && !error ? (
-              <p className={styles.emptyBox}>Nie ma teraz aktywnych aukcji. Wróć za chwilę.</p>
+              <div className={styles.emptyBox}>
+                <p>{filtersActive ? "Nie znaleźliśmy aukcji spełniających wybrane kryteria." : "Nie ma teraz aktywnych aukcji."}</p>
+                {filtersActive ? (
+                  <button className={styles.resetButton} type="button" onClick={resetFilters}>Wyczyść filtry</button>
+                ) : <span>Kolejne pojawią się wkrótce.</span>}
+              </div>
             ) : null}
             {error ? (
               <div className={styles.errorBox} role="alert">
@@ -349,29 +357,22 @@ export function AuctionCatalog() {
 
       <section className={`${styles.section} ${styles.mechanics}`} id="jak-to-dziala" aria-labelledby="mechanics-title">
         <div className={styles.sectionHeading}>
-          <h2 id="mechanics-title">Proste zasady. Prawdziwe emocje.</h2>
+          <h2 id="mechanics-title">Moment decyzji</h2>
         </div>
-        <div className={styles.steps}>
-          <article className={styles.step}>
-            <span className={styles.stepNumber}>1</span>
-            <h3>Wchodzisz</h3>
-            <p>Opłacasz wejście tylko do aukcji, którą naprawdę chcesz obserwować.</p>
-          </article>
-          <article className={styles.step}>
-            <span className={styles.stepNumber}>2</span>
-            <h3>Czekasz</h3>
-            <p>Cena spada, a Ty decydujesz, czy warto zaryzykować jeszcze chwilę.</p>
-          </article>
-          <article className={styles.step}>
-            <span className={styles.stepNumber}>3</span>
-            <h3>Klikasz</h3>
-            <p>Pierwszy poprawny klik rezerwuje produkt dokładnie po widocznej cenie.</p>
-          </article>
-        </div>
+        <article className={styles.mechanicsCard}>
+          <div className={styles.mechanicsLead}>
+            <h3>Cena spada.<br />Ty obserwujesz.</h3>
+          </div>
+          <div className={styles.mechanicsCopy}>
+            <p>Im dłużej czekasz, tym mniej możesz zapłacić.</p>
+            <p><strong>Tylko jednego nie wiesz:</strong><br />kiedy zdecyduje ktoś inny.</p>
+            <p>Gdy cena jest właściwa, klikasz.<br />Pierwsza decyzja kończy aukcję.</p>
+          </div>
+        </article>
       </section>
 
       <footer className={styles.footer}>
-        <span>Fiszy — aukcje, w których cena spada.</span>
+        <span><strong>Fiszy.</strong> Przywracamy emocje zakupów.</span>
         <nav className={styles.footerLinks} aria-label="Dokumenty">
           <Link href="/regulamin">Regulamin</Link>
           <Link href="/prywatnosc">Prywatność</Link>

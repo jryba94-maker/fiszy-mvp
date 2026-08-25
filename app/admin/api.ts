@@ -536,6 +536,7 @@ export async function loadHealth(): Promise<AdminHealth> {
     adminSecretStrong: asBoolean(
       record.adminSecretStrong ?? record.adminConfigured ?? record.adminSecretConfigured,
     ),
+    individualAdminAccountsConfigured: asBoolean(record.individualAdminAccountsConfigured),
     redisConfigured: asBoolean(record.redisConfigured),
     redisReachable: asBoolean(record.redisReachable ?? record.redisConfigured),
     redisLatencyMs: firstNumber(record.redisLatencyMs),
@@ -583,6 +584,14 @@ export async function createAuction(
     });
     return { legacy: true };
   }
+}
+
+export async function duplicateAuction(auctionId: string): Promise<MutationResult> {
+  await request(`/api/admin/auctions/${encodeURIComponent(auctionId)}/duplicate`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+  return { legacy: false, message: "Utworzono szkic kopii aukcji." };
 }
 
 export async function updateAuction(

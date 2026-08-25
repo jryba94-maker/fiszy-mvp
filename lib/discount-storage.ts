@@ -230,10 +230,11 @@ export function preparePostAuctionDiscount(input: {
   participant: ParticipantRunRecord;
   config: AuctionConfig;
   winner: AuctionWinner | null;
+  order?: AuctionOrder | null;
   now?: number;
 }): PostAuctionDiscount | null {
   const now = input.now ?? Date.now();
-  const { participant, config, winner } = input;
+  const { participant, config, winner, order = null } = input;
   const accountId = checkedAccountId(input.accountId);
   const participantId = checkedParticipantId(participant.participantId);
   if (
@@ -246,6 +247,11 @@ export function preparePostAuctionDiscount(input: {
     return null;
   }
   const timedState = getTimedAuctionState(now, config);
+  const settledWinner = winner && order &&
+    order.auctionId === participant.auctionId &&
+    order.runId === participant.runId &&
+    order.bidderId === winner.bidderId;
+  if (winner && !settledWinner) return null;
   if (!winner && timedState.status !== "ended") return null;
   const regularPrice = config.regularPrice;
   const discountAmount = participant.entryFee;
@@ -258,8 +264,8 @@ export function preparePostAuctionDiscount(input: {
   ) {
     return null;
   }
-  const terminalAt = winner
-    ? Date.parse(winner.claimedAt)
+  const terminalAt = settledWinner
+    ? Date.parse(order.paidAt)
     : getAuctionEndsAt(config).getTime();
   if (!Number.isFinite(terminalAt) || now < terminalAt) return null;
   const expiresAt = terminalAt + config.postAuctionOffer.validityDays * 86_400_000;

@@ -21,6 +21,7 @@ import {
   listSortedSetPage,
   looksLikeSortedSetCursor,
 } from "../lib/sorted-set-pagination.ts";
+import { sendOrderFulfillmentUpdate } from "../lib/transactional-email.ts";
 
 const order = {
   orderId: "FISZY-UNIT-ORDER",
@@ -531,5 +532,39 @@ test("fulfillment CAS writes the record and a PII-free audit event atomically", 
     else process.env.KV_REST_API_URL = previousUrl;
     if (previousToken === undefined) delete process.env.KV_REST_API_TOKEN;
     else process.env.KV_REST_API_TOKEN = previousToken;
+  }
+});
+
+test("fulfillment e-mail is idempotent and escapes order content", async () => {
+  const previousFetch = globalThis.fetch;
+  const previousKey = process.env.RESEND_API_KEY;
+  const previousFrom = process.env.FISZY_EMAIL_FROM;
+  let request;
+  process.env.RESEND_API_KEY = "re_unit_test";
+  process.env.FISZY_EMAIL_FROM = "Fiszy <powiadomienia@fiszy.pl>";
+  globalThis.fetch = async (_url, init) => {
+    request = init;
+    return { ok: true };
+  };
+  try {
+    await sendOrderFulfillmentUpdate({
+      email: "client@example.com",
+      orderId: "FISZY-ORDER-1",
+      product: "Produkt <script>alert(1)</script>",
+      status: "shipped",
+      revision: 3,
+      carrier: "InPost <unsafe>",
+      trackingNumber: "TRACK-123",
+    });
+    const payload = JSON.parse(request.body);
+    assert.equal(payload.to[0], "client@example.com");
+    assert.doesNotMatch(payload.html, /<script>/);
+    assert.match(payload.html, /&lt;script&gt;/);
+    assert.match(payload.html, /InPost &lt;unsafe&gt;/);
+    assert.match(request.headers["Idempotency-Key"], /^order-fulfillment-v1-[a-f0-9]{64}$/);
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousKey === undefined) delete process.env.RESEND_API_KEY; else process.env.RESEND_API_KEY = previousKey;
+    if (previousFrom === undefined) delete process.env.FISZY_EMAIL_FROM; else process.env.FISZY_EMAIL_FROM = previousFrom;
   }
 });

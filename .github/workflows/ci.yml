@@ -38,5 +38,9 @@ jobs:
         run: npm run test:admin:unit
       - name: Run deterministic history storage tests
         run: npm run test:history:unit
+      - name: Run deterministic portal tests
+        run: npm run test:portal:unit
+      - name: Run deterministic operations tests
+        run: npm run test:operations:unit
       - name: Build application
         run: npm run build

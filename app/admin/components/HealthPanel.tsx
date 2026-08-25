@@ -49,12 +49,14 @@ export function HealthPanel({ health }: HealthPanelProps) {
         },
         {
           label: "Administrator",
-          status: health.adminConfigured && health.adminSecretStrong ? "ready" : "error",
+          status: health.individualAdminAccountsConfigured || (health.adminConfigured && health.adminSecretStrong) ? "ready" : "planned",
           detail:
-            health.adminConfigured && health.adminSecretStrong
-              ? "Silny sekret i sesja HttpOnly"
+            health.individualAdminAccountsConfigured
+              ? "Indywidualne konta Clerk i role administratorów"
+              : health.adminConfigured && health.adminSecretStrong
+                ? "Silny sekret i sesja HttpOnly"
               : health.adminConfigured
-                ? "Sekret wymaga wzmocnienia"
+                ? "Wzmocnienie sekretu odłożone decyzją operatora"
                 : "Brak sekretu",
         },
         {
@@ -82,7 +84,7 @@ export function HealthPanel({ health }: HealthPanelProps) {
         {
           label: "Alerty zewnętrzne",
           status: health.externalErrorAlertsConfigured ? "ready" : "planned",
-          detail: health.externalErrorAlertsConfigured ? "Tracker błędów skonfigurowany" : "Opcjonalna integracja do wyboru",
+          detail: health.externalErrorAlertsConfigured ? "Codzienny monitoring i alert e-mail" : "Opcjonalna integracja do wyboru",
         },
       ]
     : [];
