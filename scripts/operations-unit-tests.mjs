@@ -180,7 +180,7 @@ test("new operational audit actions reject extra or sensitive metadata", () => {
   }), /Invalid audit event/);
 });
 
-test("waitlist messages pass through the durable outbox exactly once", async () => {
+test("scheduled transactional messages pass through the durable outbox exactly once", async () => {
   const previousFetch = globalThis.fetch;
   const previousEnvironment = {
     KV_REST_API_URL: process.env.KV_REST_API_URL,
@@ -247,15 +247,17 @@ test("waitlist messages pass through the durable outbox exactly once", async () 
     const queued = await enqueueTransactionalMessage({
       dedupeKey: "waitlist.unit.12345",
       recipient: "person@example.invalid",
-      template: "waitlist_confirmation",
-      title: "Jesteś na liście",
-      text: "Damy Ci znać przed pierwszym startem.",
+      template: "auction_reminder",
+      title: "Aukcja startuje za godzinę",
+      text: "Przygotuj swój moment.",
+      scheduledAt: "2026-08-26T18:00:00.000Z",
     });
     assert.equal(queued.created, true);
     const processed = await processMessageOutbox({ limit: 5 });
     assert.deepEqual(processed, { processed: 1, delivered: 1, retried: 0, dead: 0, errors: 0 });
     assert.equal(sent.length, 1);
     assert.deepEqual(sent[0].to, ["person@example.invalid"]);
+    assert.equal(sent[0].scheduled_at, "2026-08-26T18:00:00.000Z");
   } finally {
     globalThis.fetch = previousFetch;
     for (const [key, value] of Object.entries(previousEnvironment)) {

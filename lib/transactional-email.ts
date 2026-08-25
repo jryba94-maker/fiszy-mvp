@@ -69,9 +69,12 @@ async function sendEmail(payload: Record<string, unknown>, idempotencyKey: strin
 
 export type TransactionalMessageTemplate =
   | "waitlist_confirmation"
+  | "entry_confirmation"
+  | "auction_reminder"
   | "auction_start"
   | "auction_win"
   | "discount_available"
+  | "order_confirmation"
   | "order_update"
   | "service_case_update";
 
@@ -83,6 +86,7 @@ export async function sendTransactionalMessage(input: {
   text: string;
   actionLabel?: string | null;
   actionUrl?: string | null;
+  scheduledAt?: string | null;
 }) {
   const from = configuredSender();
   const to = validRecipient(input.to);
@@ -107,6 +111,9 @@ export async function sendTransactionalMessage(input: {
   ) {
     throw new Error("Transactional message is invalid or not configured.");
   }
+  const scheduledAt = input.scheduledAt && Number.isFinite(Date.parse(input.scheduledAt))
+    ? new Date(input.scheduledAt).toISOString()
+    : null;
   const actionText = actionLabel && actionUrl ? `\n\n${actionLabel}: ${actionUrl}` : "";
   const actionHtml = actionLabel && actionUrl
     ? `<p style="margin:28px 0 0"><a href="${escapeHtml(actionUrl)}" style="display:inline-block;background:#7b2cff;color:#fff;text-decoration:none;font-weight:700;padding:14px 20px;border-radius:999px">${escapeHtml(actionLabel)}</a></p>`
@@ -116,6 +123,7 @@ export async function sendTransactionalMessage(input: {
       from,
       to: [to],
       reply_to: "rodo@fiszy.pl",
+      ...(scheduledAt ? { scheduled_at: scheduledAt } : {}),
       subject: `${title} · Fiszy`,
       text: `${title}\n\n${message}${actionText}`,
       html: `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:40px 24px;color:#111114"><p style="font-size:28px;font-weight:700;margin:0 0 24px">Fiszy<span style="color:#7b2cff">.</span></p><h1 style="font-size:30px;line-height:1.15;margin:0 0 20px">${escapeHtml(title)}</h1><p style="font-size:17px;line-height:1.6;white-space:pre-line;margin:0">${escapeHtml(message)}</p>${actionHtml}<p style="font-size:12px;line-height:1.5;color:#6d6875;margin:36px 0 0">Wiadomość transakcyjna Fiszy · ${escapeHtml(input.template)}</p></div>`,

@@ -35,6 +35,12 @@ import {
 import { errorDetails, logEvent } from "../../../../lib/observability";
 import { recordBusinessEventSafely } from "../../../../lib/business-analytics";
 import { consumeProductInventoryForOrder } from "../../../../lib/product-storage";
+import {
+  issueAndQueueRunDiscountEmails,
+  queueEntryAndReminderEmails,
+  queueOrderConfirmationEmail,
+} from "../../../../lib/auction-email-notifications";
+import { processMessageOutbox } from "../../../../lib/message-outbox";
 
 export const dynamic = "force-dynamic";
 
@@ -159,6 +165,19 @@ async function handlePaidEntry(session: StripeCheckoutSession) {
       duplicate: grantResult === 2,
     });
     if (grantResult === 1) await recordBusinessEventSafely({ event: "entry_paid" });
+    if (grantResult === 1) {
+      try {
+        await queueEntryAndReminderEmails({
+          auctionId: paidEntry.auctionId,
+          participantId: paidEntry.bidderId,
+          recipient: session.customer_details?.email ?? null,
+          config: runConfig,
+        });
+        await processMessageOutbox({ limit: 10 });
+      } catch (emailError) {
+        logEvent("auction_entry_email_failed", errorDetails(emailError), "warning");
+      }
+    }
     return "auction_entry";
   }
 
@@ -273,6 +292,20 @@ async function handlePaidPurchase(session: StripeCheckoutSession) {
       upgradedOrderIdReplay: saved === 2,
     });
     if (saved === 1) await recordBusinessEventSafely({ event: "order_paid" });
+    if (saved === 1) {
+      try {
+        await queueOrderConfirmationEmail(order);
+        await issueAndQueueRunDiscountEmails({
+          auctionId: metadata.auctionId,
+          config: runConfig,
+          winner: { ...winner, paymentStatus: "paid", paidAt },
+          order,
+        });
+        await processMessageOutbox({ limit: 10 });
+      } catch (emailError) {
+        logEvent("auction_order_email_failed", { orderId: order.orderId, ...errorDetails(emailError) }, "warning");
+      }
+    }
     return true;
   }
   if (saved === -2) return false;
@@ -367,6 +400,14 @@ async function handlePaidDiscountPurchase(session: StripeCheckoutSession) {
       duplicate: saved === 0,
     });
     if (saved === 1) await recordBusinessEventSafely({ event: "discount_redeemed" });
+    if (saved === 1) {
+      try {
+        await queueOrderConfirmationEmail(order);
+        await processMessageOutbox({ limit: 10 });
+      } catch (emailError) {
+        logEvent("discount_order_email_failed", { orderId: order.orderId, ...errorDetails(emailError) }, "warning");
+      }
+    }
     return true;
   }
   if (saved === -3) throw new Error("Discount order id conflicts with another order.");

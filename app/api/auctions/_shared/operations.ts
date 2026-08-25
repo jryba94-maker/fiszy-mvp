@@ -30,6 +30,9 @@ import {
 } from "../../../../lib/payment-provider";
 import { ensureAccountProfile, isAccountBlocked } from "../../../../lib/portal-storage";
 import { recordBusinessEventSafely } from "../../../../lib/business-analytics";
+import { queueWinnerEmail } from "../../../../lib/auction-email-notifications";
+import { processMessageOutbox } from "../../../../lib/message-outbox";
+import { errorDetails, logEvent } from "../../../../lib/observability";
 
 const PURCHASE_CHECKOUT_WINDOW_SECONDS = 31 * 60;
 
@@ -339,8 +342,25 @@ export async function handleBuyPost(
       paymentProvider: configuredPaymentProvider(),
     };
 
-    const checkoutResponse = (claimedWinner: AuctionWinner, checkoutUrl: string) =>
-      NextResponse.json({
+    const checkoutResponse = async (claimedWinner: AuctionWinner, checkoutUrl: string) => {
+      try {
+        const claimedAt = Date.parse(claimedWinner.claimedAt);
+        await queueWinnerEmail({
+          participantId: claimedWinner.bidderId,
+          auctionId: active.auctionId,
+          runId: active.config.runId,
+          product: active.config.productName,
+          price: claimedWinner.price,
+          paymentExpiresAt: claimedWinner.paymentExpiresAt ??
+            (Number.isFinite(claimedAt)
+              ? new Date(claimedAt + PURCHASE_CHECKOUT_WINDOW_SECONDS * 1000).toISOString()
+              : null),
+        });
+        await processMessageOutbox({ limit: 10 });
+      } catch (emailError) {
+        logEvent("auction_winner_email_failed", errorDetails(emailError), "warning");
+      }
+      return NextResponse.json({
         outcome: "checkout",
         auctionId: active.auctionId,
         runId: active.config.runId,
@@ -348,6 +368,7 @@ export async function handleBuyPost(
         claimedAt: claimedWinner.claimedAt,
         checkoutUrl,
       });
+    };
 
     const expireUnreturnedCheckout = async (sessionId: string) => {
       try {

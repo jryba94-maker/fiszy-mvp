@@ -23,7 +23,7 @@ Technologia: Next.js 15 (App Router), React 19, TypeScript, Redis REST, neutraln
 - panel `/admin`: logowanie, globalne wskaźniki, wyszukiwanie i filtrowanie, tworzenie, edycja, archiwizowanie i przywracanie aukcji oraz planowanie kolejnych rund;
 - automatyczne pobieranie wszystkich stron aukcji i zamówień do bezpiecznego limitu MVP 5000 rekordów na zbiór, dzięki czemu wskaźniki i filtry nie kończą się na pierwszej stronie;
 - obsługa realizacji zamówień w stanach `new`, `preparing`, `shipped` i `delivered`, z przewoźnikiem, numerem przesyłki, notatką i ochroną przed nadpisaniem nowszej zmiany;
-- wiadomość potwierdzająca zapis na listę, e-maile o zmianach realizacji zamówienia oraz codzienny alert stanu Production przez zweryfikowany Resend;
+- siedem rodzajów wiadomości transakcyjnych: lista zainteresowanych, wejście, przypomnienie, wygrana, zamówienie, rabat po aukcji i zmiana realizacji; dodatkowo codzienny alert stanu Production przez zweryfikowany Resend;
 - powiadomienia w „Moje Fiszy” prowadzące bezpośrednio do wygranej, rabatu, wysyłki albo odpowiedzi pomocy;
 - eksport aktualnie przefiltrowanego widoku zamówień do CSV z neutralizacją wartości mogących zostać zinterpretowanych przez arkusz jako formuły;
 - historia rund i uczestników oraz pomocniczy dziennik utworzenia i zmian aukcji, planowania rund i realizacji zamówień;
@@ -277,7 +277,7 @@ Typowy proces pracy:
 ### Operacje uruchamiane automatycznie
 
 - stan cyklu aukcji jest wyliczany z serwerowego czasu, zwycięzcy i zamówienia, a kontrolny checkpoint rozpoznaje `entry_open`, `live`, `ended`, `payment_pending`, `payment_recovery_required`, `sold` i `archived`;
-- Vercel Cron raz dziennie uzgadnia checkpointy wszystkich aukcji oraz ponawia wiadomości z kolejki; bieżące zapisy i zmiany zamówień próbują wysłać wiadomość również od razu;
+- Vercel Cron raz dziennie uzgadnia checkpointy wszystkich aukcji oraz ponawia wiadomości z kolejki; bieżące zdarzenia próbują wysłać wiadomość również od razu, a przypomnienia godzinę i 10 minut przed startem są planowane po stronie Resend;
 - kolejka wiadomości ma deduplikację, dzierżawę, wykładnicze ponowienia, stan `dead` po ośmiu próbach oraz retencję 90 dni;
 - panel „Operacje” pozwala uruchomić uzgodnienie ręcznie i pokazuje wiadomości wymagające uwagi;
 - płatność już zapisanego zamówienia nie jest cofana przez rozbieżność magazynową; taka sytuacja trafia do logów jako obowiązkowe uzgodnienie produktu.
@@ -506,7 +506,7 @@ Kategoria produktu jest częścią definicji aukcji i jest ustawiana w panelu ad
 
 Panel administratora zawiera katalog produktów, aukcje, zamówienia, użytkowników, sprawy klientów, wnioski prywatności, analitykę, operacje i audyt. `FISZY_ADMIN_ROLE` oraz indywidualna mapa `FISZY_ADMIN_USERS_JSON` obsługują role `owner`, `operator`, `support` i `viewer`; mutacje aukcji, realizacji, kont i obsługi są sprawdzane osobno. Wspólny sekret pozostaje dostępem awaryjnym, natomiast sesja konkretnego konta Clerk otrzymuje pseudonimowy identyfikator audytu. Wymuszenie MFA i cykl zapraszania/usuwania pracowników pozostają obowiązkiem konfiguracji Clerk.
 
-Powiadomienia wymagające działania są generowane w portalu i prowadzą do właściwej sekcji. Potwierdzenie listy, zmiana realizacji i odpowiedź na sprawę klienta przechodzą przez trwałą kolejkę wiadomości. Wysyłka ma limit czasu, klucz idempotencji i nie cofa poprawnie zapisanej operacji, gdy dostawca poczty jest chwilowo niedostępny. Codzienny Cron ponawia kolejkę oraz wysyła alert wyłącznie przy wykryciu degradacji; powodzenie zapisuje w logach bez generowania wiadomości.
+Powiadomienia wymagające działania są generowane w portalu i prowadzą do właściwej sekcji. Wszystkie wiadomości transakcyjne przechodzą przez trwałą kolejkę: potwierdzenie listy, potwierdzenie wejścia, przypomnienia przed startem, wygrana, potwierdzenie zamówienia, rabat po aukcji, zmiana realizacji oraz odpowiedź na sprawę klienta. Wysyłka ma limit czasu, klucz idempotencji i nie cofa poprawnie zapisanej operacji, gdy dostawca poczty jest chwilowo niedostępny. Codzienny Cron ponawia kolejkę oraz wysyła alert wyłącznie przy wykryciu degradacji; powodzenie zapisuje w logach bez generowania wiadomości.
 
 Strony `/regulamin`, `/zasady-aukcji`, `/prywatnosc`, `/cookies`, `/reklamacje` i `/faq` są kompletnym szkieletem operacyjnym, ale jawnie oznaczonym jako roboczy. Przed publiczną sprzedażą prawnik musi uzupełnić dane operatora, podstawy prawne, terminy, formularz odstąpienia i zasady opłaty za wejście.
 

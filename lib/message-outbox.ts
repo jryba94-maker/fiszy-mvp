@@ -24,6 +24,7 @@ export type OutboxMessage = {
   text: string;
   actionLabel: string | null;
   actionUrl: string | null;
+  scheduledAt: string | null;
   state: OutboxMessageState;
   attempts: number;
   nextAttemptAt: string;
@@ -87,7 +88,7 @@ function parseOutboxMessage(raw: unknown): OutboxMessage | null {
         (typeof value.accountId !== "string" || value.accountId.length > 100)) ||
       typeof value.recipient !== "string" ||
       !EMAIL_PATTERN.test(value.recipient) ||
-      !["waitlist_confirmation", "auction_start", "auction_win", "discount_available", "order_update", "service_case_update"].includes(String(value.template)) ||
+      !["waitlist_confirmation", "entry_confirmation", "auction_reminder", "auction_start", "auction_win", "discount_available", "order_confirmation", "order_update", "service_case_update"].includes(String(value.template)) ||
       !cleanText(value.title, 160) ||
       !cleanText(value.text, 4000) ||
       (value.actionLabel !== null && !cleanText(value.actionLabel, 80)) ||
@@ -96,6 +97,8 @@ function parseOutboxMessage(raw: unknown): OutboxMessage | null {
         value.actionUrl.length > 500 ||
         !value.actionUrl.startsWith("https://")
       )) ||
+      (value.scheduledAt !== undefined && value.scheduledAt !== null &&
+        (typeof value.scheduledAt !== "string" || !Number.isFinite(Date.parse(value.scheduledAt)))) ||
       !["queued", "sending", "retry", "delivered", "dead"].includes(String(value.state)) ||
       !Number.isInteger(value.attempts) ||
       Number(value.attempts) < 0 ||
@@ -109,7 +112,7 @@ function parseOutboxMessage(raw: unknown): OutboxMessage | null {
       (value.deliveredAt !== null &&
         (typeof value.deliveredAt !== "string" || !Number.isFinite(Date.parse(value.deliveredAt))))
     ) return null;
-    return value as OutboxMessage;
+    return { ...value, scheduledAt: value.scheduledAt ?? null } as OutboxMessage;
   } catch {
     return null;
   }
@@ -124,6 +127,7 @@ export async function enqueueTransactionalMessage(input: {
   text: string;
   actionLabel?: string | null;
   actionUrl?: string | null;
+  scheduledAt?: string | null;
 }) {
   const recipient = input.recipient.trim().toLowerCase();
   const title = cleanText(input.title, 160);
@@ -137,6 +141,9 @@ export async function enqueueTransactionalMessage(input: {
     (input.accountId && input.accountId.length > 100)
   ) throw new Error("Invalid outbox message.");
   const now = new Date().toISOString();
+  const scheduledAt = input.scheduledAt && Number.isFinite(Date.parse(input.scheduledAt))
+    ? new Date(input.scheduledAt).toISOString()
+    : null;
   const message: OutboxMessage = {
     schemaVersion: 1,
     messageId: `MSG-${randomUUID().replaceAll("-", "").slice(0, 24).toUpperCase()}`,
@@ -148,6 +155,7 @@ export async function enqueueTransactionalMessage(input: {
     text,
     actionLabel: input.actionLabel?.trim().slice(0, 80) || null,
     actionUrl: input.actionUrl?.trim().slice(0, 500) || null,
+    scheduledAt,
     state: "queued",
     attempts: 0,
     nextAttemptAt: now,
@@ -288,6 +296,7 @@ export async function processMessageOutbox(input: { limit?: number; now?: number
         text: message.text,
         actionLabel: message.actionLabel,
         actionUrl: message.actionUrl,
+        scheduledAt: message.scheduledAt,
       });
       const settled = await settleMessage(message, true, Date.now());
       if (!settled) throw new Error("Message settlement conflicted.");

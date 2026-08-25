@@ -10,6 +10,9 @@ import {
   fulfillmentResponse,
   readOrderFulfillments,
 } from "../../../../lib/fulfillment-storage";
+import { queueDiscountAvailableEmail } from "../../../../lib/auction-email-notifications";
+import { processMessageOutbox } from "../../../../lib/message-outbox";
+import { errorDetails, logEvent } from "../../../../lib/observability";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +45,14 @@ export async function GET(request: NextRequest) {
         : null;
       return { ...item, discount };
     }));
+    try {
+      await Promise.all(enrichedItems.flatMap((item) =>
+        item.discount ? [queueDiscountAvailableEmail(item.discount)] : [],
+      ));
+      await processMessageOutbox({ limit: 10 });
+    } catch (emailError) {
+      logEvent("discount_available_email_failed", errorDetails(emailError), "warning");
+    }
     const orders = enrichedItems.flatMap((item) =>
       item.order?.bidderId === identity.participantId ? [item.order] : [],
     );
