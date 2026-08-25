@@ -20,7 +20,8 @@ import {
 import { errorDetails, logEvent } from "../../../../../../lib/observability";
 import { looksLikeSortedSetCursor } from "../../../../../../lib/sorted-set-pagination";
 import { readAccountProfile } from "../../../../../../lib/portal-storage";
-import { sendOrderFulfillmentUpdate } from "../../../../../../lib/transactional-email";
+import { enqueueTransactionalMessage, processMessageOutbox } from "../../../../../../lib/message-outbox";
+import { absoluteSiteUrl } from "../../../../../../lib/site";
 
 export const dynamic = "force-dynamic";
 
@@ -158,7 +159,7 @@ export async function PATCH(request: NextRequest, context: Context) {
         status: result.fulfillment.status,
         revision: result.fulfillment.revision,
       });
-      let emailNotification: "sent" | "skipped" | "failed" = "skipped";
+      let emailNotification: "sent" | "queued" | "skipped" | "failed" = "skipped";
       const accountId = order.bidderId.startsWith("clerk:")
         ? order.bidderId.slice("clerk:".length)
         : null;
@@ -167,16 +168,27 @@ export async function PATCH(request: NextRequest, context: Context) {
         try {
           const profile = await readAccountProfile(accountId);
           if (profile?.preferences.emailOrderUpdates !== false) {
-            await sendOrderFulfillmentUpdate({
-              email: recipient,
-              orderId: order.orderId,
-              product: order.product,
-              status: result.fulfillment.status,
-              revision: result.fulfillment.revision,
-              carrier: result.fulfillment.tracking?.carrier,
-              trackingNumber: result.fulfillment.tracking?.trackingNumber,
+            const labels = {
+              new: "Zamówienie przyjęte",
+              preparing: "Przygotowujemy Twoje zamówienie",
+              shipped: "Twoje zamówienie zostało wysłane",
+              delivered: "Zamówienie zostało dostarczone",
+            } as const;
+            const tracking = result.fulfillment.tracking
+              ? `\nPrzewoźnik: ${result.fulfillment.tracking.carrier}\nNumer przesyłki: ${result.fulfillment.tracking.trackingNumber}`
+              : "";
+            await enqueueTransactionalMessage({
+              dedupeKey: `order.fulfillment.${order.orderId}.${result.fulfillment.revision}`,
+              accountId,
+              recipient,
+              template: "order_update",
+              title: labels[result.fulfillment.status],
+              text: `${order.product}\nZamówienie: ${order.orderId}${tracking}`,
+              actionLabel: "Sprawdź zamówienie",
+              actionUrl: absoluteSiteUrl("/moje-fiszy#historia"),
             });
-            emailNotification = "sent";
+            const processed = await processMessageOutbox({ limit: 10 });
+            emailNotification = processed?.delivered ? "sent" : "queued";
           }
         } catch (emailError) {
           emailNotification = "failed";

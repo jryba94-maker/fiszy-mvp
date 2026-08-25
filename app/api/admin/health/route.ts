@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   configuredAdminRole,
   hasValidAdminRequest,
+  individualAdminAccountsConfigured,
   isAdminConfigured,
   isAdminSecretStrong,
 } from "../../../../lib/admin-auth";
@@ -93,8 +94,10 @@ export async function GET(request: NextRequest) {
       outcome: "ok",
       healthy,
       environment,
-      adminSecretConfigured: true,
+      adminConfigured: isAdminConfigured(),
+      adminSecretConfigured: Boolean(process.env.FISZY_ADMIN_SECRET?.trim()),
       adminSecretStrong: isAdminSecretStrong(),
+      individualAdminAccountsConfigured: individualAdminAccountsConfigured(),
       adminRole: configuredAdminRole(),
       authenticationProvider: "clerk",
       authenticationConfigured,

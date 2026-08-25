@@ -111,12 +111,12 @@ export async function POST(
       accountId: discount.accountId,
       reservationToken: discount.reservationToken,
       provider: configuredPaymentProvider(),
-      reference: session.id,
-      checkoutUrl: session.url as string,
+      reference: session.reference,
+      checkoutUrl: session.checkoutUrl as string,
     });
     if (attached !== 1) {
       try {
-        await expirePaymentSession(session.id);
+        await expirePaymentSession(session.reference);
       } finally {
         await releasePostAuctionDiscount({
           discountId: discount.discountId,
@@ -127,7 +127,7 @@ export async function POST(
       return NextResponse.json({ outcome: "discount_unavailable" }, { status: 409 });
     }
 
-    return NextResponse.json({ outcome: "checkout", checkoutUrl: session.url });
+    return NextResponse.json({ outcome: "checkout", checkoutUrl: session.checkoutUrl });
   } catch (error) {
     console.error("Unable to create discounted purchase Checkout Session.", error);
     const stored = await readPostAuctionDiscount(discountId).catch(() => null);

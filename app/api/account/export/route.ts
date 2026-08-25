@@ -6,18 +6,53 @@ import {
   listAccountTickets,
   listWatchedAuctionIds,
 } from "../../../../lib/portal-storage";
+import { listAccountPrivacyRequests, readPrivacyConsents } from "../../../../lib/privacy-storage";
+import { listAccountServiceCases } from "../../../../lib/service-case-storage";
 
 export const dynamic = "force-dynamic";
+
+async function collectAllPages<T>(
+  loader: (cursor: string | null) => Promise<{ items: T[]; nextCursor: string | null } | null>,
+) {
+  const items: T[] = [];
+  const seen = new Set<string>();
+  let cursor: string | null = null;
+  for (let pageNumber = 0; pageNumber < 100; pageNumber += 1) {
+    const page = await loader(cursor);
+    if (!page) throw new Error("Unable to read complete account export.");
+    items.push(...page.items);
+    if (!page.nextCursor) return items;
+    if (seen.has(page.nextCursor)) throw new Error("Account export pagination loop detected.");
+    seen.add(page.nextCursor);
+    cursor = page.nextCursor;
+  }
+  throw new Error("Account export exceeded the safe 5000 item limit.");
+}
 
 export async function GET() {
   const identity = await currentAccountIdentity();
   if (!identity) return NextResponse.json({ outcome: "unauthorized" }, { status: 401 });
   try {
-    const [profile, history, tickets, watchedAuctionIds] = await Promise.all([
+    const [profile, auctionHistory, supportTickets, watchedAuctionIds, privacyConsents, privacyRequests, serviceCases] = await Promise.all([
       ensureAccountProfile(identity.accountId),
-      listParticipantHistory({ participantId: identity.participantId, limit: 50 }),
-      listAccountTickets({ accountId: identity.accountId, limit: 50 }),
+      collectAllPages(async (cursor) => {
+        const page = await listParticipantHistory({ participantId: identity.participantId, cursor, limit: 50 });
+        return page ? { items: page.items, nextCursor: page.nextCursor } : null;
+      }),
+      collectAllPages(async (cursor) => {
+        const page = await listAccountTickets({ accountId: identity.accountId, cursor, limit: 50 });
+        return page ? { items: page.tickets, nextCursor: page.nextCursor } : null;
+      }),
       listWatchedAuctionIds(identity.accountId),
+      readPrivacyConsents(identity.accountId),
+      collectAllPages(async (cursor) => {
+        const page = await listAccountPrivacyRequests({ accountId: identity.accountId, cursor, limit: 50 });
+        return page ? { items: page.requests, nextCursor: page.nextCursor } : null;
+      }),
+      collectAllPages(async (cursor) => {
+        const page = await listAccountServiceCases({ accountId: identity.accountId, cursor, limit: 50 });
+        return page ? { items: page.cases, nextCursor: page.nextCursor } : null;
+      }),
     ]);
     const exportedAt = new Date().toISOString();
     const exportBody = {
@@ -25,8 +60,11 @@ export async function GET() {
       exportedAt,
       profile,
       watchedAuctionIds,
-      auctionHistory: history?.items ?? [],
-      supportTickets: tickets?.tickets ?? [],
+      auctionHistory,
+      supportTickets,
+      serviceCases,
+      privacyConsents,
+      privacyRequests,
       notes: [
         "Eksport nie zawiera sekretów logowania ani danych płatniczych operatora.",
         "Historia finansowa może być przechowywana dłużej, jeżeli wymagają tego przepisy.",

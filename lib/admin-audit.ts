@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { verifiedAdminActorType } from "./admin-auth";
+import { resolveAdminPrincipal } from "./admin-auth";
 import {
   type AuditAction,
   type AuditDetails,
@@ -12,17 +12,26 @@ export async function recordSuccessfulAdminAudit(
   request: NextRequest,
   input: {
     action: AuditAction;
-    resourceType: "auction" | "order" | "account" | "support_ticket";
+    resourceType:
+      | "auction"
+      | "order"
+      | "account"
+      | "support_ticket"
+      | "product"
+      | "service_case"
+      | "privacy_request"
+      | "operations_run";
     resourceId: string;
     details: AuditDetails;
   },
 ) {
-  const actorType = verifiedAdminActorType(request);
-  if (!actorType) return null;
+  const principal = await resolveAdminPrincipal(request);
+  if (!principal) return null;
 
   try {
     const event = createAuditEvent({
-      actorType,
+      actorType: principal.actorType,
+      actorRef: principal.actorRef,
       action: input.action,
       resourceType: input.resourceType,
       resourceId: input.resourceId,

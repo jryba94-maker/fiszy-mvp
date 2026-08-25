@@ -33,6 +33,8 @@ import {
   type StripeCheckoutSession,
 } from "../../../../lib/stripe";
 import { errorDetails, logEvent } from "../../../../lib/observability";
+import { recordBusinessEventSafely } from "../../../../lib/business-analytics";
+import { consumeProductInventoryForOrder } from "../../../../lib/product-storage";
 
 export const dynamic = "force-dynamic";
 
@@ -156,6 +158,7 @@ async function handlePaidEntry(session: StripeCheckoutSession) {
       runId: paidEntry.runId,
       duplicate: grantResult === 2,
     });
+    if (grantResult === 1) await recordBusinessEventSafely({ event: "entry_paid" });
     return "auction_entry";
   }
 
@@ -252,6 +255,16 @@ async function handlePaidPurchase(session: StripeCheckoutSession) {
 
   const saved = await savePaidAuctionOrder(order);
   if (saved === 1 || saved === 0 || saved === 2) {
+    const inventory = await consumeProductInventoryForOrder({ auctionId: order.auctionId, orderId: order.orderId });
+    if (inventory.outcome === "out_of_stock") {
+      logEvent("product_inventory_reconciliation_required", {
+        auctionId: order.auctionId,
+        runId: order.runId,
+        orderId: order.orderId,
+        productId: inventory.productId,
+        reason: "paid_order_exceeds_tracked_inventory",
+      }, "error");
+    }
     logEvent("auction_purchase_paid", {
       auctionId: metadata.auctionId,
       runId: metadata.runId,
@@ -259,6 +272,7 @@ async function handlePaidPurchase(session: StripeCheckoutSession) {
       duplicate: saved !== 1,
       upgradedOrderIdReplay: saved === 2,
     });
+    if (saved === 1) await recordBusinessEventSafely({ event: "order_paid" });
     return true;
   }
   if (saved === -2) return false;
@@ -335,6 +349,16 @@ async function handlePaidDiscountPurchase(session: StripeCheckoutSession) {
     order,
   });
   if (saved === 1 || saved === 0) {
+    const inventory = await consumeProductInventoryForOrder({ auctionId: order.auctionId, orderId: order.orderId });
+    if (inventory.outcome === "out_of_stock") {
+      logEvent("product_inventory_reconciliation_required", {
+        auctionId: order.auctionId,
+        runId: order.runId,
+        orderId: order.orderId,
+        productId: inventory.productId,
+        reason: "paid_order_exceeds_tracked_inventory",
+      }, "error");
+    }
     logEvent("post_auction_discount_redeemed", {
       auctionId: discount.auctionId,
       runId: discount.runId,
@@ -342,6 +366,7 @@ async function handlePaidDiscountPurchase(session: StripeCheckoutSession) {
       amount: discount.finalPrice,
       duplicate: saved === 0,
     });
+    if (saved === 1) await recordBusinessEventSafely({ event: "discount_redeemed" });
     return true;
   }
   if (saved === -3) throw new Error("Discount order id conflicts with another order.");

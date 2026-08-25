@@ -137,23 +137,23 @@ export async function POST(request: NextRequest) {
         const session = await retrievePaymentSession(
           currentWinner.paymentSessionId,
         );
-        if (session.payment_status === "paid" || session.status === "complete") {
+        if (session.state === "paid") {
           return NextResponse.json(
             { outcome: "pending_payment_reconciliation" },
             { status: 409 },
           );
         }
-        if (session.status === "open") {
+        if (session.state === "open") {
           const expired = await expirePaymentSession(
             currentWinner.paymentSessionId,
           );
-          if (expired.status !== "expired") {
+          if (expired.state !== "expired") {
             return NextResponse.json(
               { outcome: "pending_payment" },
               { status: 409 },
             );
           }
-        } else if (session.status !== "expired") {
+          } else if (session.state !== "expired") {
           return NextResponse.json(
             { outcome: "pending_payment" },
             { status: 409 },

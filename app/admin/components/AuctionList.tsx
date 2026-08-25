@@ -32,6 +32,7 @@ type AuctionListProps = {
   onFilterChange: (filter: AuctionFilter) => void;
   onSearchChange: (query: string) => void;
   onEdit: (auction: AdminAuction) => void;
+  onDuplicate: (auction: AdminAuction) => void;
   onStart: (auction: AdminAuction, startsAt: string) => void;
   onArchiveToggle: (auction: AdminAuction) => void;
 };
@@ -54,6 +55,7 @@ export function AuctionList({
   onFilterChange,
   onSearchChange,
   onEdit,
+  onDuplicate,
   onStart,
   onArchiveToggle,
 }: AuctionListProps) {
@@ -210,6 +212,14 @@ export function AuctionList({
                     disabled={busy}
                   >
                     Edytuj
+                  </button>
+                  <button
+                    className={styles.secondaryButton}
+                    type="button"
+                    onClick={() => onDuplicate(auction)}
+                    disabled={busy}
+                  >
+                    Duplikuj
                   </button>
                   <button
                     className={styles.secondaryButton}

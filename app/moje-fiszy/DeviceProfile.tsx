@@ -70,11 +70,11 @@ type PortalNotification = {
 };
 
 type Ticket = {
-  ticketId: string;
-  category: "account" | "auction" | "order" | "complaint" | "other";
+  caseId: string;
+  kind: "support" | "complaint" | "return" | "withdrawal";
   subject: string;
-  status: "open" | "in_progress" | "resolved";
-  adminNote: string | null;
+  status: "submitted" | "reviewing" | "waiting_for_customer" | "accepted" | "rejected" | "completed";
+  adminResponse: string | null;
 };
 
 type ProfileDraft = {
@@ -161,6 +161,12 @@ async function accountRequest<T>(path: string, init?: RequestInit): Promise<T> {
       ? "Sesja wygasła. Zaloguj się ponownie."
       : outcome === "sold_out"
         ? "Pula produktów w tej ofercie została już wykorzystana."
+        : outcome === "order_not_found"
+          ? "Nie znaleźliśmy zamówienia przypisanego do Twojego konta. Sprawdź numer."
+          : outcome === "invalid_request"
+            ? "Sprawdź wymagane pola i wprowadzone dane."
+            : outcome === "rate_limited"
+              ? "Zbyt wiele prób. Odczekaj kilka minut i spróbuj ponownie."
         : outcome === "discount_expired"
           ? "Termin wykorzystania tego rabatu już minął."
           : outcome === "discount_unavailable"
@@ -179,6 +185,7 @@ export function DeviceProfile() {
   const [activity, setActivity] = useState<Activity[]>([]);
   const [historyCursor, setHistoryCursor] = useState<string | null>(null);
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [ticketCursor, setTicketCursor] = useState<string | null>(null);
   const [watchedIds, setWatchedIds] = useState<string[]>([]);
   const [watchedAuctions, setWatchedAuctions] = useState<PublicAuction[]>([]);
   const [readNotificationIds, setReadNotificationIds] = useState<Set<string>>(() => new Set());
@@ -188,7 +195,7 @@ export function DeviceProfile() {
   const [notice, setNotice] = useState("");
   const [lastRefreshedAt, setLastRefreshedAt] = useState<string | null>(null);
   const [historyFilter, setHistoryFilter] = useState<HistoryFilter>("all");
-  const [ticketDraft, setTicketDraft] = useState({ category: "other" as Ticket["category"], subject: "", message: "", orderId: "" });
+  const [ticketDraft, setTicketDraft] = useState({ kind: "support" as Ticket["kind"], subject: "", description: "", orderId: "", expectation: "" });
 
   const loadPortal = useCallback(async () => {
     if (!isSignedIn) return;
@@ -199,7 +206,7 @@ export function DeviceProfile() {
         accountRequest<{ profile: Profile }>("/api/account/profile"),
         accountRequest<{ activity: Activity[]; nextCursor: string | null }>("/api/account/activity"),
         accountRequest<{ auctionIds: string[] }>("/api/account/watchlist"),
-        accountRequest<{ tickets: Ticket[] }>("/api/account/support"),
+        accountRequest<{ cases: Ticket[]; nextCursor: string | null }>("/api/account/cases"),
         accountRequest<{ readIds: string[] }>("/api/account/notifications"),
       ]);
       if (profileResult.status === "rejected") throw profileResult.reason;
@@ -217,7 +224,10 @@ export function DeviceProfile() {
         );
         setWatchedAuctions(watched.flatMap((result) => result.status === "fulfilled" ? [result.value] : []));
       }
-      if (ticketResult.status === "fulfilled") setTickets(ticketResult.value.tickets);
+      if (ticketResult.status === "fulfilled") {
+        setTickets(ticketResult.value.cases);
+        setTicketCursor(ticketResult.value.nextCursor);
+      }
       if (notificationResult.status === "fulfilled") {
         setReadNotificationIds(new Set(notificationResult.value.readIds));
       }
@@ -252,7 +262,7 @@ export function DeviceProfile() {
       if (item.order?.fulfillment?.status === "delivered") return [{ id: `done-${item.order.orderId}`, title: "Zamówienie dostarczone", text: item.product, href: "#historia" }];
       return [];
     }),
-    ...tickets.filter((ticket) => ticket.adminNote).map((ticket) => ({ id: ticket.ticketId, title: "Odpowiedź na zgłoszenie", text: ticket.subject, href: "#pomoc" })),
+    ...tickets.filter((ticket) => ticket.adminResponse).map((ticket) => ({ id: ticket.caseId, title: "Odpowiedź na zgłoszenie", text: ticket.subject, href: "#pomoc" })),
     ...watchedAuctions.flatMap((auction) => {
       const startsIn = Date.parse(auction.startsAt) - Date.now();
       const href = `/aukcje/${encodeURIComponent(auction.auctionId)}`;
@@ -401,12 +411,29 @@ export function DeviceProfile() {
   const submitTicket = async (event: FormEvent) => {
     event.preventDefault(); setBusy("ticket"); setError("");
     try {
-      const result = await accountRequest<{ ticket: Ticket }>("/api/account/support", { method: "POST", body: JSON.stringify({ ...ticketDraft, orderId: ticketDraft.orderId || null }) });
-      setTickets((current) => [result.ticket, ...current]);
-      setTicketDraft({ category: "other", subject: "", message: "", orderId: "" });
-      setNotice(`Zgłoszenie ${result.ticket.ticketId} zostało zapisane.`);
+      const result = await accountRequest<{ case: Ticket }>("/api/account/cases", { method: "POST", body: JSON.stringify({ ...ticketDraft, orderId: ticketDraft.orderId || null, expectation: ticketDraft.expectation || null, contactEmail: user?.primaryEmailAddress?.emailAddress }) });
+      setTickets((current) => [result.case, ...current]);
+      setTicketDraft({ kind: "support", subject: "", description: "", orderId: "", expectation: "" });
+      setNotice(`Zgłoszenie ${result.case.caseId} zostało zapisane.`);
     } catch (ticketError) { setError(ticketError instanceof Error ? ticketError.message : "Nie udało się wysłać zgłoszenia."); }
     finally { setBusy(""); }
+  };
+
+  const loadMoreTickets = async () => {
+    if (!ticketCursor || busy) return;
+    setBusy("tickets");
+    try {
+      const result = await accountRequest<{ cases: Ticket[]; nextCursor: string | null }>(`/api/account/cases?cursor=${encodeURIComponent(ticketCursor)}`);
+      setTickets((current) => {
+        const known = new Set(current.map((ticket) => ticket.caseId));
+        return [...current, ...result.cases.filter((ticket) => !known.has(ticket.caseId))];
+      });
+      setTicketCursor(result.nextCursor);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "Nie udało się pobrać starszych zgłoszeń.");
+    } finally {
+      setBusy("");
+    }
   };
 
   const requestDeletion = async () => {
@@ -544,7 +571,7 @@ export function DeviceProfile() {
                 <label><span>Kod pocztowy</span><input value={draft.postalCode} maxLength={20} autoComplete="postal-code" onChange={(event) => setDraft({ ...draft, postalCode: event.target.value })} /></label>
                 <label><span>Miasto</span><input value={draft.city} maxLength={80} autoComplete="address-level2" onChange={(event) => setDraft({ ...draft, city: event.target.value })} /></label>
                 <label className={styles.wide}><span>Kraj</span><input value={draft.country} maxLength={80} autoComplete="country-name" onChange={(event) => setDraft({ ...draft, country: event.target.value })} /></label>
-                <fieldset className={styles.preferences}><legend>Wiadomości e-mail</legend><label className={styles.checkLabel}><input type="checkbox" checked={draft.preferences.emailOrderUpdates} onChange={(event) => setDraft({ ...draft, preferences: { ...draft.preferences, emailOrderUpdates: event.target.checked } })} /><span>Zmiany statusu zamówienia, wysyłki i numer przesyłki</span></label><p>Przypomnienia o obserwowanych aukcjach ustawisz wyżej osobno dla tego urządzenia.</p></fieldset>
+                <fieldset className={styles.preferences}><legend>Wiadomości i prywatność</legend><label className={styles.checkLabel}><input type="checkbox" checked={draft.preferences.emailOrderUpdates} onChange={(event) => setDraft({ ...draft, preferences: { ...draft.preferences, emailOrderUpdates: event.target.checked } })} /><span>Zmiany statusu zamówienia, wysyłki i numer przesyłki</span></label><label className={styles.checkLabel}><input type="checkbox" checked={draft.preferences.marketing} onChange={(event) => setDraft({ ...draft, preferences: { ...draft.preferences, marketing: event.target.checked } })} /><span>Chcę otrzymywać informacje marketingowe o nowych aukcjach i ofertach.</span></label><label className={styles.checkLabel}><input type="checkbox" checked={draft.preferences.analytics} onChange={(event) => setDraft({ ...draft, preferences: { ...draft.preferences, analytics: event.target.checked } })} /><span>Zgadzam się na analitykę pomagającą ulepszać portal.</span></label><p>Zgody są dobrowolne. Ich zmiana jest zapisywana w rejestrze RODO.</p></fieldset>
                 <div className={styles.formActions}><button className={styles.primaryButton} type="submit" disabled={busy === "profile"}>{busy === "profile" ? "Zapisuję…" : "Zapisz profil"}</button><a className={styles.secondaryButton} href="/api/account/export">Eksport danych</a><button className={styles.dangerButton} type="button" disabled={busy === "deletion" || Boolean(profile.deletionRequestedAt)} onClick={() => void requestDeletion()}>{profile.deletionRequestedAt ? "Wniosek przyjęty" : "Poproś o usunięcie danych"}</button></div>
               </form> : null}
             </section>
@@ -552,12 +579,13 @@ export function DeviceProfile() {
             <section className={styles.section} id="pomoc" aria-labelledby="support-title">
               <div className={styles.sectionHeading}><div><p className={styles.eyebrow}>Pomoc i reklamacje</p><h2 id="support-title">Napisz do nas</h2></div><p>Każde zgłoszenie otrzymuje numer i własny status.</p></div>
               <div className={styles.supportGrid}><form className={styles.ticketForm} onSubmit={submitTicket}>
-                <label><span>Rodzaj sprawy</span><select value={ticketDraft.category} onChange={(event) => setTicketDraft({ ...ticketDraft, category: event.target.value as Ticket["category"] })}><option value="account">Konto</option><option value="auction">Aukcja</option><option value="order">Zamówienie</option><option value="complaint">Reklamacja lub zwrot</option><option value="other">Inna sprawa</option></select></label>
+                <label><span>Rodzaj sprawy</span><select value={ticketDraft.kind} onChange={(event) => setTicketDraft({ ...ticketDraft, kind: event.target.value as Ticket["kind"] })}><option value="support">Pomoc</option><option value="complaint">Reklamacja</option><option value="return">Zwrot</option><option value="withdrawal">Odstąpienie od umowy</option></select></label>
                 <label><span>Temat</span><input required minLength={3} maxLength={120} value={ticketDraft.subject} onChange={(event) => setTicketDraft({ ...ticketDraft, subject: event.target.value })} /></label>
-                <label><span>Numer zamówienia (opcjonalnie)</span><input maxLength={200} value={ticketDraft.orderId} onChange={(event) => setTicketDraft({ ...ticketDraft, orderId: event.target.value })} /></label>
-                <label><span>Opis</span><textarea required minLength={10} maxLength={3000} rows={6} value={ticketDraft.message} onChange={(event) => setTicketDraft({ ...ticketDraft, message: event.target.value })} /></label>
+                <label><span>Numer zamówienia{ticketDraft.kind === "return" || ticketDraft.kind === "withdrawal" ? " (wymagany)" : " (opcjonalnie)"}</span><input required={ticketDraft.kind === "return" || ticketDraft.kind === "withdrawal"} maxLength={200} value={ticketDraft.orderId} onChange={(event) => setTicketDraft({ ...ticketDraft, orderId: event.target.value })} /></label>
+                <label><span>Opis</span><textarea required minLength={10} maxLength={4000} rows={6} value={ticketDraft.description} onChange={(event) => setTicketDraft({ ...ticketDraft, description: event.target.value })} /></label>
+                <label><span>Oczekiwane rozwiązanie (opcjonalnie)</span><textarea maxLength={1000} rows={3} value={ticketDraft.expectation} onChange={(event) => setTicketDraft({ ...ticketDraft, expectation: event.target.value })} /></label>
                 <button className={styles.primaryButton} type="submit" disabled={busy === "ticket"}>{busy === "ticket" ? "Wysyłam…" : "Utwórz zgłoszenie"}</button>
-              </form><div className={styles.ticketList}>{tickets.length ? tickets.map((ticket) => <article className={styles.ticket} key={ticket.ticketId}><div><span>{ticket.ticketId}</span><strong>{ticket.subject}</strong></div><span className={styles.ticketStatus}>{ticket.status === "open" ? "Nowe" : ticket.status === "in_progress" ? "W realizacji" : "Zamknięte"}</span>{ticket.adminNote ? <p><strong>Odpowiedź:</strong> {ticket.adminNote}</p> : <p>Oczekuje na odpowiedź zespołu.</p>}</article>) : <div className={styles.emptyCompact}><h3>Brak zgłoszeń</h3><p>Gdy napiszesz do nas, status sprawy zobaczysz tutaj.</p></div>}</div></div>
+              </form><div className={styles.ticketList}>{tickets.length ? tickets.map((ticket) => <article className={styles.ticket} key={ticket.caseId}><div><span>{ticket.caseId}</span><strong>{ticket.subject}</strong></div><span className={styles.ticketStatus}>{ticket.status === "submitted" ? "Nowe" : ticket.status === "reviewing" ? "W analizie" : ticket.status === "waiting_for_customer" ? "Czeka na Ciebie" : ticket.status === "accepted" ? "Uznane" : ticket.status === "rejected" ? "Odrzucone" : "Zakończone"}</span>{ticket.adminResponse ? <p><strong>Odpowiedź:</strong> {ticket.adminResponse}</p> : <p>Oczekuje na odpowiedź zespołu.</p>}</article>) : <div className={styles.emptyCompact}><h3>Brak zgłoszeń</h3><p>Gdy napiszesz do nas, status sprawy zobaczysz tutaj.</p></div>}{ticketCursor ? <button className={styles.moreButton} type="button" disabled={busy === "tickets"} onClick={() => void loadMoreTickets()}>{busy === "tickets" ? "Pobieram…" : "Pokaż starsze zgłoszenia"}</button> : null}</div></div>
             </section>
           </>
         )}

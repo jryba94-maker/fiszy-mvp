@@ -67,6 +67,63 @@ async function sendEmail(payload: Record<string, unknown>, idempotencyKey: strin
   }
 }
 
+export type TransactionalMessageTemplate =
+  | "waitlist_confirmation"
+  | "auction_start"
+  | "auction_win"
+  | "discount_available"
+  | "order_update"
+  | "service_case_update";
+
+export async function sendTransactionalMessage(input: {
+  to: string;
+  template: TransactionalMessageTemplate;
+  idempotencyKey: string;
+  title: string;
+  text: string;
+  actionLabel?: string | null;
+  actionUrl?: string | null;
+}) {
+  const from = configuredSender();
+  const to = validRecipient(input.to);
+  const title = input.title.trim().slice(0, 160);
+  const message = input.text.trim().slice(0, 4000);
+  const actionLabel = input.actionLabel?.trim().slice(0, 80) || null;
+  let actionUrl: string | null = null;
+  if (input.actionUrl) {
+    try {
+      const parsed = new URL(input.actionUrl);
+      if (parsed.protocol === "https:") actionUrl = parsed.toString();
+    } catch {
+      actionUrl = null;
+    }
+  }
+  if (
+    !from ||
+    !to ||
+    !title ||
+    !message ||
+    !/^[a-z0-9][a-z0-9_.:-]{7,200}$/i.test(input.idempotencyKey)
+  ) {
+    throw new Error("Transactional message is invalid or not configured.");
+  }
+  const actionText = actionLabel && actionUrl ? `\n\n${actionLabel}: ${actionUrl}` : "";
+  const actionHtml = actionLabel && actionUrl
+    ? `<p style="margin:28px 0 0"><a href="${escapeHtml(actionUrl)}" style="display:inline-block;background:#7b2cff;color:#fff;text-decoration:none;font-weight:700;padding:14px 20px;border-radius:999px">${escapeHtml(actionLabel)}</a></p>`
+    : "";
+  await sendEmail(
+    {
+      from,
+      to: [to],
+      reply_to: "rodo@fiszy.pl",
+      subject: `${title} · Fiszy`,
+      text: `${title}\n\n${message}${actionText}`,
+      html: `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:40px 24px;color:#111114"><p style="font-size:28px;font-weight:700;margin:0 0 24px">Fiszy<span style="color:#7b2cff">.</span></p><h1 style="font-size:30px;line-height:1.15;margin:0 0 20px">${escapeHtml(title)}</h1><p style="font-size:17px;line-height:1.6;white-space:pre-line;margin:0">${escapeHtml(message)}</p>${actionHtml}<p style="font-size:12px;line-height:1.5;color:#6d6875;margin:36px 0 0">Wiadomość transakcyjna Fiszy · ${escapeHtml(input.template)}</p></div>`,
+    },
+    input.idempotencyKey,
+  );
+}
+
 export async function sendWaitlistConfirmation(email: string) {
   const apiKey = configuredApiKey();
   const from = configuredSender();

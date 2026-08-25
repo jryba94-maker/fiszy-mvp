@@ -1549,6 +1549,33 @@
   background: var(--admin-surface-soft);
 }
 
+.operationsFormGrid,
+.operationsColumns,
+.operationsKpis {
+  display: grid;
+  gap: 12px;
+}
+
+.operationsFormGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.operationsColumns { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.operationsKpis { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-bottom: 16px; }
+.operationsKpis > div { border: 1px solid var(--admin-border); border-radius: 14px; padding: 16px; background: var(--admin-surface-soft); }
+.operationsKpis strong, .operationsKpis span { display: block; }
+.operationsKpis strong { font-size: 1.8rem; }
+.operationsKpis span { margin-top: 5px; color: var(--admin-muted); font-size: .72rem; }
+.operationsList { display: grid; gap: 10px; margin-top: 12px; }
+.compactOperation { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid var(--admin-border); padding-top: 10px; }
+.compactOperation strong, .compactOperation span { display: block; }
+.compactOperation span, .compactOperation time { margin-top: 4px; color: var(--admin-muted); font-size: .7rem; }
+.successNotice { border: 1px solid color-mix(in srgb, var(--admin-sold) 45%, transparent); border-radius: 12px; padding: 11px 13px; color: var(--admin-sold); }
+
+@media (max-width: 780px) {
+  .operationsFormGrid,
+  .operationsColumns { grid-template-columns: 1fr; }
+  .operationsKpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .compactOperation { align-items: flex-start; flex-direction: column; }
+}
+
 .waitlistPanel { grid-column: 1 / -1; }
 .waitlistRows { display: grid; gap: 8px; margin-bottom: 14px; }
 .waitlistRow { display: flex; align-items: center; justify-content: space-between; gap: 14px; border: 1px solid var(--admin-border); border-radius: 13px; padding: 11px 12px; background: #fff; }
@@ -1922,6 +1949,19 @@
 }
 
 .sectionStack { display: grid; gap: 18px; }
+
+.operationCase {
+  display: grid;
+  gap: 14px;
+  border: 1px solid var(--admin-border);
+  border-radius: 18px;
+  padding: 16px;
+  background: #0c0c0e;
+}
+
+.operationCase > div:first-child { display: grid; gap: 5px; }
+.operationCase > div:first-child span,
+.operationCase > div:first-child p { margin: 0; color: var(--admin-muted); font-size: .82rem; line-height: 1.5; }
 
 .panelSection,
 .kpiCard,

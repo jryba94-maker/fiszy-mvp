@@ -49,10 +49,12 @@ export function HealthPanel({ health }: HealthPanelProps) {
         },
         {
           label: "Administrator",
-          status: health.adminConfigured && health.adminSecretStrong ? "ready" : "planned",
+          status: health.individualAdminAccountsConfigured || (health.adminConfigured && health.adminSecretStrong) ? "ready" : "planned",
           detail:
-            health.adminConfigured && health.adminSecretStrong
-              ? "Silny sekret i sesja HttpOnly"
+            health.individualAdminAccountsConfigured
+              ? "Indywidualne konta Clerk i role administratorów"
+              : health.adminConfigured && health.adminSecretStrong
+                ? "Silny sekret i sesja HttpOnly"
               : health.adminConfigured
                 ? "Wzmocnienie sekretu odłożone decyzją operatora"
                 : "Brak sekretu",

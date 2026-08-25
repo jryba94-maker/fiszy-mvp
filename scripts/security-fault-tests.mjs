@@ -751,6 +751,9 @@ test("webhook orchestration handles refunds, duplicates, order-id upgrades and r
         if (command[1].endsWith(":config")) {
           return Response.json({ result: JSON.stringify(config) });
         }
+        if (command[1].endsWith(":product-ref")) {
+          return Response.json({ result: null });
+        }
       }
       if (command[0] === "EVAL") {
         const script = command[1];
@@ -782,6 +785,9 @@ test("webhook orchestration handles refunds, duplicates, order-id upgrades and r
         if (script.includes('if data.paymentStatus == "paid" then return 0 end')) {
           winner = null;
           return Response.json({ result: 1 });
+        }
+        if (script.includes("record.counts[ARGV[2]]")) {
+          return Response.json({ result: "{}" });
         }
       }
       throw new Error(`Unexpected Redis command in webhook test: ${command[0]}`);

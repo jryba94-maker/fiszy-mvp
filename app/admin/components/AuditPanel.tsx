@@ -23,6 +23,8 @@ function eventLabel(value: string) {
 }
 
 function actorLabel(value: string) {
+  if (value.startsWith("admin_clerk:")) return `konto administratora · ${value.slice("admin_clerk:".length)}`;
+  if (value === "admin_clerk") return "konto administratora";
   if (value === "admin_session") return "panel administratora";
   if (value === "admin_api") return "dostęp administracyjny API";
   if (value === "system") return "system";

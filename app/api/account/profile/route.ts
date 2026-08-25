@@ -8,6 +8,7 @@ import {
   updateAccountProfile,
 } from "../../../../lib/portal-storage";
 import { hasSameOrigin } from "../../../../lib/request-origin";
+import { createPrivacyRequest, listAccountPrivacyRequests, recordPrivacyConsent } from "../../../../lib/privacy-storage";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +51,19 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ outcome: "invalid_request" }, { status: 400 });
   }
   try {
+    const previous = await ensureAccountProfile(identity.accountId);
+    if (previous.revision !== Number(expectedRevision)) {
+      return NextResponse.json({ outcome: "revision_conflict" }, { status: 409 });
+    }
+    for (const purpose of ["marketing", "analytics"] as const) {
+      if (previous.preferences[purpose] !== patch.preferences[purpose]) {
+        await recordPrivacyConsent({
+          accountId: identity.accountId,
+          purpose,
+          granted: patch.preferences[purpose],
+        });
+      }
+    }
     const profile = await updateAccountProfile({
       accountId: identity.accountId,
       expectedRevision: Number(expectedRevision),
@@ -76,7 +90,10 @@ export async function DELETE(request: NextRequest) {
   }
   try {
     const profile = await requestAccountDeletion(identity.accountId);
-    return NextResponse.json({ outcome: "deletion_requested", profile });
+    const existing = await listAccountPrivacyRequests({ accountId: identity.accountId, limit: 20 });
+    const active = existing?.requests.find((item) => item.kind === "erasure" && item.status !== "completed" && item.status !== "rejected") ?? null;
+    const privacyRequest = active ?? await createPrivacyRequest({ accountId: identity.accountId, kind: "erasure" });
+    return NextResponse.json({ outcome: "deletion_requested", profile, privacyRequest });
   } catch (error) {
     console.error("Unable to request account deletion.", error);
     return NextResponse.json({ outcome: "storage_error" }, { status: 503 });

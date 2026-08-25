@@ -1,7 +1,9 @@
+import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { errorDetails, logEvent } from "../../../lib/observability";
+import { recordBusinessEventSafely } from "../../../lib/business-analytics";
 import { hasSameOrigin } from "../../../lib/request-origin";
-import { sendWaitlistConfirmation } from "../../../lib/transactional-email";
+import { enqueueTransactionalMessage, processMessageOutbox } from "../../../lib/message-outbox";
 import {
   consumeWaitlistRateLimit,
   normalizeWaitlistSignup,
@@ -60,9 +62,23 @@ export async function POST(request: NextRequest) {
       campaign: input.source.utmCampaign ?? null,
     });
     if (result.created) {
+      await recordBusinessEventSafely({
+        event: "waitlist_signup",
+        campaign: [input.source.utmSource, input.source.utmMedium, input.source.utmCampaign]
+          .filter(Boolean)
+          .join("/") || "direct",
+      });
       try {
-        await sendWaitlistConfirmation(input.email);
-        logEvent("waitlist.confirmation.sent", {});
+        const recipientRef = createHash("sha256").update(input.email).digest("hex");
+        await enqueueTransactionalMessage({
+          dedupeKey: `waitlist.confirmation.v1.${recipientRef}`,
+          recipient: input.email,
+          template: "waitlist_confirmation",
+          title: "Jesteś na liście",
+          text: "Damy Ci znać przed startem pierwszej aukcji Fiszy.",
+        });
+        const messages = await processMessageOutbox({ limit: 10 });
+        logEvent("waitlist.confirmation.queued", { deliveredImmediately: Boolean(messages?.delivered) });
       } catch (error) {
         logEvent("waitlist.confirmation.failed", errorDetails(error), "error");
       }

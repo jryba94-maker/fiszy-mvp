@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
     }
     const events = page.events.map((event) => ({
       ...event,
-      actor: event.actorType,
+      actor: event.actorRef ? `${event.actorType}:${event.actorRef}` : event.actorType,
     }));
     return NextResponse.json(
       { outcome: "ok", ...page, events },

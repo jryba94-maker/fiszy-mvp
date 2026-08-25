@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ApiError,
   createAdminSession,
   createAuction,
   deleteAdminSession,
+  duplicateAuction,
   getAdminSession,
   loadAuctions,
   loadHealth,
@@ -20,6 +21,8 @@ import { AdminHeader } from "./components/AdminHeader";
 import { AuditPanel } from "./components/AuditPanel";
 import { AuctionEditor } from "./components/AuctionEditor";
 import { AuctionList } from "./components/AuctionList";
+import { BusinessOperationsPanel } from "./components/BusinessOperationsPanel";
+import { CatalogPanel } from "./components/CatalogPanel";
 import { HealthPanel } from "./components/HealthPanel";
 import { KpiGrid } from "./components/KpiGrid";
 import { OrdersPanel } from "./components/OrdersPanel";
@@ -36,16 +39,27 @@ import type {
 } from "./types";
 
 type SessionStatus = "checking" | "signed_out" | "authenticated" | "unconfigured";
-type AdminSection = "overview" | "auctions" | "orders" | "history" | "users" | "audit";
+type AdminSection = "overview" | "catalog" | "auctions" | "orders" | "history" | "users" | "operations" | "audit";
 
 const ADMIN_SECTIONS: Array<{ id: AdminSection; label: string; caption: string }> = [
   { id: "overview", label: "Pulpit", caption: "Wyniki i system" },
+  { id: "catalog", label: "Produkty", caption: "Katalog i szablony" },
   { id: "auctions", label: "Aukcje", caption: "Lista i edycja" },
   { id: "orders", label: "Zamówienia", caption: "Realizacja" },
   { id: "history", label: "Rundy", caption: "Uczestnicy" },
   { id: "users", label: "Użytkownicy", caption: "Pomoc i lista e-mail" },
   { id: "audit", label: "Dziennik", caption: "Zmiany i zdarzenia" },
+  { id: "operations", label: "Operacje", caption: "Automaty, RODO i lejek" },
 ];
+
+function sectionAllowed(section: AdminSection, permissions: string[]) {
+  if (section === "catalog" || section === "auctions") return permissions.includes("auctions:write");
+  if (section === "orders") return permissions.includes("orders:write");
+  if (section === "history" || section === "users") return permissions.includes("users:read");
+  if (section === "audit") return permissions.includes("audit:read");
+  if (section === "operations") return permissions.includes("audit:read") && permissions.includes("users:write");
+  return true;
+}
 
 type Notice = {
   tone: "success" | "info" | "error";
@@ -65,6 +79,7 @@ function isUnauthorized(error: unknown) {
 export default function AdminPage() {
   const [sessionStatus, setSessionStatus] = useState<SessionStatus>("checking");
   const [adminRole, setAdminRole] = useState("owner");
+  const [adminPermissions, setAdminPermissions] = useState<string[]>([]);
   const [sessionError, setSessionError] = useState("");
   const [loginBusy, setLoginBusy] = useState(false);
   const [auctions, setAuctions] = useState<AdminAuction[]>([]);
@@ -97,6 +112,7 @@ export default function AdminPage() {
         const session = await getAdminSession();
         if (!active) return;
         setAdminRole(session.role);
+        setAdminPermissions(session.permissions);
         setSessionStatus(
           !session.configured
             ? "unconfigured"
@@ -205,6 +221,7 @@ export default function AdminPage() {
     try {
       const session = await createAdminSession(secret);
       setAdminRole(session.role);
+      setAdminPermissions(session.permissions);
       if (!session.configured) {
         setSessionStatus("unconfigured");
         return false;
@@ -235,6 +252,7 @@ export default function AdminPage() {
       // Local state is cleared even if the server cannot acknowledge logout.
     } finally {
       setSessionStatus("signed_out");
+      setAdminPermissions([]);
       setSessionError("");
       setAuctions([]);
       setOrders([]);
@@ -247,6 +265,15 @@ export default function AdminPage() {
       busyOrderRef.current = null;
     }
   };
+
+  const visibleAdminSections = useMemo(
+    () => ADMIN_SECTIONS.filter((section) => sectionAllowed(section.id, adminPermissions)),
+    [adminPermissions],
+  );
+
+  useEffect(() => {
+    if (!sectionAllowed(activeSection, adminPermissions)) setActiveSection("overview");
+  }, [activeSection, adminPermissions]);
 
   const handleEditorSubmit = async (
     input: AuctionDefinitionInput,
@@ -346,6 +373,22 @@ export default function AdminPage() {
     }
   };
 
+  const handleDuplicate = async (auction: AdminAuction) => {
+    setBusyAuctionId(auction.auctionId);
+    setNotice(null);
+    try {
+      const result = await duplicateAuction(auction.auctionId);
+      setNotice({ tone: "success", message: result.message ?? "Utworzono szkic kopii aukcji." });
+      setFilter("draft");
+      await loadDashboard();
+    } catch (error) {
+      if (isUnauthorized(error)) handleExpiredSession();
+      else setNotice({ tone: "error", message: errorMessage(error) });
+    } finally {
+      setBusyAuctionId(null);
+    }
+  };
+
   const handleFulfillmentUpdate = async (
     order: AdminOrder,
     input: FulfillmentUpdateInput,
@@ -428,7 +471,7 @@ export default function AdminPage() {
         <aside className={styles.sidebar} aria-label="Sekcje panelu administratora">
           <div className={styles.sidebarBrand}>Fiszy<span>.</span></div>
           <nav className={styles.sidebarNav}>
-            {ADMIN_SECTIONS.map((section) => (
+            {visibleAdminSections.map((section) => (
               <button
                 key={section.id}
                 type="button"
@@ -491,6 +534,14 @@ export default function AdminPage() {
         </div>
       ) : null}
 
+      {activeSection === "catalog" ? <div className={styles.sectionStack}><CatalogPanel
+        onSessionExpired={handleExpiredSession}
+        onAuctionDraftCreated={() => {
+          setNotice({ tone: "success", message: "Szkic aukcji utworzony z szablonu produktu." });
+          void loadDashboard();
+        }}
+      /></div> : null}
+
       {activeSection === "auctions" ? <div className={styles.sectionStack}><AuctionList
         auctions={auctions}
         filter={filter}
@@ -499,6 +550,7 @@ export default function AdminPage() {
         onFilterChange={setFilter}
         onSearchChange={setAuctionSearch}
         onEdit={handleEdit}
+        onDuplicate={(auction) => void handleDuplicate(auction)}
         onStart={(auction, startsAt) => void handleStartRun(auction, startsAt)}
         onArchiveToggle={(auction) => void handleArchiveToggle(auction)}
       />
@@ -527,6 +579,8 @@ export default function AdminPage() {
       {activeSection === "audit" ? <div className={styles.sectionStack}><AuditPanel onSessionExpired={handleExpiredSession} /></div> : null}
 
       {activeSection === "users" ? <div className={styles.sectionStack}><PortalOperationsPanel onSessionExpired={handleExpiredSession} /></div> : null}
+
+      {activeSection === "operations" ? <div className={styles.sectionStack}><BusinessOperationsPanel onSessionExpired={handleExpiredSession} /></div> : null}
 
       <footer className={styles.footer}>
         <span>Fiszy / panel operacyjny</span>

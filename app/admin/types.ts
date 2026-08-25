@@ -156,6 +156,7 @@ export type AdminHealth = {
   environment: string;
   adminConfigured: boolean;
   adminSecretStrong: boolean;
+  individualAdminAccountsConfigured: boolean;
   redisConfigured: boolean;
   redisReachable: boolean;
   redisLatencyMs: number | null;

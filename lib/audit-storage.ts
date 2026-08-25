@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { redisCommand } from "./redis";
 import { listSortedSetPage } from "./sorted-set-pagination";
 
-export type AuditActorType = "admin_session" | "admin_api" | "system";
+export type AuditActorType = "admin_session" | "admin_api" | "admin_clerk" | "system";
 export type AuditOutcome = "success" | "failure";
 export type AuditDetailValue = string | number | boolean | null;
 export type AuditDetails = Record<string, AuditDetailValue>;
@@ -11,14 +11,21 @@ export type AuditAction =
   | "auction.created"
   | "auction.updated"
   | "auction.run.scheduled"
+  | "auction.duplicated"
+  | "product.created"
+  | "product.updated"
   | "account.access.updated"
-  | "support.ticket.updated";
+  | "support.ticket.updated"
+  | "service_case.updated"
+  | "privacy.request.updated"
+  | "operations.reconciled";
 
 export type AuditEvent = {
   schemaVersion: 1;
   eventId: string;
   occurredAt: string;
   actorType: AuditActorType;
+  actorRef?: string | null;
   action: AuditAction;
   resourceType: string;
   resourceId: string;
@@ -38,6 +45,23 @@ const FULFILLMENT_STATUSES = new Set([
 ]);
 const ACCOUNT_STATUSES = new Set(["active", "blocked"]);
 const TICKET_STATUSES = new Set(["open", "in_progress", "resolved"]);
+const PRODUCT_STATUSES = new Set(["draft", "active", "archived"]);
+const INVENTORY_MODES = new Set(["unlimited", "tracked"]);
+const SERVICE_CASE_STATUSES = new Set([
+  "submitted",
+  "reviewing",
+  "waiting_for_customer",
+  "accepted",
+  "rejected",
+  "completed",
+]);
+const PRIVACY_REQUEST_STATUSES = new Set([
+  "requested",
+  "verified",
+  "processing",
+  "completed",
+  "rejected",
+]);
 
 export const AUDIT_RETENTION_SECONDS = 180 * 24 * 60 * 60;
 const AUDIT_CURSOR_PURPOSE = "audit.events.v1";
@@ -47,8 +71,14 @@ const ACTION_RESOURCE_TYPES: Record<AuditAction, string> = {
   "auction.created": "auction",
   "auction.updated": "auction",
   "auction.run.scheduled": "auction",
+  "auction.duplicated": "auction",
+  "product.created": "product",
+  "product.updated": "product",
   "account.access.updated": "account",
   "support.ticket.updated": "support_ticket",
+  "service_case.updated": "service_case",
+  "privacy.request.updated": "privacy_request",
+  "operations.reconciled": "operations_run",
 };
 
 function auditCutoffScore() {
@@ -181,6 +211,55 @@ function normalizeAuditDetails(
       typeof details.responseChanged !== "boolean" ||
       !isRevision(details.revision)
     ) return null;
+  } else if (action === "auction.duplicated") {
+    if (
+      !hasExactKeys(details, ["revision", "sourceAuctionId", "state"]) ||
+      !RECORD_STATES.has(String(details.state)) ||
+      typeof details.sourceAuctionId !== "string" ||
+      !details.sourceAuctionId ||
+      details.sourceAuctionId.length > 80 ||
+      !isRevision(details.revision)
+    ) return null;
+  } else if (action === "product.created") {
+    if (
+      !hasExactKeys(details, ["inventoryMode", "revision", "status"]) ||
+      !PRODUCT_STATUSES.has(String(details.status)) ||
+      !INVENTORY_MODES.has(String(details.inventoryMode)) ||
+      !isRevision(details.revision)
+    ) return null;
+  } else if (action === "product.updated") {
+    if (
+      !hasExactKeys(details, ["inventoryMode", "revision", "skuChanged", "status"]) ||
+      !PRODUCT_STATUSES.has(String(details.status)) ||
+      !INVENTORY_MODES.has(String(details.inventoryMode)) ||
+      typeof details.skuChanged !== "boolean" ||
+      !isRevision(details.revision)
+    ) return null;
+  } else if (action === "service_case.updated") {
+    if (
+      !hasExactKeys(details, ["previousStatus", "responseChanged", "revision", "status"]) ||
+      !SERVICE_CASE_STATUSES.has(String(details.previousStatus)) ||
+      !SERVICE_CASE_STATUSES.has(String(details.status)) ||
+      typeof details.responseChanged !== "boolean" ||
+      !isRevision(details.revision)
+    ) return null;
+  } else if (action === "privacy.request.updated") {
+    if (
+      !hasExactKeys(details, ["previousStatus", "revision", "status"]) ||
+      !PRIVACY_REQUEST_STATUSES.has(String(details.previousStatus)) ||
+      !PRIVACY_REQUEST_STATUSES.has(String(details.status)) ||
+      !isRevision(details.revision)
+    ) return null;
+  } else if (action === "operations.reconciled") {
+    if (
+      !hasExactKeys(details, ["changed", "errors", "processed"]) ||
+      !Number.isSafeInteger(details.processed) ||
+      Number(details.processed) < 0 ||
+      !Number.isSafeInteger(details.changed) ||
+      Number(details.changed) < 0 ||
+      !Number.isSafeInteger(details.errors) ||
+      Number(details.errors) < 0
+    ) return null;
   } else if (
     !hasExactKeys(details, ["revision", "runId", "startsAt"]) ||
     typeof details.runId !== "string" ||
@@ -211,7 +290,9 @@ export function parseStoredAuditEvent(raw: unknown): AuditEvent | null {
       !Number.isFinite(Date.parse(value.occurredAt)) ||
       (value.actorType !== "admin_session" &&
         value.actorType !== "admin_api" &&
+        value.actorType !== "admin_clerk" &&
         value.actorType !== "system") ||
+      (value.actorRef !== undefined && value.actorRef !== null && !/^[a-f0-9]{20}$/.test(value.actorRef)) ||
       !action ||
       !resourceType ||
       resourceType !== ACTION_RESOURCE_TYPES[action] ||
@@ -227,6 +308,7 @@ export function parseStoredAuditEvent(raw: unknown): AuditEvent | null {
       eventId,
       occurredAt: value.occurredAt,
       actorType: value.actorType,
+      actorRef: value.actorRef ?? null,
       action,
       resourceType,
       resourceId,

@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   ADMIN_SESSION_COOKIE,
   ADMIN_SESSION_SECONDS,
+  adminPrincipalSessionToken,
   adminPermissions,
   adminSessionToken,
   configuredAdminRole,
-  hasValidAdminRequest,
+  resolveAdminPrincipal,
   isAdminConfigured,
   isSameOriginAdminMutation,
   isValidAdminSecret,
@@ -55,16 +56,22 @@ function cookieOptions(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
-  return NextResponse.json(
+  const principal = await resolveAdminPrincipal(request);
+  const response = NextResponse.json(
     {
       outcome: "ok",
       configured: isAdminConfigured(),
-      authenticated: hasValidAdminRequest(request),
-      role: configuredAdminRole(),
-      permissions: adminPermissions(),
+      authenticated: Boolean(principal),
+      role: principal?.role ?? configuredAdminRole(),
+      permissions: principal?.permissions ?? adminPermissions(),
+      authenticationMethod: principal?.actorType ?? null,
     },
     { headers: { "Cache-Control": "no-store" } },
   );
+  if (principal?.actorType === "admin_clerk" && principal.actorRef) {
+    response.cookies.set(ADMIN_SESSION_COOKIE, adminPrincipalSessionToken(principal), cookieOptions(request));
+  }
+  return response;
 }
 
 export async function POST(request: NextRequest) {
