@@ -12,7 +12,8 @@ Pełny przebieg wykonujemy najpierw na chronionym Vercel Preview, na oddzielnym 
 4. Nie commituj eksportu, nie przesyłaj go przez komunikator i nie pozostawiaj jawnej kopii.
 5. Sprawdź kopię bez zapisu: ustaw bezwzględną ścieżkę w `FISZY_BACKUP_INPUT`, ustaw `FISZY_RESTORE_ENV=development` i uruchom `npm run backup:restore`.
 6. Próbne odtworzenie wykonaj wyłącznie do pustego środowiska testowego poleceniem `npm run backup:restore -- --apply`. Skrypt blokuje Production i przerywa pracę przed pierwszym zapisem, jeśli docelowy prefiks nie jest pusty.
-7. Po odtworzeniu porównaj liczbę kluczy i wykonaj test panelu, aukcji, zamówień oraz kolejki wiadomości. Testowe dane usuń dopiero po udokumentowaniu wyniku.
+7. Zweryfikuj wartości i usuń wyłącznie odtworzone klucze testowe poleceniem `npm run backup:verify -- --cleanup`, używając tych samych `FISZY_BACKUP_INPUT` i `FISZY_RESTORE_ENV`.
+8. Zapisz wynik próby, a następnie wykonaj test panelu, aukcji, zamówień oraz kolejki wiadomości.
 
 ## Procedura awaryjna
 
