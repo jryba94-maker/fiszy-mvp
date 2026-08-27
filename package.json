@@ -6,6 +6,8 @@
     "dev": "next dev",
     "stripe:listen": "node scripts/stripe-listen.mjs",
     "backup:export": "node scripts/export-environment-backup.mjs",
+    "backup:restore": "node scripts/restore-environment-backup.mjs",
+    "test:backup": "node --test scripts/backup-unit-tests.mjs",
     "test:race": "node scripts/race-test.mjs",
     "test:concurrency": "node --no-warnings --loader ./scripts/typescript-loader.mjs scripts/concurrency-claim-test.mjs",
     "test:portal": "node scripts/portal-smoke-test.mjs",

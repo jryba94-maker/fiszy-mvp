@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, resolve } from "node:path";
 
@@ -59,7 +60,9 @@ const keys = await allKeys();
 const records = [];
 for (const key of keys) records.push(await readKey(key));
 
+const payload = { schemaVersion: 1, environment, exportedAt: new Date().toISOString(), keyCount: records.length, records };
+const checksum = createHash("sha256").update(JSON.stringify(payload)).digest("hex");
 const output = resolve(outputValue);
 await mkdir(dirname(output), { recursive: true });
-await writeFile(output, JSON.stringify({ schemaVersion: 1, environment, exportedAt: new Date().toISOString(), keyCount: records.length, records }, null, 2), { encoding: "utf8", flag: "wx" });
-console.log(JSON.stringify({ outcome: "ok", environment, keyCount: records.length, output }));
+await writeFile(output, JSON.stringify({ ...payload, checksum: `sha256:${checksum}` }, null, 2), { encoding: "utf8", flag: "wx" });
+console.log(JSON.stringify({ outcome: "ok", environment, keyCount: records.length, checksum: `sha256:${checksum}`, output }));
