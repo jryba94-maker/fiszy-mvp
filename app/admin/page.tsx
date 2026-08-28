@@ -316,6 +316,13 @@ export default function AdminPage() {
   const handleStartRun = async (auction: AdminAuction, startsAt: string) => {
     if (auction.recordState === "archived") return;
 
+    const confirmed = window.confirm(
+      `Zaplanować rundę „${auction.productName}” na ${new Date(startsAt).toLocaleString("pl-PL")}?\n\n` +
+      `Wpisowe: ${auction.entryFee} zł · cena startowa: ${auction.startPrice} zł · czas: ${auction.durationMinutes} min.\n` +
+      "Po zapisaniu użytkownicy będą mogli opłacać wejście do chwili startu.",
+    );
+    if (!confirmed) return;
+
     setBusyAuctionId(auction.auctionId);
     setNotice(null);
 
@@ -395,6 +402,16 @@ export default function AdminPage() {
     input: FulfillmentUpdateInput,
   ) => {
     if (busyOrderRef.current) return false;
+    const fulfillmentRank = { new: 0, preparing: 1, shipped: 2, delivered: 3 } as const;
+    const movingBack = fulfillmentRank[input.status] < fulfillmentRank[order.fulfillment.status];
+    if ((input.status === "delivered" && order.fulfillment.status !== "delivered") || movingBack) {
+      const confirmed = window.confirm(
+        movingBack
+          ? `Cofnąć status realizacji zamówienia ${order.orderId}? Ta zmiana zostanie zapisana w dzienniku.`
+          : `Oznaczyć zamówienie ${order.orderId} jako dostarczone? Upewnij się, że przesyłka faktycznie dotarła.`,
+      );
+      if (!confirmed) return false;
+    }
     const previousFulfillment = order.fulfillment;
     const optimisticFulfillment = {
       status: input.status,

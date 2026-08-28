@@ -21,6 +21,7 @@ import {
   productAuctionDefinition,
 } from "../lib/product-storage.ts";
 import { isServiceCaseTransitionAllowed, normalizeServiceCaseInput } from "../lib/service-case-storage.ts";
+import { evaluateOperationsStatus } from "../lib/operations-status.ts";
 
 function withEnvironment(values, callback) {
   const previous = Object.fromEntries(
@@ -60,6 +61,27 @@ test("launch readiness blocks incomplete auctions and warns about sandbox paymen
   assert.equal(warning.status, "warning");
   assert.equal(warning.blockers, 0);
   assert.equal(warning.warnings, 1);
+});
+
+test("operations status prioritizes dead messages and overdue obligations", () => {
+  const status = evaluateOperationsStatus({
+    now: Date.parse("2026-08-27T12:00:00.000Z"),
+    messages: [{ state: "dead", attempts: 5 }, { state: "retry", attempts: 2 }],
+    cases: [
+      { status: "reviewing", responseDueAt: "2026-08-26T12:00:00.000Z" },
+      { status: "completed", responseDueAt: "2026-08-20T12:00:00.000Z" },
+    ],
+    privacy: [
+      { status: "requested", dueAt: "2026-08-25T12:00:00.000Z" },
+      { status: "completed", dueAt: "2026-08-20T12:00:00.000Z" },
+    ],
+  });
+  assert.equal(status.priority, "critical");
+  assert.equal(status.requiresAction, 3);
+  assert.equal(status.deadMessages, 1);
+  assert.equal(status.overdueCases, 1);
+  assert.equal(status.overduePrivacyRequests, 1);
+  assert.equal(status.retryingMessages, 1);
 });
 
 test("Resend webhook verification accepts exact fresh payload and rejects replay", () => {
