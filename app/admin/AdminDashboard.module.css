@@ -1032,10 +1032,14 @@
 
 .ordersList {
   display: grid;
+  min-width: 0;
   gap: 10px;
 }
 
 .orderCard {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   content-visibility: auto;
   contain-intrinsic-size: auto 520px;
   border: 1px solid var(--admin-border);
@@ -1046,13 +1050,18 @@
 
 .orderHeader {
   display: flex;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
 }
 
 .orderHeader > div {
+  width: 100%;
   min-width: 0;
+  max-width: 100%;
 }
 
 .orderHeadlineMeta {
@@ -1064,7 +1073,9 @@
 
 .orderId {
   display: block;
+  max-width: 100%;
   overflow-wrap: anywhere;
+  word-break: break-all;
   color: var(--admin-muted);
   font-family: Consolas, "Courier New", monospace;
   font-size: 0.66rem;
@@ -1121,6 +1132,8 @@
 }
 
 .orderMeta {
+  min-width: 0;
+  max-width: 100%;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 7px;
 }
@@ -1142,6 +1155,8 @@
 }
 
 .fulfillmentForm {
+  min-width: 0;
+  max-width: 100%;
   border-top: 1px solid var(--admin-border);
   padding-top: 15px;
 }
@@ -1162,6 +1177,8 @@
 
 .fulfillmentGrid {
   display: grid;
+  min-width: 0;
+  max-width: 100%;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
@@ -2234,7 +2251,8 @@
   .auctionCardTop,
   .orderHeader,
   .runHeader { align-items: flex-start; flex-direction: column; }
-  .orderHeadlineMeta { align-items: flex-start; }
+  .orderHeader { align-items: stretch; }
+  .orderHeadlineMeta { width: 100%; align-items: flex-start; justify-items: start; }
   .auctionStats,
   .orderMeta,
   .runMeta { grid-template-columns: 1fr; }
