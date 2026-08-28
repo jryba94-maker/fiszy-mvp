@@ -1898,13 +1898,13 @@
 /* Fiszy brand system and compact sidebar workspace */
 .dashboardShell,
 .gateShell {
-  --admin-bg: #15141a;
-  --admin-surface: #211f28;
-  --admin-surface-soft: #2a2732;
-  --admin-surface-raised: #302c39;
+  --admin-bg: #211e29;
+  --admin-surface: #2e2a38;
+  --admin-surface-soft: #393442;
+  --admin-surface-raised: #433d4e;
   --admin-ink: #f8f7fb;
-  --admin-muted: #c0bbc9;
-  --admin-border: rgba(255, 255, 255, 0.16);
+  --admin-muted: #d0cad8;
+  --admin-border: rgba(255, 255, 255, 0.2);
   --admin-live: #9b62ff;
   --admin-waiting: #c9a4ff;
   --admin-sold: #72d69a;
@@ -1931,7 +1931,7 @@
   flex-direction: column;
   border-right: 1px solid var(--admin-border);
   padding: 28px 18px 20px;
-  background: #1b1921;
+  background: #292531;
 }
 
 .sidebarBrand {
@@ -2061,7 +2061,7 @@
 .portalFilters input,
 .portalFilters select {
   border-color: var(--admin-border);
-  background: #19171e;
+  background: #26222d;
   color: var(--admin-ink);
 }
 
