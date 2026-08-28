@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { reconcileAuctionLifecycleBatch } from "../../../../lib/auction-lifecycle";
 import { processMessageOutbox } from "../../../../lib/message-outbox";
 import { errorDetails, logEvent } from "../../../../lib/observability";
+import { sendSystemAlert, systemAlertsConfigured } from "../../../../lib/transactional-email";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -35,6 +36,19 @@ export async function GET(request: Request) {
     const messages = await processMessageOutbox({ limit: 50 });
     if (!messages) throw new Error("Message outbox processing failed.");
     const outcome = lifecycle.errors || messages.errors ? "completed_with_errors" : "completed";
+    const issues = [
+      ...(lifecycle.recoveryRequired > 0
+        ? [`auctions.payment_recovery_required:${lifecycle.recoveryRequired}`]
+        : []),
+      ...(lifecycle.errors > 0 ? [`auctions.reconciliation_errors:${lifecycle.errors}`] : []),
+      ...(messages.dead > 0 ? [`email.dead_messages:${messages.dead}`] : []),
+      ...(messages.errors > 0 ? [`email.processing_errors:${messages.errors}`] : []),
+    ];
+    let alertSent = false;
+    if (issues.length && systemAlertsConfigured()) {
+      await sendSystemAlert(issues, new Date().toISOString());
+      alertSent = true;
+    }
     logEvent("operations_cron_completed", {
       lifecycleProcessed: lifecycle.processed,
       lifecycleChanged: lifecycle.changed,
@@ -44,12 +58,16 @@ export async function GET(request: Request) {
       messagesDelivered: messages.delivered,
       messagesRetried: messages.retried,
       messagesDead: messages.dead,
+      issueCount: issues.length,
+      alertSent,
       durationMs: Date.now() - startedAt,
     }, outcome === "completed" ? "info" : "warning");
     return NextResponse.json({
       outcome,
       lifecycle,
       messages,
+      issues,
+      alertSent,
       hasMoreAuctions: Boolean(cursor),
       durationMs: Date.now() - startedAt,
     });

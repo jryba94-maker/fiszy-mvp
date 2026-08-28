@@ -1999,6 +1999,42 @@
 .operationCase > div:first-child span,
 .operationCase > div:first-child p { margin: 0; color: var(--admin-muted); font-size: .82rem; line-height: 1.5; }
 
+.operationsPriority {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: center;
+  border: 1px solid var(--admin-border);
+  border-radius: 18px;
+  padding: 18px;
+  background: #0c0c0e;
+}
+.operationsPriority strong { font-size: 1rem; }
+.operationsPriority ul {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px 18px;
+  margin: 0;
+  padding: 0;
+  color: var(--admin-muted);
+  font-size: .78rem;
+  list-style: none;
+}
+.operationsPriority_ready { border-color: rgba(114, 214, 154, .28); }
+.operationsPriority_warning { border-color: rgba(246, 193, 95, .42); }
+.operationsPriority_critical { border-color: rgba(255, 118, 101, .55); background: rgba(124, 40, 25, .13); }
+.adminSubpanel > summary { cursor: pointer; list-style: none; }
+.adminSubpanel > summary::-webkit-details-marker { display: none; }
+.adminSubpanel > summary::after { content: "+"; margin-left: auto; color: var(--admin-muted); }
+.adminSubpanel[open] > summary::after { content: "−"; }
+.adminSubpanel > summary + .operationsList,
+.adminSubpanel > summary + .operationsList + .emptyState { margin-top: 14px; }
+
+@media (max-width: 720px) {
+  .operationsPriority { grid-template-columns: 1fr; }
+  .operationsPriority ul { grid-template-columns: 1fr 1fr; }
+}
+
 .panelSection,
 .kpiCard,
 .auctionCard,

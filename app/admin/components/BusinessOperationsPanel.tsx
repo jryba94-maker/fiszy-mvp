@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { evaluateOperationsStatus } from "../../../lib/operations-status";
 import styles from "../AdminDashboard.module.css";
 
 type Funnel = { totals: Record<string, number>; conversion: Record<string, number>; campaigns: Array<{ label: string; signups: number }> };
@@ -65,6 +66,7 @@ export function BusinessOperationsPanel({ onSessionExpired }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const operationsStatus = evaluateOperationsStatus({ messages, cases, privacy });
 
   const load = useCallback(async () => {
     setError("");
@@ -100,6 +102,7 @@ export function BusinessOperationsPanel({ onSessionExpired }: Props) {
   useEffect(() => { void load(); }, [load]);
 
   const reconcile = async () => {
+    if (!window.confirm("Uruchomić kontrolę aukcji i kolejki wiadomości? Operacja może automatycznie wznowić bezpieczne zadania.")) return;
     setBusy(true); setError(""); setNotice("");
     try {
       const result = await api<{ lifecycle: { processed: number; changed: number; recoveryRequired: number }; messages: { delivered: number; retried: number; dead: number } }>("/api/admin/operations", { method: "POST", body: "{}" });
@@ -112,6 +115,7 @@ export function BusinessOperationsPanel({ onSessionExpired }: Props) {
   };
 
   const retryMessage = async (message: Message) => {
+    if (!window.confirm(`Ponowić wiadomość ${message.messageId}? Odbiorca może otrzymać ją po zakończeniu kontroli duplikatów.`)) return;
     setBusy(true); setError(""); setNotice("");
     try {
       await api(`/api/admin/operations/messages/${encodeURIComponent(message.messageId)}/retry`, { method: "POST", body: "{}" });
@@ -158,6 +162,18 @@ export function BusinessOperationsPanel({ onSessionExpired }: Props) {
       <div className={styles.sectionHeader}><div><p className={styles.eyebrow}>Automatyzacja i kontrola</p><h2 id="operations-heading">Centrum operacyjne</h2></div><button className={styles.cardPrimaryButton} type="button" disabled={busy} onClick={() => void reconcile()}>{busy ? "Sprawdzam…" : "Uruchom kontrolę"}</button></div>
       {error ? <p className={styles.errorNotice} role="alert">{error}</p> : null}
       {notice ? <p className={styles.successNotice} role="status">{notice}</p> : null}
+      <div className={`${styles.operationsPriority} ${styles[`operationsPriority_${operationsStatus.priority}`]}`} role="status">
+        <div>
+          <p className={styles.eyebrow}>Skrzynka priorytetów</p>
+          <strong>{operationsStatus.requiresAction > 0 ? `${operationsStatus.requiresAction} spraw wymaga działania` : operationsStatus.retryingMessages > 0 ? "System ponawia zadania" : "Brak pilnych problemów"}</strong>
+        </div>
+        <ul>
+          <li>Martwe wiadomości: <strong>{operationsStatus.deadMessages}</strong></li>
+          <li>Sprawy po terminie: <strong>{operationsStatus.overdueCases}</strong></li>
+          <li>RODO po terminie: <strong>{operationsStatus.overduePrivacyRequests}</strong></li>
+          <li>Wiadomości ponawiane: <strong>{operationsStatus.retryingMessages}</strong></li>
+        </ul>
+      </div>
       <div className={styles.operationsKpis} aria-label="Lejek z ostatnich 30 dni">
         <div><strong>{funnel?.totals.waitlist_signup ?? 0}</strong><span>zapisy e-mail</span></div>
         <div><strong>{funnel?.totals.entry_paid ?? 0}</strong><span>opłacone wejścia</span></div>
@@ -165,14 +181,14 @@ export function BusinessOperationsPanel({ onSessionExpired }: Props) {
         <div><strong>{funnel?.totals.order_paid ?? 0}</strong><span>opłacone zamówienia</span></div>
       </div>
       <div className={styles.operationsColumns}>
-        <div className={styles.adminSubpanel}><div className={styles.subpanelTitle}><h3>Sprawy klientów</h3><span>{cases.length}</span></div><div className={styles.operationsList}>{cases.map((item) => {
+        <details className={styles.adminSubpanel} open={operationsStatus.overdueCases > 0}><summary className={styles.subpanelTitle}><h3>Sprawy klientów</h3><span>{cases.length}</span></summary><div className={styles.operationsList}>{cases.map((item) => {
           const draft = caseEdits[item.caseId] ?? { status: item.status, adminResponse: item.adminResponse ?? "", resolution: item.resolution ?? "", refundStatus: item.refundStatus };
           const updateDraft = (patch: Partial<typeof draft>) => setCaseEdits((current) => ({ ...current, [item.caseId]: { ...draft, ...patch } }));
           return <article className={styles.operationCase} key={item.caseId}><div><strong>{item.subject}</strong><span>{item.caseId} · {item.kind} · termin {new Date(item.responseDueAt).toLocaleDateString("pl-PL")}</span><span>{item.contactEmail}{item.orderId ? ` · zamówienie ${item.orderId}` : ""}</span><p>{item.description}</p>{item.expectation ? <p><strong>Oczekiwanie:</strong> {item.expectation}</p> : null}</div><div className={styles.operationsFormGrid}><label className={styles.field}><span>Status</span><select className={styles.input} value={draft.status} onChange={(event) => updateDraft({ status: event.target.value })}>{allowedCaseStatuses(item.status).map((status) => <option key={status} value={status}>{CASE_STATUS_LABELS[status] ?? status}</option>)}</select></label><label className={styles.field}><span>Zwrot środków</span><select className={styles.input} value={draft.refundStatus} onChange={(event) => updateDraft({ refundStatus: event.target.value })}><option value="not_applicable">Nie dotyczy</option><option value="pending">Do wykonania</option><option value="completed">Wykonany</option></select></label></div><label className={styles.field}><span>Odpowiedź dla klienta</span><textarea className={styles.input} rows={3} maxLength={3000} value={draft.adminResponse} onChange={(event) => updateDraft({ adminResponse: event.target.value })} /></label><label className={styles.field}><span>Rozwiązanie wewnętrzne</span><textarea className={styles.input} rows={2} maxLength={2000} value={draft.resolution} onChange={(event) => updateDraft({ resolution: event.target.value })} /></label><div className={styles.cardActions}><button type="button" className={styles.cardPrimaryButton} disabled={busy} onClick={() => void updateCase(item)}>Zapisz sprawę</button></div></article>;
-        })}</div>{!loading && !cases.length ? <p className={styles.emptyState}>Brak spraw klientów.</p> : null}</div>
-        <div className={styles.adminSubpanel}><div className={styles.subpanelTitle}><h3>Wnioski RODO</h3><span>{privacy.length}</span></div><div className={styles.operationsList}>{privacy.map((item) => <article className={styles.compactOperation} key={item.requestId}><div><strong>{item.kind}</strong><span>{item.status} · termin {new Date(item.dueAt).toLocaleDateString("pl-PL")}</span></div><div className={styles.cardActions}>{item.status === "requested" ? <button type="button" className={styles.secondaryButton} disabled={busy} onClick={() => void updatePrivacy(item, "verified")}>Zweryfikuj</button> : null}{item.status === "verified" ? <button type="button" className={styles.secondaryButton} disabled={busy} onClick={() => void updatePrivacy(item, "processing")}>Przetwarzaj</button> : null}</div></article>)}</div>{!privacy.length ? <p className={styles.emptyState}>Brak nowych wniosków.</p> : null}</div>
+        })}</div>{!loading && !cases.length ? <p className={styles.emptyState}>Brak spraw klientów.</p> : null}</details>
+        <details className={styles.adminSubpanel} open={operationsStatus.overduePrivacyRequests > 0}><summary className={styles.subpanelTitle}><h3>Wnioski RODO</h3><span>{privacy.length}</span></summary><div className={styles.operationsList}>{privacy.map((item) => <article className={styles.compactOperation} key={item.requestId}><div><strong>{item.kind}</strong><span>{item.status} · termin {new Date(item.dueAt).toLocaleDateString("pl-PL")}</span></div><div className={styles.cardActions}>{item.status === "requested" ? <button type="button" className={styles.secondaryButton} disabled={busy} onClick={() => void updatePrivacy(item, "verified")}>Zweryfikuj</button> : null}{item.status === "verified" ? <button type="button" className={styles.secondaryButton} disabled={busy} onClick={() => void updatePrivacy(item, "processing")}>Przetwarzaj</button> : null}</div></article>)}</div>{!privacy.length ? <p className={styles.emptyState}>Brak nowych wniosków.</p> : null}</details>
       </div>
-      <div className={styles.adminSubpanel}><div className={styles.subpanelTitle}><h3>Kolejka wiadomości</h3><span>{messages.length}</span></div><div className={styles.operationsList}>{messages.slice(0, 100).map((message) => <div className={styles.compactOperation} key={message.messageId}><div><strong>{message.template}</strong><span>{message.state} · dostarczenie: {message.deliveryStatus ?? "oczekuje"} · próby: {message.attempts}</span></div><div className={styles.cardActions}><time dateTime={message.updatedAt}>{new Date(message.updatedAt).toLocaleString("pl-PL")}</time>{message.state === "dead" ? <button type="button" className={styles.secondaryButton} disabled={busy} onClick={() => void retryMessage(message)}>Ponów bezpiecznie</button> : null}</div></div>)}</div>{!loading && !messages.length ? <p className={styles.emptyState}>Kolejka jest pusta.</p> : null}</div>
+      <details className={styles.adminSubpanel} open={operationsStatus.deadMessages > 0}><summary className={styles.subpanelTitle}><h3>Kolejka wiadomości</h3><span>{messages.length}</span></summary><div className={styles.operationsList}>{messages.slice(0, 100).map((message) => <div className={styles.compactOperation} key={message.messageId}><div><strong>{message.template}</strong><span>{message.state} · dostarczenie: {message.deliveryStatus ?? "oczekuje"} · próby: {message.attempts}</span></div><div className={styles.cardActions}><time dateTime={message.updatedAt}>{new Date(message.updatedAt).toLocaleString("pl-PL")}</time>{message.state === "dead" ? <button type="button" className={styles.secondaryButton} disabled={busy} onClick={() => void retryMessage(message)}>Ponów bezpiecznie</button> : null}</div></div>)}</div>{!loading && !messages.length ? <p className={styles.emptyState}>Kolejka jest pusta.</p> : null}</details>
     </section>
   );
 }

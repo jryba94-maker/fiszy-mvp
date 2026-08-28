@@ -17,4 +17,7 @@ skills-lock.json
 # Local development server logs.
 .codex-dev.*.log
 
+# Generated launch-rehearsal reports stay local.
+artifacts/
+
 .env*
