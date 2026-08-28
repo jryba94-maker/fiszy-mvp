@@ -1614,7 +1614,7 @@
 
 .waitlistPanel { grid-column: 1 / -1; }
 .waitlistRows { display: grid; gap: 8px; margin-bottom: 14px; }
-.waitlistRow { display: flex; align-items: center; justify-content: space-between; gap: 14px; border: 1px solid var(--admin-border); border-radius: 13px; padding: 11px 12px; background: #fff; }
+.waitlistRow { display: flex; align-items: center; justify-content: space-between; gap: 14px; border: 1px solid var(--admin-border); border-radius: 13px; padding: 11px 12px; background: var(--admin-surface-soft); }
 .waitlistRow span, .waitlistRow strong, .waitlistRow small { display: block; min-width: 0; }
 .waitlistRow strong { overflow: hidden; text-overflow: ellipsis; }
 .waitlistRow small { margin-top: 3px; color: var(--admin-muted); }
@@ -1633,7 +1633,7 @@
 .subpanelTitle > span { color: var(--admin-muted); font-size: .72rem; font-weight: 850; }
 .subpanelTitle button { border: 0; background: none; cursor: pointer; font-size: .72rem; font-weight: 850; text-decoration: underline; }
 .compactList, .ticketAdminList, .userActivity { display: grid; gap: 8px; }
-.userRow { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid var(--admin-border); border-radius: 13px; padding: 12px; background: #fff; color: var(--admin-ink); cursor: pointer; text-align: left; }
+.userRow { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid var(--admin-border); border-radius: 13px; padding: 12px; background: var(--admin-surface-soft); color: var(--admin-ink); cursor: pointer; text-align: left; }
 .userRow span, .userRow strong, .userRow small { display: block; }
 .userRow small { margin-top: 3px; color: var(--admin-muted); }
 .activeBadge, .blockedBadge { border-radius: 999px; padding: 5px 8px; font-size: .64rem; font-style: normal; font-weight: 900; white-space: nowrap; }
@@ -1641,23 +1641,23 @@
 .blockedBadge { background: #ffe4df; color: #8b2818; }
 .userDetail { margin-top: 14px; border-top: 1px solid var(--admin-border); padding-top: 16px; }
 .userDetail dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 0 0 14px; }
-.userDetail dl div { border-radius: 11px; padding: 10px; background: #fff; }
+.userDetail dl div { border: 1px solid var(--admin-border); border-radius: 11px; padding: 10px; background: var(--admin-surface-soft); }
 .userDetail dt { margin-bottom: 4px; color: var(--admin-muted); font-size: .65rem; font-weight: 850; text-transform: uppercase; }
 .userDetail dd { margin: 0; overflow-wrap: anywhere; font-size: .8rem; font-weight: 750; line-height: 1.35; }
 .adminNoteField, .adminTicket label { display: block; margin-top: 10px; }
 .adminNoteField > span, .adminTicket label > span { display: block; margin-bottom: 6px; font-size: .72rem; font-weight: 850; }
-.adminNoteField textarea, .adminTicket textarea, .adminTicket select { width: 100%; border: 1px solid rgba(21,21,20,.18); border-radius: 10px; padding: 9px 10px; background: #fff; color: var(--admin-ink); font: inherit; resize: vertical; }
+.adminNoteField textarea, .adminTicket textarea, .adminTicket select { width: 100%; border: 1px solid var(--admin-border); border-radius: 10px; padding: 9px 10px; background: var(--admin-surface-raised); color: var(--admin-ink); font: inherit; resize: vertical; }
 .detailActions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .detailActions button, .adminTicket > button { min-height: 38px; border: 1px solid var(--admin-ink); border-radius: 10px; padding: 0 11px; background: var(--admin-ink); color: #fff; cursor: pointer; font-size: .72rem; font-weight: 900; }
 .detailActions .blockButton { border-color: #b93822; background: #fff0ec; color: #8c2919; }
 .detailActions .restoreButton { border-color: #147a4b; background: #e5f8ee; color: #0b6139; }
 .userActivity { margin-top: 14px; }
-.userActivity div { display: flex; align-items: center; justify-content: space-between; gap: 10px; border-radius: 10px; padding: 9px 10px; background: #fff; font-size: .73rem; }
+.userActivity div { display: flex; align-items: center; justify-content: space-between; gap: 10px; border: 1px solid var(--admin-border); border-radius: 10px; padding: 9px 10px; background: var(--admin-surface-soft); font-size: .73rem; }
 .userActivity strong { text-align: right; }
-.adminTicket { border: 1px solid var(--admin-border); border-radius: 14px; padding: 14px; background: #fff; }
+.adminTicket { border: 1px solid var(--admin-border); border-radius: 14px; padding: 14px; background: var(--admin-surface-soft); }
 .ticketTop { align-items: flex-start; flex-direction: column; }
 .ticketTop span { color: var(--admin-muted); font-size: .65rem; font-weight: 850; }
-.adminTicket p { margin: 10px 0; color: #52524d; font-size: .79rem; line-height: 1.45; }
+.adminTicket p { margin: 10px 0; color: var(--admin-muted); font-size: .79rem; line-height: 1.45; }
 .adminTicket small { color: var(--admin-muted); overflow-wrap: anywhere; }
 .adminTicket > button { margin-top: 10px; }
 .inlineError { margin-bottom: 14px; border: 1px solid #d07161; border-radius: 12px; padding: 11px 13px; background: #fff0ed; color: #7c2819; font-size: .8rem; font-weight: 750; }
