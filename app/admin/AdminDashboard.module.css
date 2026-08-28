@@ -1688,6 +1688,26 @@
 
 @media (max-width: 720px) {
   .dashboardShell {
+    max-width: 100%;
+    overflow-x: clip;
+  }
+
+  .adminLayout,
+  .dashboardContent,
+  .header,
+  .header > div,
+  .brandLine,
+  .headerActions,
+  .kpiGrid {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .brandLine {
+    flex-wrap: wrap;
+  }
+
+  .dashboardShell {
     width: min(100% - 20px, 620px);
     padding-top: 14px;
   }
@@ -1699,15 +1719,27 @@
   }
 
   .headerActions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 48px;
     width: 100%;
   }
 
   .headerActions .secondaryButton {
-    flex: 1;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .headerActions .iconButton {
+    width: 48px;
+  }
+
+  .headerActions .ghostButton {
+    grid-column: 1 / -1;
+    width: 100%;
   }
 
   .kpiGrid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
     gap: 9px;
   }
 
@@ -2161,12 +2193,18 @@
     border-right: 0;
     border-bottom: 1px solid var(--admin-border);
     padding: 12px 14px;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
   }
   .sidebarBrand, .sidebarPublicLink { display: none; }
   .sidebarNav {
     display: flex;
+    min-width: 0;
+    max-width: 100%;
     overflow-x: auto;
     gap: 6px;
+    overscroll-behavior-inline: contain;
     scrollbar-width: none;
   }
   .sidebarNav::-webkit-scrollbar { display: none; }
