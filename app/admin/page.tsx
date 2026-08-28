@@ -44,13 +44,13 @@ type AdminSection = "overview" | "catalog" | "auctions" | "orders" | "history" |
 
 const ADMIN_SECTIONS: Array<{ id: AdminSection; label: string; caption: string }> = [
   { id: "overview", label: "Pulpit", caption: "Wyniki i system" },
+  { id: "operations", label: "Operacje", caption: "Priorytety i automaty" },
   { id: "catalog", label: "Produkty", caption: "Katalog i szablony" },
   { id: "auctions", label: "Aukcje", caption: "Lista i edycja" },
   { id: "orders", label: "Zamówienia", caption: "Realizacja" },
   { id: "history", label: "Rundy", caption: "Uczestnicy" },
   { id: "users", label: "Użytkownicy", caption: "Pomoc i lista e-mail" },
   { id: "audit", label: "Dziennik", caption: "Zmiany i zdarzenia" },
-  { id: "operations", label: "Operacje", caption: "Automaty, RODO i lejek" },
 ];
 
 function sectionAllowed(section: AdminSection, permissions: string[]) {
