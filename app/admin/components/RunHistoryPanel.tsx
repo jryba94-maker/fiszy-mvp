@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   ApiError,
   loadAuctionRunsPage,
@@ -46,6 +46,8 @@ export function RunHistoryPanel({
   onSessionExpired,
 }: RunHistoryPanelProps) {
   const [selectedAuctionId, setSelectedAuctionId] = useState("");
+  const [auctionSearch, setAuctionSearch] = useState("");
+  const [dateFilter, setDateFilter] = useState<"all" | "upcoming" | "past" | "undated">("all");
   const [runs, setRuns] = useState<AdminAuctionRun[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -53,6 +55,25 @@ export function RunHistoryPanel({
   const [participants, setParticipants] = useState<Record<string, ParticipantsState>>({});
   const selectedAuctionRef = useRef("");
   const runsRequestRef = useRef(0);
+  const visibleAuctions = useMemo(() => {
+    const query = auctionSearch.trim().toLocaleLowerCase("pl-PL");
+    const now = Date.now();
+    return [...auctions]
+      .filter((auction) => {
+        const startsAt = auction.startsAt ? Date.parse(auction.startsAt) : null;
+        const matchesDate = dateFilter === "all"
+          || (dateFilter === "undated" && startsAt === null)
+          || (dateFilter === "upcoming" && startsAt !== null && startsAt >= now)
+          || (dateFilter === "past" && startsAt !== null && startsAt < now);
+        const haystack = `${auction.productName} ${auction.slug} ${auction.auctionId}`.toLocaleLowerCase("pl-PL");
+        return matchesDate && (!query || haystack.includes(query));
+      })
+      .sort((left, right) => {
+        const leftTime = left.startsAt ? Date.parse(left.startsAt) : 0;
+        const rightTime = right.startsAt ? Date.parse(right.startsAt) : 0;
+        return rightTime - leftTime;
+      });
+  }, [auctionSearch, auctions, dateFilter]);
 
   const handleError = (caught: unknown, fallback: string) => {
     if (caught instanceof ApiError && caught.status === 401) {
@@ -198,22 +219,32 @@ export function RunHistoryPanel({
       </div>
 
       <div className={styles.onDemandControls}>
-        <label className={styles.field} htmlFor="run-auction-select">
-          <span>Wybierz aukcję</span>
-          <select
-            id="run-auction-select"
-            className={styles.input}
-            value={selectedAuctionId}
-            onChange={(event) => selectAuction(event.target.value)}
-          >
-            <option value="">Wybierz z katalogu…</option>
-            {auctions.map((auction) => (
-              <option key={auction.auctionId} value={auction.auctionId}>
-                {auction.startsAt ? formatDateTime(auction.startsAt) : "Bez terminu"} · {auction.productName} · /{auction.slug}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className={styles.runFinder}>
+          <label className={styles.field} htmlFor="run-auction-search">
+            <span>Szukaj aukcji</span>
+            <input id="run-auction-search" className={styles.input} type="search" value={auctionSearch} placeholder="Nazwa, slug lub ID…" onChange={(event) => setAuctionSearch(event.target.value)} />
+          </label>
+          <label className={styles.field} htmlFor="run-date-filter">
+            <span>Termin</span>
+            <select id="run-date-filter" className={styles.input} value={dateFilter} onChange={(event) => setDateFilter(event.target.value as typeof dateFilter)}>
+              <option value="all">Wszystkie terminy</option>
+              <option value="upcoming">Nadchodzące</option>
+              <option value="past">Minione</option>
+              <option value="undated">Bez terminu</option>
+            </select>
+          </label>
+          <label className={`${styles.field} ${styles.runAuctionSelect}`} htmlFor="run-auction-select">
+            <span>Wybierz aukcję ({visibleAuctions.length})</span>
+            <select id="run-auction-select" className={styles.input} value={selectedAuctionId} onChange={(event) => selectAuction(event.target.value)}>
+              <option value="">Wybierz z katalogu…</option>
+              {visibleAuctions.map((auction) => (
+                <option key={auction.auctionId} value={auction.auctionId}>
+                  {auction.startsAt ? formatDateTime(auction.startsAt) : "Bez terminu"} · {auction.productName} · /{auction.slug}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
         <p>
           Dane są pobierane dopiero po wybraniu aukcji. Rozwiń rundę, aby zobaczyć uczestników.
         </p>

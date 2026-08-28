@@ -81,6 +81,12 @@ export function AuctionList({
     ),
     [auctions, deferredSearch, filter],
   );
+  const workflowCounts = useMemo(() => ({
+    draft: auctions.filter((auction) => auction.recordState === "draft").length,
+    waiting: auctions.filter((auction) => auction.status === "waiting").length,
+    live: auctions.filter((auction) => auction.status === "live" || auction.status === "payment_pending").length,
+    finished: auctions.filter((auction) => auction.status === "sold" || auction.status === "ended").length,
+  }), [auctions]);
 
   const openSchedule = (auctionId: string) => {
     setSchedulingId(auctionId);
@@ -127,6 +133,13 @@ export function AuctionList({
         <span className={styles.resultCount} aria-live="polite">
           Wyniki: {filteredAuctions.length}
         </span>
+      </div>
+
+      <div className={styles.workflowOverview} aria-label="Etapy aukcji">
+        <button type="button" onClick={() => onFilterChange("draft")}><span>Szkice</span><strong>{workflowCounts.draft}</strong><small>do przygotowania</small></button>
+        <button type="button" onClick={() => onFilterChange("waiting")}><span>Zaplanowane</span><strong>{workflowCounts.waiting}</strong><small>czekają na start</small></button>
+        <button type="button" onClick={() => onFilterChange("live")}><span>Trwające</span><strong>{workflowCounts.live}</strong><small>wymagają uwagi</small></button>
+        <button type="button" onClick={() => onFilterChange("finished")}><span>Zakończone</span><strong>{workflowCounts.finished}</strong><small>historia sprzedaży</small></button>
       </div>
 
       <div className={styles.filterBar} role="group" aria-label="Filtruj aukcje">
