@@ -209,7 +209,7 @@ export function RunHistoryPanel({
             <option value="">Wybierz z katalogu…</option>
             {auctions.map((auction) => (
               <option key={auction.auctionId} value={auction.auctionId}>
-                {auction.productName} · /{auction.slug}
+                {auction.startsAt ? formatDateTime(auction.startsAt) : "Bez terminu"} · {auction.productName} · /{auction.slug}
               </option>
             ))}
           </select>
