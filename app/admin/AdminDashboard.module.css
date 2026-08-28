@@ -1898,12 +1898,13 @@
 /* Fiszy brand system and compact sidebar workspace */
 .dashboardShell,
 .gateShell {
-  --admin-bg: #070708;
-  --admin-surface: #111114;
-  --admin-surface-soft: #18181c;
+  --admin-bg: #15141a;
+  --admin-surface: #211f28;
+  --admin-surface-soft: #2a2732;
+  --admin-surface-raised: #302c39;
   --admin-ink: #f8f7fb;
-  --admin-muted: #aaa6b2;
-  --admin-border: rgba(255, 255, 255, 0.12);
+  --admin-muted: #c0bbc9;
+  --admin-border: rgba(255, 255, 255, 0.16);
   --admin-live: #9b62ff;
   --admin-waiting: #c9a4ff;
   --admin-sold: #72d69a;
@@ -1930,7 +1931,7 @@
   flex-direction: column;
   border-right: 1px solid var(--admin-border);
   padding: 28px 18px 20px;
-  background: #0b0b0d;
+  background: #1b1921;
 }
 
 .sidebarBrand {
@@ -1957,8 +1958,8 @@
 }
 
 .sidebarLink span { color: inherit; font-size: .86rem; font-weight: 600; }
-.sidebarLink small { color: #777480; font-size: .68rem; font-weight: 400; }
-.sidebarLink:hover { background: rgba(255,255,255,.05); color: #fff; }
+.sidebarLink small { color: #96909f; font-size: .68rem; font-weight: 400; }
+.sidebarLink:hover { background: rgba(255,255,255,.08); color: #fff; }
 .sidebarLink[aria-current="page"] {
   border-color: rgba(155,98,255,.34);
   background: rgba(123,44,255,.16);
@@ -1992,7 +1993,7 @@
   border: 1px solid var(--admin-border);
   border-radius: 18px;
   padding: 16px;
-  background: #0c0c0e;
+  background: var(--admin-surface-soft);
 }
 
 .operationCase > div:first-child { display: grid; gap: 5px; }
@@ -2007,7 +2008,7 @@
   border: 1px solid var(--admin-border);
   border-radius: 18px;
   padding: 18px;
-  background: #0c0c0e;
+  background: var(--admin-surface-soft);
 }
 .operationsPriority strong { font-size: 1rem; }
 .operationsPriority ul {
@@ -2060,7 +2061,7 @@
 .portalFilters input,
 .portalFilters select {
   border-color: var(--admin-border);
-  background: #0c0c0e;
+  background: #19171e;
   color: var(--admin-ink);
 }
 
