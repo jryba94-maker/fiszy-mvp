@@ -333,9 +333,19 @@ export function OrdersPanel({
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | FulfillmentStatus>("all");
   const deferredSearch = useDeferredValue(searchQuery);
+  const priorityCounts = useMemo(() => ({
+    new: orders.filter((order) => order.fulfillment.status === "new").length,
+    preparing: orders.filter((order) => order.fulfillment.status === "preparing").length,
+    shipped: orders.filter((order) => order.fulfillment.status === "shipped").length,
+    delivered: orders.filter((order) => order.fulfillment.status === "delivered").length,
+  }), [orders]);
   const filteredOrders = useMemo(
     () => [...orders]
-      .sort((left, right) => Date.parse(right.paidAt) - Date.parse(left.paidAt))
+      .sort((left, right) => {
+        const rank: Record<FulfillmentStatus, number> = { new: 0, preparing: 1, shipped: 2, delivered: 3 };
+        return rank[left.fulfillment.status] - rank[right.fulfillment.status]
+          || Date.parse(right.paidAt) - Date.parse(left.paidAt);
+      })
       .filter((order) =>
         (statusFilter === "all" || order.fulfillment.status === statusFilter) &&
         matchesOrderSearch(order, deferredSearch),
@@ -358,6 +368,13 @@ export function OrdersPanel({
         <span className={styles.sectionCount} aria-label={`${orders.length} zamówień`}>
           {orders.length}
         </span>
+      </div>
+
+      <div className={styles.orderPriorities} aria-label="Priorytety realizacji zamówień">
+        <button type="button" onClick={() => setStatusFilter("new")}><span>Nowe</span><strong>{priorityCounts.new}</strong><small>zacznij tutaj</small></button>
+        <button type="button" onClick={() => setStatusFilter("preparing")}><span>Do wysłania</span><strong>{priorityCounts.preparing}</strong><small>w przygotowaniu</small></button>
+        <button type="button" onClick={() => setStatusFilter("shipped")}><span>Wysłane</span><strong>{priorityCounts.shipped}</strong><small>śledź dostawę</small></button>
+        <button type="button" onClick={() => setStatusFilter("delivered")}><span>Zakończone</span><strong>{priorityCounts.delivered}</strong><small>dostarczone</small></button>
       </div>
 
       <div className={styles.listToolbar}>

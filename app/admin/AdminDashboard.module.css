@@ -1910,6 +1910,7 @@
   --admin-sold: #72d69a;
   --admin-focus: #9b62ff;
   background: var(--admin-bg);
+  color-scheme: dark;
 }
 
 .dashboardShell {
@@ -1986,6 +1987,49 @@
 }
 
 .sectionStack { display: grid; gap: 18px; }
+
+.workflowOverview,
+.orderPriorities {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.workflowOverview button,
+.orderPriorities button {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+  border: 1px solid var(--admin-border);
+  border-radius: 15px;
+  padding: 14px;
+  background: var(--admin-surface-soft);
+  color: var(--admin-ink);
+  cursor: pointer;
+  text-align: left;
+}
+
+.workflowOverview button:hover,
+.orderPriorities button:hover {
+  border-color: rgba(155, 98, 255, .7);
+  background: var(--admin-surface-raised);
+}
+
+.workflowOverview span,
+.orderPriorities span { font-size: .72rem; font-weight: 800; }
+.workflowOverview strong,
+.orderPriorities strong { font-size: 1.65rem; line-height: 1; }
+.workflowOverview small,
+.orderPriorities small { color: var(--admin-muted); font-size: .66rem; }
+
+.runFinder {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(150px, .5fr);
+  gap: 10px;
+}
+
+.runAuctionSelect { grid-column: 1 / -1; }
 
 .operationCase {
   display: grid;
@@ -2065,6 +2109,25 @@
   color: var(--admin-ink);
 }
 
+.prefixedInput,
+.suffixedInput,
+.productThumb,
+.productThumbLarge,
+.auctionStats > div,
+.orderMeta > div,
+.runMeta > div,
+.participantList li {
+  border-color: var(--admin-border);
+  background: var(--admin-surface-soft);
+  color: var(--admin-ink);
+}
+
+.input:-webkit-autofill,
+.portalFilters input:-webkit-autofill {
+  -webkit-text-fill-color: var(--admin-ink);
+  box-shadow: 0 0 0 1000px #26222d inset;
+}
+
 .secondaryButton,
 .ghostButton,
 .iconButton,
@@ -2110,4 +2173,33 @@
   .sidebarLink { width: auto; min-width: max-content; padding: 9px 13px; }
   .sidebarLink small { display: none; }
   .dashboardContent { width: min(100% - 24px, 760px); padding-top: 16px; }
+  .workflowOverview,
+  .orderPriorities { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sectionHeader { align-items: flex-start; }
+  .headerActions { flex-wrap: wrap; }
+}
+
+@media (max-width: 560px) {
+  .dashboardContent { width: min(100% - 16px, 760px); }
+  .panelSection,
+  .portalOperations { padding: 15px; }
+  .runFinder,
+  .workflowOverview,
+  .orderPriorities { grid-template-columns: 1fr; }
+  .runAuctionSelect { grid-column: auto; }
+  .cardActions,
+  .orderActions { align-items: stretch; flex-direction: column; }
+  .cardActions > button,
+  .orderActions > button,
+  .headerActions > button,
+  .headerActions > a { width: 100%; justify-content: center; }
+  .auctionCardTop,
+  .orderHeader,
+  .runHeader { align-items: flex-start; flex-direction: column; }
+  .orderHeadlineMeta { align-items: flex-start; }
+  .auctionStats,
+  .orderMeta,
+  .runMeta { grid-template-columns: 1fr; }
+  .operationsPriority ul { grid-template-columns: 1fr; }
+  .subpanelTitle { align-items: flex-start; }
 }
