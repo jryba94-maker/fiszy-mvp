@@ -2037,6 +2037,170 @@
 
 .sectionStack { display: grid; gap: 18px; }
 
+/*
+ * Every admin section must be allowed to shrink below the min-content width
+ * of IDs, e-mail addresses and other server-provided values. Without this
+ * shared containment contract one long token can widen the whole dashboard
+ * and leave the mobile viewport horizontally offset after changing tabs.
+ */
+.dashboardContent,
+.sectionStack,
+.sectionStack > *,
+.panelSection,
+.sectionHeader,
+.listToolbar,
+.onDemandControls,
+.portalOperations,
+.portalOperationsGrid,
+.adminSubpanel,
+.auctionGrid,
+.auctionCard,
+.auctionCardTop,
+.auctionIdentity,
+.auctionStats,
+.cardActions,
+.editorLayout,
+.formFields,
+.formGrid,
+.offerFieldset,
+.offerGrid,
+.editorPreview,
+.lowerGrid,
+.ordersList,
+.orderCard,
+.orderHeader,
+.orderMeta,
+.fulfillmentForm,
+.fulfillmentGrid,
+.runList,
+.runCard,
+.runHeader,
+.runMeta,
+.participantSection,
+.participantList,
+.auditList,
+.auditEvent,
+.auditEventTop,
+.auditContext,
+.auditDetails,
+.healthGrid,
+.healthItem,
+.readinessBlock,
+.checklistGrid,
+.workflowOverview,
+.orderPriorities,
+.runFinder,
+.operationsColumns,
+.operationsKpis,
+.operationsList,
+.operationsFormGrid,
+.operationCase,
+.operationsPriority,
+.compactOperation,
+.compactList,
+.ticketAdminList,
+.userRow,
+.userDetail,
+.userActivity,
+.waitlistRows,
+.waitlistRow,
+.adminTicket {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.panelSection input,
+.panelSection select,
+.panelSection textarea,
+.portalOperations input,
+.portalOperations select,
+.portalOperations textarea {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.sectionHeader > *,
+.auctionCardTop > *,
+.orderHeader > *,
+.runHeader > *,
+.operationCase > *,
+.operationsPriority > *,
+.compactOperation > *,
+.userRow > *,
+.userDetail > *,
+.adminTicket > *,
+.ticketTop > *,
+.waitlistRow > *,
+.healthItem > *,
+.checklistItem > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.sectionHeader h2,
+.sectionHeader h3,
+.sectionHeader p,
+.operationCase strong,
+.operationCase span,
+.operationCase p,
+.compactOperation strong,
+.compactOperation span,
+.compactOperation time,
+.adminTicket strong,
+.adminTicket span,
+.adminTicket p,
+.waitlistRow strong,
+.waitlistRow small,
+.userRow strong,
+.userRow small {
+  overflow-wrap: anywhere;
+}
+
+.participantList li,
+.participantList li > div {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.participantList code {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.auditEventTop > div,
+.auditEventTop code,
+.auditContext > *,
+.auditDetails > div,
+.auditDetails dd {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.auditContext > *,
+.auditDetails dd {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.auditDetails > div {
+  flex: 1 1 140px;
+}
+
+.userActivity > div,
+.userActivity > div > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.userActivity > div {
+  flex-wrap: wrap;
+}
+
+.userActivity strong {
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+
 .workflowOverview,
 .orderPriorities {
   display: grid;
@@ -2250,7 +2414,13 @@
   .headerActions > a { width: 100%; justify-content: center; }
   .auctionCardTop,
   .orderHeader,
-  .runHeader { align-items: flex-start; flex-direction: column; }
+  .runHeader,
+  .auditEventTop { align-items: flex-start; flex-direction: column; }
+  .auctionCardTop > *,
+  .orderHeader > *,
+  .runHeader > *,
+  .auditEventTop > *,
+  .auditEventTop code { width: 100%; max-width: 100%; }
   .orderHeader { align-items: stretch; }
   .orderHeadlineMeta { width: 100%; align-items: flex-start; justify-items: start; }
   .auctionStats,
@@ -2258,4 +2428,8 @@
   .runMeta { grid-template-columns: 1fr; }
   .operationsPriority ul { grid-template-columns: 1fr; }
   .subpanelTitle { align-items: flex-start; }
+  .auditDetails > div { flex-basis: 100%; }
+  .participantList li > div,
+  .userActivity > div { align-items: flex-start; flex-direction: column; }
+  .userActivity strong { text-align: left; }
 }
