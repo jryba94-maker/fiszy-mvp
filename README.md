@@ -557,3 +557,5 @@ Najbliższy etap po weryfikacji Preview powinien objąć konfigurację MFA i rea
 ## Zasada bezpieczeństwa projektu
 
 Każda zmiana przechodzi kolejno: lokalna implementacja, testy Development, przegląd kodu, CI, chroniony Vercel Preview, ręczna weryfikacja, a dopiero potem osobna decyzja o Production. Żaden krok techniczny ani presja czasu nie zastępuje weryfikacji płatności, danych i planu rollbacku.
+
+<!-- Deployment trigger: 2026-09-18 -->
