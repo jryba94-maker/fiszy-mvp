@@ -59,33 +59,49 @@ export function WaitlistLanding() {
   const [message, setMessage] = useState("");
   const sourceRef = useRef<ReturnType<typeof trafficSource> | null>(null);
   const startedTypingRef = useRef(false);
+  const landingSessionRef = useRef("");
+
+  const reportTraffic = (payload: Record<string, unknown>, beacon = false) => {
+    const body = JSON.stringify(payload);
+    if (beacon && navigator.sendBeacon) {
+      navigator.sendBeacon("/api/analytics/landing", new Blob([body], { type: "application/json" }));
+      return;
+    }
+    void fetch("/api/analytics/landing", { method: "POST", headers: { "Content-Type": "application/json" }, body, keepalive: true }).catch(() => undefined);
+  };
 
   useEffect(() => {
     if (redirectLegacyPaymentReturn()) return;
     const source = trafficSource();
     sourceRef.current = source;
-    track("landing_view", analyticsProperties(source));
+    const sourceLabel = [source.utmSource, source.utmMedium, source.utmCampaign].filter(Boolean).join("/") || source.referrerHost || "direct";
     const sessionId = crypto.randomUUID();
+    landingSessionRef.current = sessionId;
+    reportTraffic({ type: "view", sessionId, source: sourceLabel });
+    track("landing_view", analyticsProperties(source));
+
+    const reportedTrafficEvents = new Set<string>();
+    const reportEvent = (event: "scroll_25" | "scroll_50" | "scroll_75" | "scroll_100" | "form_started" | "cta_attempt") => {
+      if (reportedTrafficEvents.has(event)) return;
+      reportedTrafficEvents.add(event);
+      reportTraffic({ type: "event", sessionId, source: sourceLabel, event });
+    };
     const startedAt = performance.now();
     let visibleStartedAt = startedAt;
-    let visibleMs = 0;
-    void fetch("/api/analytics/landing", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ event: "visit", sessionId, source: analyticsProperties(source) }),
-      keepalive: true,
-    });
-    const reportDuration = () => {
-      if (document.visibilityState === "visible") visibleMs += performance.now() - visibleStartedAt;
-      const payload = JSON.stringify({ event: "duration", sessionId, durationSeconds: Math.round(visibleMs / 1000) });
-      navigator.sendBeacon("/api/analytics/landing", new Blob([payload], { type: "application/json" }));
+    let activeMs = 0;
+    const closeVisibleWindow = () => {
+      if (visibleStartedAt) { activeMs += performance.now() - visibleStartedAt; visibleStartedAt = 0; }
     };
     const onVisibilityChange = () => {
-      if (document.visibilityState === "hidden") visibleMs += performance.now() - visibleStartedAt;
-      else visibleStartedAt = performance.now();
+      if (document.visibilityState === "hidden") closeVisibleWindow();
+      else if (!visibleStartedAt) visibleStartedAt = performance.now();
+    };
+    const reportDuration = () => {
+      closeVisibleWindow();
+      reportTraffic({ type: "duration", sessionId, source: sourceLabel, seconds: Math.round(activeMs / 1000) }, true);
     };
     document.addEventListener("visibilitychange", onVisibilityChange);
-    window.addEventListener("pagehide", reportDuration, { once: true });
+    window.addEventListener("pagehide", reportDuration);
 
     const reported = new Set<number>();
     const reportScroll = () => {
@@ -94,6 +110,7 @@ export function WaitlistLanding() {
       for (const depth of [25, 50, 75, 100]) {
         if (progress >= depth && !reported.has(depth)) {
           reported.add(depth);
+          reportEvent(`scroll_${depth}` as "scroll_25" | "scroll_50" | "scroll_75" | "scroll_100");
           track("landing_scroll_depth", { ...analyticsProperties(source), depth });
         }
       }
@@ -104,6 +121,7 @@ export function WaitlistLanding() {
       window.removeEventListener("scroll", reportScroll);
       document.removeEventListener("visibilitychange", onVisibilityChange);
       window.removeEventListener("pagehide", reportDuration);
+      reportDuration();
     };
   }, []);
 
@@ -111,6 +129,8 @@ export function WaitlistLanding() {
     event.preventDefault();
     if (state === "submitting" || state === "success") return;
     const source = sourceRef.current ?? trafficSource();
+    const sourceLabel = [source.utmSource, source.utmMedium, source.utmCampaign].filter(Boolean).join("/") || source.referrerHost || "direct";
+    reportTraffic({ type: "event", sessionId: landingSessionRef.current, source: sourceLabel, event: "cta_attempt" });
     track("waitlist_cta_click", analyticsProperties(source));
     const normalizedEmail = email.trim();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail) || !consent) {
@@ -138,6 +158,7 @@ export function WaitlistLanding() {
       }
       setState("success");
       setMessage("Damy Ci znać przed pierwszym startem.");
+      reportTraffic({ type: "event", sessionId: landingSessionRef.current, source: sourceLabel, event: "signup" });
       track("waitlist_signup_success", analyticsProperties(source));
     } catch (error) {
       const rateLimited = error instanceof Error && error.message === "rate_limited";
@@ -157,6 +178,8 @@ export function WaitlistLanding() {
     if (!startedTypingRef.current && value.length > 0) {
       startedTypingRef.current = true;
       const source = sourceRef.current ?? trafficSource();
+      const sourceLabel = [source.utmSource, source.utmMedium, source.utmCampaign].filter(Boolean).join("/") || source.referrerHost || "direct";
+      reportTraffic({ type: "event", sessionId: landingSessionRef.current, source: sourceLabel, event: "form_started" });
       track("waitlist_email_input_started", analyticsProperties(source));
     }
   };
