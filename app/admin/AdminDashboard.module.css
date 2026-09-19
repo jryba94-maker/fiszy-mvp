@@ -2037,6 +2037,31 @@
 
 .sectionStack { display: grid; gap: 18px; }
 
+.trafficNote { margin: -6px 0 18px; color: var(--admin-muted); font-size: .78rem; line-height: 1.5; }
+.trafficKpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+.trafficKpis article, .trafficCard { min-width: 0; border: 1px solid var(--admin-border); border-radius: 16px; background: var(--admin-surface-soft); }
+.trafficKpis article { display: grid; gap: 7px; padding: 15px; }
+.trafficKpis span, .trafficKpis small { color: var(--admin-muted); font-size: .7rem; line-height: 1.35; }
+.trafficKpis strong { font-size: 1.7rem; line-height: 1; letter-spacing: -.055em; }
+.trafficGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.trafficCard { display: grid; align-content: start; gap: 14px; padding: 17px; }
+.trafficCard h3 { margin: 0; font-size: 1rem; letter-spacing: -.025em; }
+.funnelList, .behaviourRows, .sourceRows { display: grid; gap: 8px; margin: 0; padding: 0; }
+.funnelList { list-style: none; counter-reset: funnel; }
+.funnelList li, .behaviourRows > div, .sourceRows > div { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid var(--admin-border); padding-top: 8px; }
+.funnelList li::before { counter-increment: funnel; content: counter(funnel); display: grid; width: 19px; height: 19px; flex: 0 0 19px; border-radius: 50%; place-items: center; background: rgba(155,98,255,.23); color: #d9c5ff; font-size: .65rem; font-weight: 900; }
+.funnelList li span { margin-right: auto; }
+.funnelList strong, .behaviourRows strong { font-size: .94rem; }
+.funnelList span, .behaviourRows span, .sourceRows span, .technicalStatus span, .trafficInsight > span { min-width: 0; color: var(--admin-muted); font-size: .75rem; overflow-wrap: anywhere; }
+.sourceRows > div { display: grid; justify-content: stretch; gap: 3px; }
+.sourceRows strong { font-size: .8rem; text-transform: lowercase; }
+.technicalStatus { display: flex; align-items: center; gap: 10px; }
+.technicalStatus > div { display: grid; gap: 3px; }
+.technicalStatus > span:first-child { flex: 0 0 9px; }
+.trafficMuted { margin: 0; color: var(--admin-muted); font-size: .73rem; line-height: 1.5; }
+.trafficInsight { border-color: rgba(155,98,255,.55); background: linear-gradient(135deg, rgba(123,44,255,.19), var(--admin-surface-soft)); }
+.trafficInsight > strong { line-height: 1.45; font-size: .9rem; }
+
 /*
  * Every admin section must be allowed to shrink below the min-content width
  * of IDs, e-mail addresses and other server-provided values. Without this
@@ -2394,6 +2419,7 @@
   .dashboardContent { width: min(100% - 24px, 760px); padding-top: 16px; }
   .workflowOverview,
   .orderPriorities { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .trafficKpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .sectionHeader { align-items: flex-start; }
   .headerActions { flex-wrap: wrap; }
 }
@@ -2404,7 +2430,9 @@
   .portalOperations { padding: 15px; }
   .runFinder,
   .workflowOverview,
-  .orderPriorities { grid-template-columns: 1fr; }
+  .orderPriorities,
+  .trafficKpis,
+  .trafficGrid { grid-template-columns: 1fr; }
   .runAuctionSelect { grid-column: auto; }
   .cardActions,
   .orderActions { align-items: stretch; flex-direction: column; }
