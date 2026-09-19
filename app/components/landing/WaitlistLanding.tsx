@@ -65,6 +65,27 @@ export function WaitlistLanding() {
     const source = trafficSource();
     sourceRef.current = source;
     track("landing_view", analyticsProperties(source));
+    const sessionId = crypto.randomUUID();
+    const startedAt = performance.now();
+    let visibleStartedAt = startedAt;
+    let visibleMs = 0;
+    void fetch("/api/analytics/landing", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ event: "visit", sessionId, source: analyticsProperties(source) }),
+      keepalive: true,
+    });
+    const reportDuration = () => {
+      if (document.visibilityState === "visible") visibleMs += performance.now() - visibleStartedAt;
+      const payload = JSON.stringify({ event: "duration", sessionId, durationSeconds: Math.round(visibleMs / 1000) });
+      navigator.sendBeacon("/api/analytics/landing", new Blob([payload], { type: "application/json" }));
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") visibleMs += performance.now() - visibleStartedAt;
+      else visibleStartedAt = performance.now();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("pagehide", reportDuration, { once: true });
 
     const reported = new Set<number>();
     const reportScroll = () => {
@@ -79,7 +100,11 @@ export function WaitlistLanding() {
     };
     window.addEventListener("scroll", reportScroll, { passive: true });
     reportScroll();
-    return () => window.removeEventListener("scroll", reportScroll);
+    return () => {
+      window.removeEventListener("scroll", reportScroll);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("pagehide", reportDuration);
+    };
   }, []);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
