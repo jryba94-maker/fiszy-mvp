@@ -26,6 +26,7 @@ import { CatalogPanel } from "./components/CatalogPanel";
 import { HealthPanel } from "./components/HealthPanel";
 import { KpiGrid } from "./components/KpiGrid";
 import { MarketingAgentsPanel } from "./components/MarketingAgentsPanel";
+import { LandingTrafficPanel } from "./components/LandingTrafficPanel";
 import { OrdersPanel } from "./components/OrdersPanel";
 import { PortalOperationsPanel } from "./components/PortalOperationsPanel";
 import { RunHistoryPanel } from "./components/RunHistoryPanel";
@@ -40,11 +41,12 @@ import type {
 } from "./types";
 
 type SessionStatus = "checking" | "signed_out" | "authenticated" | "unconfigured";
-type AdminSection = "overview" | "catalog" | "auctions" | "orders" | "history" | "users" | "operations" | "marketing" | "audit";
+type AdminSection = "overview" | "catalog" | "auctions" | "orders" | "history" | "users" | "operations" | "traffic" | "marketing" | "audit";
 
 const ADMIN_SECTIONS: Array<{ id: AdminSection; label: string; caption: string }> = [
   { id: "overview", label: "Pulpit", caption: "Wyniki i system" },
   { id: "operations", label: "Operacje", caption: "Priorytety i automaty" },
+  { id: "traffic", label: "Ruch", caption: "Landing i źródła" },
   { id: "marketing", label: "Marketing", caption: "Agenci i testy" },
   { id: "catalog", label: "Produkty", caption: "Katalog i szablony" },
   { id: "auctions", label: "Aukcje", caption: "Lista i edycja" },
@@ -61,6 +63,7 @@ function sectionAllowed(section: AdminSection, permissions: string[]) {
   if (section === "audit") return permissions.includes("audit:read");
   if (section === "operations") return permissions.includes("audit:read") && permissions.includes("users:write");
   if (section === "marketing") return permissions.includes("audit:read");
+  if (section === "traffic") return permissions.includes("audit:read");
   return true;
 }
 
@@ -601,6 +604,7 @@ export default function AdminPage() {
       {activeSection === "users" ? <div className={styles.sectionStack}><PortalOperationsPanel onSessionExpired={handleExpiredSession} /></div> : null}
 
       {activeSection === "operations" ? <div className={styles.sectionStack}><BusinessOperationsPanel onSessionExpired={handleExpiredSession} /></div> : null}
+      {activeSection === "traffic" ? <div className={styles.sectionStack}><LandingTrafficPanel onSessionExpired={handleExpiredSession} /></div> : null}
 
       {activeSection === "marketing" ? <div className={styles.sectionStack}><MarketingAgentsPanel onSessionExpired={handleExpiredSession} /></div> : null}
 
