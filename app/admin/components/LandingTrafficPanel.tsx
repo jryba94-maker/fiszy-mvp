@@ -55,6 +55,8 @@ export function LandingTrafficPanel({ onSessionExpired }: Props) {
     return `Największy obszar do poprawy: ${biggestDrop}.${source ? ` Najwięcej ruchu daje: ${source.label}.` : ""}`;
   }, [traffic]);
 
+  const dailyScale = useMemo(() => Math.max(1, ...(traffic?.daily ?? []).flatMap((day) => [day.uniqueSessions, day.views])), [traffic]);
+
   return (
     <section className={styles.panelSection} aria-labelledby="traffic-heading" aria-busy={loading}>
       <div className={styles.sectionHeader}>
@@ -73,13 +75,15 @@ export function LandingTrafficPanel({ onSessionExpired }: Props) {
 
       <article className={`${styles.trafficCard} ${styles.dailyTrafficCard}`}>
         <div className={styles.subpanelTitle}><div><p className={styles.eyebrow}>Dzień po dniu</p><h3>Ile osób weszło</h3></div><span>ostatnie 30 dni</span></div>
-        <div className={styles.dailyTrafficTable} role="table" aria-label="Odwiedziny landing page według dnia">
-          <div className={styles.dailyTrafficHeader} role="row"><span role="columnheader">Data</span><span role="columnheader">Osoby</span><span role="columnheader">Odsłony</span></div>
+        <div className={styles.dailyTrafficLegend} aria-hidden="true"><span><i className={styles.dailyPeopleKey} />Osoby</span><span><i className={styles.dailyViewsKey} />Odsłony</span></div>
+        <div className={styles.dailyTrafficChart} role="img" aria-label="Wykres dziennych odwiedzin landing page">
           {(traffic?.daily ?? []).slice().reverse().map((day) => (
-            <div className={styles.dailyTrafficRow} role="row" key={day.date}>
-              <time role="cell" dateTime={day.date}>{new Date(`${day.date}T12:00:00`).toLocaleDateString("pl-PL", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" })}</time>
-              <strong role="cell">{number.format(day.uniqueSessions)}</strong>
-              <span role="cell">{number.format(day.views)}</span>
+            <div className={styles.dailyTrafficBarRow} key={day.date} aria-label={`${day.date}: ${day.uniqueSessions} osób, ${day.views} odsłon`}>
+              <time dateTime={day.date}>{new Date(`${day.date}T12:00:00`).toLocaleDateString("pl-PL", { day: "2-digit", month: "2-digit" })}</time>
+              <div className={styles.dailyTrafficBars}>
+                <div><span className={styles.dailyPeopleBar} style={{ width: `${day.uniqueSessions / dailyScale * 100}%` }} /><strong>{number.format(day.uniqueSessions)}</strong></div>
+                <div><span className={styles.dailyViewsBar} style={{ width: `${day.views / dailyScale * 100}%` }} /><strong>{number.format(day.views)}</strong></div>
+              </div>
             </div>
           ))}
         </div>
