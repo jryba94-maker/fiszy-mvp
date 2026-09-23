@@ -93,8 +93,9 @@ export function PortalOperationsPanel({ onSessionExpired }: { onSessionExpired: 
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
 
-  const load = useCallback(async () => {
-    setLoading(true); setError("");
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
+    setError("");
     try {
       const [userResult, ticketResult, waitlistResult] = await Promise.all([
         adminRequest<{ users: UserSummary[]; nextCursor: string | null }>("/api/admin/users?limit=50"),
@@ -112,10 +113,14 @@ export function PortalOperationsPanel({ onSessionExpired }: { onSessionExpired: 
     } catch (loadError) {
       if ((loadError as { status?: number }).status === 401) onSessionExpired();
       else setError(loadError instanceof Error ? loadError.message : "Nie udało się pobrać danych.");
-    } finally { setLoading(false); }
+    } finally { if (!silent) setLoading(false); }
   }, [onSessionExpired]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+    const refresh = window.setInterval(() => void load(true), 10_000);
+    return () => window.clearInterval(refresh);
+  }, [load]);
 
   const filteredUsers = useMemo(() => {
     const query = userSearch.trim().toLocaleLowerCase("pl-PL");

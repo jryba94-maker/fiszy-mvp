@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
       }
     }
     return NextResponse.json(
-      { outcome: "accepted" },
+      { outcome: "accepted", created: result.created },
       {
         status: result.created ? 201 : 200,
         headers: { "Cache-Control": "private, no-store, max-age=0" },

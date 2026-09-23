@@ -156,9 +156,10 @@ export function WaitlistLanding() {
         const data = await response.json().catch(() => null) as { outcome?: string } | null;
         throw new Error(data?.outcome === "rate_limited" ? "rate_limited" : "signup_failed");
       }
+      const result = await response.json().catch(() => null) as { created?: boolean } | null;
       setState("success");
-      setMessage("Damy Ci znać przed pierwszym startem.");
-      reportTraffic({ type: "event", sessionId: landingSessionRef.current, source: sourceLabel, event: "signup" });
+      setMessage(result?.created === false ? "Ten adres jest już na liście." : "Damy Ci znać przed pierwszym startem.");
+      if (result?.created !== false) reportTraffic({ type: "event", sessionId: landingSessionRef.current, source: sourceLabel, event: "signup" });
       track("waitlist_signup_success", analyticsProperties(source));
     } catch (error) {
       const rateLimited = error instanceof Error && error.message === "rate_limited";

@@ -27,8 +27,9 @@ export function LandingTrafficPanel({ onSessionExpired }: Props) {
   const [error, setError] = useState("");
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true); setError("");
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
+    setError("");
     try {
       const [trafficResult, healthResult] = await Promise.all([
         fetch("/api/admin/traffic?days=30", { credentials: "same-origin", cache: "no-store" }),
@@ -41,10 +42,14 @@ export function LandingTrafficPanel({ onSessionExpired }: Props) {
       if (healthResult.ok || healthResult.status === 503) setHealth(await healthResult.json() as Health);
       setUpdatedAt(new Date());
     } catch { setError("Nie udało się pobrać danych ruchu. Spróbuj odświeżyć panel."); }
-    finally { setLoading(false); }
+    finally { if (!silent) setLoading(false); }
   }, [onSessionExpired]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+    const refresh = window.setInterval(() => void load(true), 10_000);
+    return () => window.clearInterval(refresh);
+  }, [load]);
 
   const insight = useMemo(() => {
     if (!traffic) return "Zbieramy pierwsze dane.";
@@ -64,7 +69,7 @@ export function LandingTrafficPanel({ onSessionExpired }: Props) {
         <button className={styles.secondaryButton} type="button" onClick={() => void load()} disabled={loading}>{loading ? "Odświeżam…" : "Odśwież"}</button>
       </div>
       {error ? <p className={styles.errorNotice} role="alert">{error}</p> : null}
-      <p className={styles.trafficNote}>Anonimowy pomiar, ostatnie 30 dni. Nie zapisujemy IP ani nie identyfikujemy osób bez ich dobrowolnego zapisu.</p>
+      <p className={styles.trafficNote}>Anonimowy pomiar, ostatnie 30 dni. Dane odświeżają się automatycznie co 10 sekund. Nie zapisujemy IP ani nie identyfikujemy osób bez ich dobrowolnego zapisu.</p>
 
       <div className={styles.trafficKpis}>
         <article><span>Wejścia</span><strong>{number.format(traffic?.totals.views ?? 0)}</strong><small>odsłony landing page</small></article>
