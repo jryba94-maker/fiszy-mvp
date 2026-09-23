@@ -2065,17 +2065,20 @@
 .dailyTrafficLegend { display: flex; justify-content: flex-end; gap: 16px; color: var(--admin-muted); font-size: .72rem; font-weight: 750; }
 .dailyTrafficLegend span { display: flex; align-items: center; gap: 6px; }
 .dailyTrafficLegend i { width: 9px; height: 9px; border-radius: 3px; }
-.dailyPeopleKey,
-.dailyPeopleBar { background: linear-gradient(90deg, #9b62ff, #c29cff); }
-.dailyViewsKey,
-.dailyViewsBar { background: linear-gradient(90deg, #2ecbd0, #78e8df); }
-.dailyTrafficChart { display: grid; max-height: 440px; overflow-y: auto; gap: 8px; padding: 12px; border: 1px solid var(--admin-border); border-radius: 12px; background: repeating-linear-gradient(90deg, transparent 0, transparent calc(25% - 1px), rgba(255,255,255,.055) 25%); }
-.dailyTrafficBarRow { display: grid; grid-template-columns: 58px minmax(0, 1fr); align-items: center; gap: 10px; min-height: 34px; }
-.dailyTrafficBarRow time { color: var(--admin-muted); font-size: .7rem; font-weight: 800; }
-.dailyTrafficBars { display: grid; gap: 3px; }
-.dailyTrafficBars > div { display: flex; align-items: center; height: 13px; }
-.dailyTrafficBars span { display: block; min-width: 2px; height: 100%; border-radius: 0 5px 5px 0; opacity: .92; }
-.dailyTrafficBars strong { margin-left: 6px; color: var(--admin-text); font-size: .66rem; line-height: 1; }
+.dailyPeopleKey { background: #ad7aff; }
+.dailyViewsKey { background: #52d8d4; }
+.dailyTrafficChart { overflow-x: auto; padding: 8px; border: 1px solid var(--admin-border); border-radius: 12px; background: rgba(255,255,255,.018); }
+.dailyTrafficChart svg { display: block; width: 100%; min-width: 720px; height: auto; }
+.chartGridLine { stroke: rgba(255,255,255,.09); stroke-width: 1; }
+.chartAxisLine { stroke: rgba(255,255,255,.25); stroke-width: 1.2; }
+.chartAxisText { fill: var(--admin-muted); font-size: 10px; font-weight: 750; }
+.chartAxisLabel { fill: var(--admin-muted); font-size: 10px; font-weight: 850; text-transform: uppercase; }
+.chartPeopleLine,
+.chartViewsLine { fill: none; stroke-linecap: round; stroke-linejoin: round; stroke-width: 3; }
+.chartPeopleLine { stroke: #ad7aff; }
+.chartViewsLine { stroke: #52d8d4; stroke-dasharray: 7 5; }
+.chartPeoplePoint { fill: #ad7aff; stroke: var(--admin-surface); stroke-width: 2; }
+.chartViewsPoint { fill: #52d8d4; stroke: var(--admin-surface); stroke-width: 2; }
 
 /*
  * Every admin section must be allowed to shrink below the min-content width

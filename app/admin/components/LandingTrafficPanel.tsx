@@ -60,7 +60,15 @@ export function LandingTrafficPanel({ onSessionExpired }: Props) {
     return `Największy obszar do poprawy: ${biggestDrop}.${source ? ` Najwięcej ruchu daje: ${source.label}.` : ""}`;
   }, [traffic]);
 
-  const dailyScale = useMemo(() => Math.max(1, ...(traffic?.daily ?? []).flatMap((day) => [day.uniqueSessions, day.views])), [traffic]);
+  const dailyChart = useMemo(() => {
+    const days = traffic?.daily ?? [];
+    const max = Math.max(1, ...days.flatMap((day) => [day.uniqueSessions, day.views]));
+    const x = (index: number) => 52 + index * (828 / Math.max(1, days.length - 1));
+    const y = (value: number) => 250 - value / max * 215;
+    const points = (read: (day: Traffic["daily"][number]) => number) => days.map((day, index) => `${x(index)},${y(read(day))}`).join(" ");
+    const ticks = Array.from({ length: 5 }, (_, index) => Math.round(max * index / 4));
+    return { days, max, x, y, points, ticks };
+  }, [traffic]);
 
   return (
     <section className={styles.panelSection} aria-labelledby="traffic-heading" aria-busy={loading}>
@@ -81,16 +89,23 @@ export function LandingTrafficPanel({ onSessionExpired }: Props) {
       <article className={`${styles.trafficCard} ${styles.dailyTrafficCard}`}>
         <div className={styles.subpanelTitle}><div><p className={styles.eyebrow}>Dzień po dniu</p><h3>Ile osób weszło</h3></div><span>ostatnie 30 dni</span></div>
         <div className={styles.dailyTrafficLegend} aria-hidden="true"><span><i className={styles.dailyPeopleKey} />Osoby</span><span><i className={styles.dailyViewsKey} />Odsłony</span></div>
-        <div className={styles.dailyTrafficChart} role="img" aria-label="Wykres dziennych odwiedzin landing page">
-          {(traffic?.daily ?? []).slice().reverse().map((day) => (
-            <div className={styles.dailyTrafficBarRow} key={day.date} aria-label={`${day.date}: ${day.uniqueSessions} osób, ${day.views} odsłon`}>
-              <time dateTime={day.date}>{new Date(`${day.date}T12:00:00`).toLocaleDateString("pl-PL", { day: "2-digit", month: "2-digit" })}</time>
-              <div className={styles.dailyTrafficBars}>
-                <div><span className={styles.dailyPeopleBar} style={{ width: `${day.uniqueSessions / dailyScale * 100}%` }} /><strong>{number.format(day.uniqueSessions)}</strong></div>
-                <div><span className={styles.dailyViewsBar} style={{ width: `${day.views / dailyScale * 100}%` }} /><strong>{number.format(day.views)}</strong></div>
-              </div>
-            </div>
-          ))}
+        <div className={styles.dailyTrafficChart}>
+          <svg viewBox="0 0 900 300" role="img" aria-labelledby="daily-chart-title daily-chart-description">
+            <title id="daily-chart-title">Liczba wejść według dnia</title>
+            <desc id="daily-chart-description">Daty na osi poziomej, liczba wejść na osi pionowej. Dwie linie pokazują osoby oraz odsłony.</desc>
+            {dailyChart.ticks.map((tick) => <g key={tick}><line className={styles.chartGridLine} x1="52" x2="880" y1={dailyChart.y(tick)} y2={dailyChart.y(tick)} /><text className={styles.chartAxisText} x="42" y={dailyChart.y(tick) + 4} textAnchor="end">{tick}</text></g>)}
+            <line className={styles.chartAxisLine} x1="52" x2="880" y1="250" y2="250" />
+            <line className={styles.chartAxisLine} x1="52" x2="52" y1="35" y2="250" />
+            {dailyChart.days.map((day, index) => index % 3 === 0 || index === dailyChart.days.length - 1 ? <text className={styles.chartAxisText} key={day.date} x={dailyChart.x(index)} y="273" textAnchor="middle">{day.date.slice(5).replace("-", ".")}</text> : null)}
+            <polyline className={styles.chartPeopleLine} points={dailyChart.points((day) => day.uniqueSessions)} />
+            <polyline className={styles.chartViewsLine} points={dailyChart.points((day) => day.views)} />
+            {dailyChart.days.map((day, index) => <g key={day.date}>
+              <circle className={styles.chartPeoplePoint} cx={dailyChart.x(index)} cy={dailyChart.y(day.uniqueSessions)} r="4"><title>{day.date}: {day.uniqueSessions} osób</title></circle>
+              <circle className={styles.chartViewsPoint} cx={dailyChart.x(index)} cy={dailyChart.y(day.views)} r="2.5"><title>{day.date}: {day.views} odsłon</title></circle>
+            </g>)}
+            <text className={styles.chartAxisLabel} x="466" y="296" textAnchor="middle">Data</text>
+            <text className={styles.chartAxisLabel} x="13" y="143" textAnchor="middle" transform="rotate(-90 13 143)">Liczba wejść</text>
+          </svg>
         </div>
         <p className={styles.trafficMuted}>„Osoby” to unikalne, anonimowe sesje danego dnia. Zestawienie obejmuje dane zebrane od uruchomienia pomiaru.</p>
       </article>
