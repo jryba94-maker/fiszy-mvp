@@ -5,6 +5,7 @@ import styles from "../AdminDashboard.module.css";
 
 type Traffic = {
   days: number;
+  daily: Array<{ date: string; views: number; uniqueSessions: number }>;
   totals: { views: number; uniqueSessions: number; activeSeconds: number; timedSessions: number; events: Record<string, number> };
   conversion: { formStarted: number; ctaAttempt: number; signup: number };
   averageActiveSeconds: number;
@@ -69,6 +70,21 @@ export function LandingTrafficPanel({ onSessionExpired }: Props) {
         <article><span>Aktywny czas</span><strong>{seconds(traffic?.averageActiveSeconds ?? 0)}</strong><small>średnio na stronie</small></article>
         <article><span>Zapisy</span><strong>{number.format(traffic?.totals.events.signup ?? 0)}</strong><small>{percent(traffic?.conversion.signup ?? 0)} z sesji</small></article>
       </div>
+
+      <article className={`${styles.trafficCard} ${styles.dailyTrafficCard}`}>
+        <div className={styles.subpanelTitle}><div><p className={styles.eyebrow}>Dzień po dniu</p><h3>Ile osób weszło</h3></div><span>ostatnie 30 dni</span></div>
+        <div className={styles.dailyTrafficTable} role="table" aria-label="Odwiedziny landing page według dnia">
+          <div className={styles.dailyTrafficHeader} role="row"><span role="columnheader">Data</span><span role="columnheader">Osoby</span><span role="columnheader">Odsłony</span></div>
+          {(traffic?.daily ?? []).slice().reverse().map((day) => (
+            <div className={styles.dailyTrafficRow} role="row" key={day.date}>
+              <time role="cell" dateTime={day.date}>{new Date(`${day.date}T12:00:00`).toLocaleDateString("pl-PL", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" })}</time>
+              <strong role="cell">{number.format(day.uniqueSessions)}</strong>
+              <span role="cell">{number.format(day.views)}</span>
+            </div>
+          ))}
+        </div>
+        <p className={styles.trafficMuted}>„Osoby” to unikalne, anonimowe sesje danego dnia. Zestawienie obejmuje dane zebrane od uruchomienia pomiaru.</p>
+      </article>
 
       <div className={styles.trafficGrid}>
         <article className={styles.trafficCard}>

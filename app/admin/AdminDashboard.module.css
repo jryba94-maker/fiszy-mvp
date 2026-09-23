@@ -2061,6 +2061,14 @@
 .trafficMuted { margin: 0; color: var(--admin-muted); font-size: .73rem; line-height: 1.5; }
 .trafficInsight { border-color: rgba(155,98,255,.55); background: linear-gradient(135deg, rgba(123,44,255,.19), var(--admin-surface-soft)); }
 .trafficInsight > strong { line-height: 1.45; font-size: .9rem; }
+.dailyTrafficCard { margin-bottom: 12px; }
+.dailyTrafficTable { display: grid; max-height: 420px; overflow-y: auto; border: 1px solid var(--admin-border); border-radius: 12px; }
+.dailyTrafficHeader,
+.dailyTrafficRow { display: grid; grid-template-columns: minmax(150px, 1fr) minmax(70px, .35fr) minmax(70px, .35fr); align-items: center; gap: 12px; padding: 10px 12px; }
+.dailyTrafficHeader { position: sticky; top: 0; z-index: 1; background: var(--admin-surface); color: var(--admin-muted); font-size: .68rem; font-weight: 850; text-transform: uppercase; }
+.dailyTrafficRow { border-top: 1px solid var(--admin-border); }
+.dailyTrafficRow strong,
+.dailyTrafficRow span { text-align: right; }
 
 /*
  * Every admin section must be allowed to shrink below the min-content width
