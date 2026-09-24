@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { PublicHeader } from "./PublicHeader";
 import styles from "./info.module.css";
 
 export type InfoSection = {
@@ -21,7 +20,18 @@ export function InfoPage({
 }) {
   return (
     <main className={styles.page}>
-      <PublicHeader />
+      <header className={styles.header}>
+        <Link className={styles.brand} href="/" aria-label="Fiszy — strona główna">
+          Fiszy<span className={styles.brandDot}>.</span>
+        </Link>
+        <nav className={styles.nav} aria-label="Główna nawigacja">
+          <Link href="/jak-to-dziala">Jak to działa</Link>
+          <Link href="/o-fiszy">O Fiszy</Link>
+          <Link href="/faq">FAQ</Link>
+          <Link className={styles.navPrimary} href="/aukcje">Aukcje</Link>
+        </nav>
+      </header>
+
       <section className={styles.hero}>
         <p className={styles.eyebrow}>{eyebrow}</p>
         <h1>{title}</h1>
