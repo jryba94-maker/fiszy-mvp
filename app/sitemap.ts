@@ -7,6 +7,8 @@ export const revalidate = 900;
 const STATIC_PATHS = [
   "/",
   "/aukcje",
+  "/jak-to-dziala",
+  "/o-fiszy",
   "/faq",
   "/zasady-aukcji",
   "/regulamin",
@@ -20,8 +22,20 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const entries: MetadataRoute.Sitemap = STATIC_PATHS.map((pathname) => ({
     url: absoluteSiteUrl(pathname),
     lastModified: now,
-    changeFrequency: pathname === "/" ? "hourly" : "monthly",
-    priority: pathname === "/" ? 1 : 0.5,
+    changeFrequency:
+      pathname === "/" || pathname === "/aukcje"
+        ? "daily"
+        : pathname === "/jak-to-dziala" || pathname === "/o-fiszy"
+          ? "weekly"
+          : "monthly",
+    priority:
+      pathname === "/"
+        ? 1
+        : pathname === "/aukcje" || pathname === "/jak-to-dziala"
+          ? 0.9
+          : pathname === "/o-fiszy"
+            ? 0.8
+            : 0.5,
   }));
 
   try {
