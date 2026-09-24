@@ -51,6 +51,18 @@ function landingVisitorId() {
   } catch { return crypto.randomUUID(); }
 }
 
+function landingSessionId() {
+  try {
+    const key = "fiszy_landing_session";
+    const now = Date.now();
+    const saved = JSON.parse(localStorage.getItem(key) || "null") as { id?: unknown; lastSeen?: unknown } | null;
+    const id = saved && typeof saved.lastSeen === "number" && now - saved.lastSeen >= 0 && now - saved.lastSeen < 30 * 60_000 && typeof saved.id === "string" && /^[a-f0-9-]{36}$/i.test(saved.id)
+      ? saved.id : crypto.randomUUID();
+    localStorage.setItem(key, JSON.stringify({ id, lastSeen: now }));
+    return id;
+  } catch { return crypto.randomUUID(); }
+}
+
 function redirectLegacyPaymentReturn() {
   const params = new URLSearchParams(window.location.search);
   const kind = params.has("payment") ? "payment" : params.has("purchase") ? "purchase" : null;
@@ -86,9 +98,10 @@ export function WaitlistLanding() {
     const source = trafficSource();
     sourceRef.current = source;
     const sourceLabel = [source.utmSource, source.utmMedium, source.utmCampaign].filter(Boolean).join("/") || source.referrerHost || "direct";
-    const sessionId = crypto.randomUUID();
+    const sessionId = landingSessionId();
+    const viewId = crypto.randomUUID();
     landingSessionRef.current = sessionId;
-    reportTraffic({ type: "view", sessionId, visitorId: landingVisitorId(), source: sourceLabel });
+    reportTraffic({ type: "view", sessionId, viewId, visitorId: landingVisitorId(), source: sourceLabel });
     track("landing_view", analyticsProperties(source));
 
     const reportedTrafficEvents = new Set<string>();

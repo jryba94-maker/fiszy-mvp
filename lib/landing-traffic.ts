@@ -37,13 +37,13 @@ export function landingSource(value: unknown) {
   return source && /^[a-z0-9][a-z0-9._:/ -]{0,79}$/.test(source) ? source : "direct";
 }
 
-async function write(input: { sessionId: string; visitorId?: unknown; source: string; kind: "view" | "event" | "duration"; event?: LandingEvent; seconds?: number; now?: number }) {
+async function write(input: { sessionId: string; viewId?: unknown; visitorId?: unknown; source: string; kind: "view" | "event" | "duration"; event?: LandingEvent; seconds?: number; now?: number }) {
   const now = input.now ?? Date.now();
   const date = dateInWarsaw(now);
   const source = landingSource(input.source);
   const sourceId = createHash("sha256").update(source).digest("hex").slice(0, 20);
   const kind = input.kind === "event" ? `event:${input.event}` : input.kind;
-  const dedupe = dedupeKey(date, kind, input.sessionId);
+  const dedupe = dedupeKey(date, kind, input.kind === "view" && validLandingSession(input.viewId) ? input.viewId : input.sessionId);
   const unique = dedupeKey(date, "unique", input.sessionId);
   const event = input.event ?? "";
   const seconds = Math.max(0, Math.min(60 * 60, Math.round(input.seconds ?? 0)));
@@ -78,7 +78,7 @@ return encoded`,
   if (!result) throw new Error("Unable to write landing traffic.");
 }
 
-export async function recordLandingView(input: { sessionId: string; visitorId?: unknown; source: string; now?: number }) { await write({ ...input, kind: "view" }); }
+export async function recordLandingView(input: { sessionId: string; viewId?: unknown; visitorId?: unknown; source: string; now?: number }) { await write({ ...input, kind: "view" }); }
 export async function recordLandingEvent(input: { sessionId: string; source: string; event: LandingEvent; now?: number }) { await write({ ...input, kind: "event" }); }
 export async function recordLandingDuration(input: { sessionId: string; source: string; seconds: number; now?: number }) { await write({ ...input, kind: "duration" }); }
 
