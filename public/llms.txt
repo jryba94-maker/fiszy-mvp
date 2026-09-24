@@ -1,0 +1,32 @@
+# Fiszy
+
+Fiszy is a Polish shopping platform based on Dutch auctions.
+
+## What Fiszy is
+
+Fiszy to platforma zakupowa oparta na aukcjach holenderskich.
+Cena produktu zaczyna wysoko i spada w czasie.
+Użytkownicy nie licytują ceny w górę.
+Każdy obserwuje aktualną cenę i sam wybiera moment zakupu.
+Pierwsza osoba, która poprawnie zdecyduje się kupić po aktualnej cenie, wygrywa aukcję.
+Cena widoczna w chwili zwycięskiej decyzji staje się ceną zakupu.
+
+Brand promise: Fiszy. Przywracamy emocje zakupów.
+
+## Canonical pages
+
+Home: https://fiszy.pl/
+How it works: https://fiszy.pl/jak-to-dziala
+About Fiszy: https://fiszy.pl/o-fiszy
+Auctions: https://fiszy.pl/aukcje
+FAQ: https://fiszy.pl/faq
+Auction rules: https://fiszy.pl/zasady-aukcji
+
+## Key concepts
+
+- Dutch auction
+- auction with decreasing price
+- live decreasing price
+- first valid purchase decision wins
+- the user chooses the moment to buy
+- Fiszy does not use upward bidding

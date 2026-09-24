@@ -7,32 +7,40 @@ import { GeistMono } from "geist/font/mono";
 import { siteUrl } from "../lib/site";
 import "./globals.css";
 
+const brandDescription =
+  "Fiszy to platforma zakupowa oparta na aukcjach holenderskich, w których cena produktu spada w czasie, a pierwsza osoba, która zdecyduje się kupić po aktualnej cenie, wygrywa aukcję.";
+
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl()),
   title: {
-    default: "Fiszy | Pierwsza aukcja nadchodzi",
+    default: "Fiszy — aukcje, w których cena spada",
     template: "%s | Fiszy",
   },
-  description: "Zostaw e-mail i dowiedz się jako pierwszy, kiedy wystartuje pierwsza aukcja Fiszy.",
+  description: brandDescription,
   applicationName: "Fiszy",
+  keywords: [
+    "Fiszy",
+    "aukcja holenderska",
+    "aukcje holenderskie",
+    "aukcja ze spadającą ceną",
+    "aukcje z malejącą ceną",
+  ],
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
     title: "Fiszy",
   },
-  alternates: { canonical: "/" },
   openGraph: {
     type: "website",
     locale: "pl_PL",
     siteName: "Fiszy",
-    title: "Fiszy | Pierwsza aukcja nadchodzi",
-    description: "Coś zacznie spadać. Zostaw e-mail i dowiedz się pierwszy.",
-    url: "/",
+    title: "Fiszy — aukcje, w których cena spada",
+    description: brandDescription,
   },
   twitter: {
     card: "summary_large_image",
-    title: "Fiszy | Pierwsza aukcja nadchodzi",
-    description: "Coś zacznie spadać. Zostaw e-mail i dowiedz się pierwszy.",
+    title: "Fiszy — aukcje, w których cena spada",
+    description: brandDescription,
   },
   robots:
     process.env.VERCEL_ENV === "production"
@@ -41,9 +49,36 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
+  const structuredData = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": `${siteUrl()}/#organization`,
+        name: "Fiszy",
+        url: siteUrl(),
+        description: brandDescription,
+        sameAs: ["https://www.instagram.com/fiszy.pl/"],
+      },
+      {
+        "@type": "WebSite",
+        "@id": `${siteUrl()}/#website`,
+        url: siteUrl(),
+        name: "Fiszy",
+        inLanguage: "pl-PL",
+        publisher: { "@id": `${siteUrl()}/#organization` },
+        description: brandDescription,
+      },
+    ],
+  };
+
   return (
     <html lang="pl" className={`${GeistSans.variable} ${GeistMono.variable}`}>
       <body className={GeistSans.className}>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+        />
         {children}
         <Analytics />
         <SpeedInsights />
