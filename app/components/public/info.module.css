@@ -4,12 +4,59 @@
   color: #f8f7fb;
 }
 
+.header,
 .hero,
 .article,
 .cta,
 .footer {
   width: min(960px, calc(100% - 40px));
   margin: 0 auto;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 22px 0;
+}
+
+.brand {
+  color: #f8f7fb;
+  font-size: 1.65rem;
+  font-weight: 950;
+  letter-spacing: -.075em;
+  text-decoration: none;
+}
+
+.brandDot {
+  color: #7b2cff;
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.nav a {
+  border-radius: 999px;
+  color: #d9d5df;
+  font-size: .82rem;
+  font-weight: 800;
+  padding: 10px 12px;
+  text-decoration: none;
+}
+
+.nav a:hover {
+  background: rgba(255,255,255,.08);
+  color: #fff;
+}
+
+.nav .navPrimary {
+  background: #7b2cff;
+  color: #fff;
 }
 
 .hero {
@@ -129,6 +176,7 @@
 }
 
 @media (max-width: 620px) {
+  .header,
   .cta,
   .footer {
     align-items: flex-start;
