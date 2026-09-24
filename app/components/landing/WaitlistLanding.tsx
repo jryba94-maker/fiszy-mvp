@@ -40,6 +40,17 @@ function analyticsProperties(source: ReturnType<typeof trafficSource>) {
   };
 }
 
+function landingVisitorId() {
+  try {
+    const key = "fiszy_landing_visitor_id";
+    const saved = localStorage.getItem(key);
+    if (saved && /^[a-f0-9-]{36}$/i.test(saved)) return saved;
+    const id = crypto.randomUUID();
+    localStorage.setItem(key, id);
+    return id;
+  } catch { return crypto.randomUUID(); }
+}
+
 function redirectLegacyPaymentReturn() {
   const params = new URLSearchParams(window.location.search);
   const kind = params.has("payment") ? "payment" : params.has("purchase") ? "purchase" : null;
@@ -77,7 +88,7 @@ export function WaitlistLanding() {
     const sourceLabel = [source.utmSource, source.utmMedium, source.utmCampaign].filter(Boolean).join("/") || source.referrerHost || "direct";
     const sessionId = crypto.randomUUID();
     landingSessionRef.current = sessionId;
-    reportTraffic({ type: "view", sessionId, source: sourceLabel });
+    reportTraffic({ type: "view", sessionId, visitorId: landingVisitorId(), source: sourceLabel });
     track("landing_view", analyticsProperties(source));
 
     const reportedTrafficEvents = new Set<string>();

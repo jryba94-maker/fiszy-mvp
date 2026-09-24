@@ -5,8 +5,8 @@ import styles from "../AdminDashboard.module.css";
 
 type Traffic = {
   days: number;
-  daily: Array<{ date: string; views: number; uniqueSessions: number }>;
-  totals: { views: number; uniqueSessions: number; activeSeconds: number; timedSessions: number; events: Record<string, number> };
+  daily: Array<{ date: string; views: number; uniqueSessions: number; uniqueVisitors: number }>;
+  totals: { views: number; uniqueSessions: number; uniqueVisitors: number; activeSeconds: number; timedSessions: number; events: Record<string, number> };
   conversion: { formStarted: number; ctaAttempt: number; signup: number };
   averageActiveSeconds: number;
   sources: Array<{ label: string; views: number; signups: number; signupRate: number }>;
@@ -62,7 +62,7 @@ export function LandingTrafficPanel({ onSessionExpired }: Props) {
 
   const dailyChart = useMemo(() => {
     const days = traffic?.daily ?? [];
-    const max = Math.max(1, ...days.flatMap((day) => [day.uniqueSessions, day.views]));
+    const max = Math.max(1, ...days.flatMap((day) => [day.uniqueVisitors, day.views]));
     const x = (index: number) => 52 + index * (828 / Math.max(1, days.length - 1));
     const y = (value: number) => 250 - value / max * 215;
     const points = (read: (day: Traffic["daily"][number]) => number) => days.map((day, index) => `${x(index)},${y(read(day))}`).join(" ");
@@ -77,11 +77,12 @@ export function LandingTrafficPanel({ onSessionExpired }: Props) {
         <button className={styles.secondaryButton} type="button" onClick={() => void load()} disabled={loading}>{loading ? "Odświeżam…" : "Odśwież"}</button>
       </div>
       {error ? <p className={styles.errorNotice} role="alert">{error}</p> : null}
-      <p className={styles.trafficNote}>Anonimowy pomiar, ostatnie 30 dni. Dane odświeżają się automatycznie co 10 sekund. Nie zapisujemy IP ani nie identyfikujemy osób bez ich dobrowolnego zapisu.</p>
+      <p className={styles.trafficNote}>Anonimowy pomiar, ostatnie 30 dni. Dane odświeżają się co 10 sekund. Unikalnych odwiedzających rozpoznajemy po identyfikatorze zapisanym w przeglądarce od wdrożenia tej zmiany.</p>
 
       <div className={styles.trafficKpis}>
         <article><span>Wejścia</span><strong>{number.format(traffic?.totals.views ?? 0)}</strong><small>odsłony landing page</small></article>
-        <article><span>Unikalne sesje</span><strong>{number.format(traffic?.totals.uniqueSessions ?? 0)}</strong><small>anonimowe przeglądarki</small></article>
+        <article><span>Unikalni odwiedzający</span><strong>{number.format(traffic?.totals.uniqueVisitors ?? 0)}</strong><small>rozpoznane przeglądarki</small></article>
+        <article><span>Unikalne sesje</span><strong>{number.format(traffic?.totals.uniqueSessions ?? 0)}</strong><small>osobne wizyty</small></article>
         <article><span>Aktywny czas</span><strong>{seconds(traffic?.averageActiveSeconds ?? 0)}</strong><small>średnio na stronie</small></article>
         <article><span>Zapisy</span><strong>{number.format(traffic?.totals.events.signup ?? 0)}</strong><small>{percent(traffic?.conversion.signup ?? 0)} z sesji</small></article>
       </div>
@@ -97,17 +98,17 @@ export function LandingTrafficPanel({ onSessionExpired }: Props) {
             <line className={styles.chartAxisLine} x1="52" x2="880" y1="250" y2="250" />
             <line className={styles.chartAxisLine} x1="52" x2="52" y1="35" y2="250" />
             {dailyChart.days.map((day, index) => index % 3 === 0 || index === dailyChart.days.length - 1 ? <text className={styles.chartAxisText} key={day.date} x={dailyChart.x(index)} y="273" textAnchor="middle">{day.date.slice(5).replace("-", ".")}</text> : null)}
-            <polyline className={styles.chartPeopleLine} points={dailyChart.points((day) => day.uniqueSessions)} />
+            <polyline className={styles.chartPeopleLine} points={dailyChart.points((day) => day.uniqueVisitors)} />
             <polyline className={styles.chartViewsLine} points={dailyChart.points((day) => day.views)} />
             {dailyChart.days.map((day, index) => <g key={day.date}>
-              <circle className={styles.chartPeoplePoint} cx={dailyChart.x(index)} cy={dailyChart.y(day.uniqueSessions)} r="4"><title>{day.date}: {day.uniqueSessions} osób</title></circle>
+              <circle className={styles.chartPeoplePoint} cx={dailyChart.x(index)} cy={dailyChart.y(day.uniqueVisitors)} r="4"><title>{day.date}: {day.uniqueVisitors} przeglądarek</title></circle>
               <circle className={styles.chartViewsPoint} cx={dailyChart.x(index)} cy={dailyChart.y(day.views)} r="2.5"><title>{day.date}: {day.views} odsłon</title></circle>
             </g>)}
             <text className={styles.chartAxisLabel} x="466" y="296" textAnchor="middle">Data</text>
             <text className={styles.chartAxisLabel} x="13" y="143" textAnchor="middle" transform="rotate(-90 13 143)">Liczba wejść</text>
           </svg>
         </div>
-        <p className={styles.trafficMuted}>„Osoby” to unikalne, anonimowe sesje danego dnia. Zestawienie obejmuje dane zebrane od uruchomienia pomiaru.</p>
+        <p className={styles.trafficMuted}>„Osoby” to rozpoznane przeglądarki danego dnia. Pomiar tej liczby zaczyna się od publikacji poprawki; tryb prywatny i wyczyszczenie pamięci przeglądarki mogą zwiększyć wynik.</p>
       </article>
 
       <div className={styles.trafficGrid}>
