@@ -1,4 +1,4 @@
-const FALLBACK_SITE_URL = "https://fiszy-mvp.vercel.app";
+const FALLBACK_SITE_URL = "https://fiszy.pl";
 
 function normalizedSiteUrl(value: string | undefined) {
   if (!value?.trim()) return null;
