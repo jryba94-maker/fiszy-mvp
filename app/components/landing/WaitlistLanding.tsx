@@ -231,8 +231,10 @@ export function WaitlistLanding() {
             <strong>Poczekasz dłużej — zapłacisz mniej.</strong><br />
             Tylko jak długo możesz czekać?
           </p>
-          <Link className={styles.demoLink} href="/demo" onClick={() => track("landing_demo_click", analyticsProperties(sourceRef.current ?? trafficSource()))}>
-            Zobacz demo aukcji <span aria-hidden="true">↗</span>
+          <Link className={styles.demoButton} href="/demo" onClick={() => track("landing_demo_click", analyticsProperties(sourceRef.current ?? trafficSource()))}>
+            <span className={styles.demoButtonIcon} aria-hidden="true">▶</span>
+            <span><small>Nie wiesz, kiedy kliknąć?</small>Zagraj w demo aukcji</span>
+            <b aria-hidden="true">↗</b>
           </Link>
 
           {state === "success" ? (
