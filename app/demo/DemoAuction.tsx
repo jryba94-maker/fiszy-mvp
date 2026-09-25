@@ -21,10 +21,15 @@ export function DemoAuction() {
   const [elapsed, setElapsed] = useState(0);
   const startRef = useRef(Date.now());
   const reportedStart = useRef(false);
+  const finishedRef = useRef(false);
 
   useEffect(() => {
     track("demo_auction_opened", { product: "airpods", start_price: START_PRICE });
     const interval = window.setInterval(() => {
+      if (finishedRef.current) {
+        window.clearInterval(interval);
+        return;
+      }
       const passed = Math.floor((Date.now() - startRef.current) / 1000);
       if (passed < COUNTDOWN_SECONDS) {
         setElapsed(passed);
@@ -37,6 +42,7 @@ export function DemoAuction() {
       }
       if (liveElapsed >= LIVE_SECONDS) {
         setElapsed(LIVE_SECONDS);
+        finishedRef.current = true;
         setState((current) => current === "won" ? current : "lost");
         window.clearInterval(interval);
         return;
@@ -57,6 +63,7 @@ export function DemoAuction() {
   const restart = () => {
     startRef.current = Date.now();
     reportedStart.current = false;
+    finishedRef.current = false;
     setElapsed(0);
     setState("countdown");
     track("demo_auction_restarted", { product: "airpods" });
@@ -64,6 +71,7 @@ export function DemoAuction() {
 
   const buy = () => {
     if (state !== "live") return;
+    finishedRef.current = true;
     setState("won");
     track("demo_auction_won", { product: "airpods", price });
   };
@@ -125,10 +133,14 @@ export function DemoAuction() {
 
           {state === "won" ? (
             <section className={styles.winnerCard} aria-live="assertive" aria-label={`Wygrałeś AirPods za ${price} zł`}>
+              <span className={`${styles.confetti} ${styles.confettiOne}`} aria-hidden="true">✦</span>
+              <span className={`${styles.confetti} ${styles.confettiTwo}`} aria-hidden="true">✦</span>
+              <span className={`${styles.confetti} ${styles.confettiThree}`} aria-hidden="true">●</span>
               <span className={styles.winnerSpark} aria-hidden="true">✦</span>
-              <p>Twoja decyzja przyszła pierwsza.</p>
+              <p>Twoja decyzja przyszła pierwsza</p>
               <h2>Wygrałeś.</h2>
-              <strong>AirPods za {price} zł</strong>
+              <strong>AirPods Pro za {price} zł</strong>
+              <span className={styles.winnerNote}>W tej symulacji byłeś szybszy od pozostałych.</span>
               <Link className={styles.winnerCta} href="/#zapis" onClick={() => track("demo_auction_waitlist_click", { outcome: "won" })}>
                 CHCĘ SPRÓBOWAĆ NAPRAWDĘ
               </Link>
