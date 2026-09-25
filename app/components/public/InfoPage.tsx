@@ -5,6 +5,7 @@ export type InfoSection = {
   title: string;
   paragraphs?: string[];
   bullets?: string[];
+  links?: { href: string; label: string }[];
 };
 
 export function InfoPage({
@@ -47,6 +48,13 @@ export function InfoPage({
             {section.bullets ? (
               <ul>{section.bullets.map((item) => <li key={item}>{item}</li>)}</ul>
             ) : null}
+            {section.links ? (
+              <nav className={styles.relatedLinks} aria-label={`Więcej: ${section.title}`}>
+                {section.links.map((link) => (
+                  <Link href={link.href} key={link.href}>{link.label}</Link>
+                ))}
+              </nav>
+            ) : null}
           </section>
         ))}
       </article>
@@ -61,6 +69,8 @@ export function InfoPage({
         <nav aria-label="Informacje">
           <Link href="/jak-to-dziala">Jak to działa</Link>
           <Link href="/aukcja-holenderska">Aukcja holenderska</Link>
+          <Link href="/aukcja-holenderska-a-zwykla-licytacja">Porównanie aukcji</Link>
+          <Link href="/jak-kupowac-na-aukcji-holenderskiej">Jak kupować</Link>
           <Link href="/o-fiszy">O Fiszy</Link>
           <Link href="/faq">FAQ</Link>
         </nav>

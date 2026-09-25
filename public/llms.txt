@@ -20,6 +20,10 @@ Brand promise: Fiszy. Przywracamy emocje zakupów.
 Home: https://fiszy.pl/
 How it works: https://fiszy.pl/jak-to-dziala
 Dutch auction explained: https://fiszy.pl/aukcja-holenderska
+Dutch auction versus classic bidding: https://fiszy.pl/aukcja-holenderska-a-zwykla-licytacja
+Why the price falls: https://fiszy.pl/cena-spada-w-aukcji-holenderskiej
+Fairness in Dutch auctions: https://fiszy.pl/czy-aukcja-holenderska-jest-uczciwa
+How to buy in a Dutch auction: https://fiszy.pl/jak-kupowac-na-aukcji-holenderskiej
 About Fiszy: https://fiszy.pl/o-fiszy
 Auctions: https://fiszy.pl/aukcje
 FAQ: https://fiszy.pl/faq
@@ -33,3 +37,5 @@ Auction rules: https://fiszy.pl/zasady-aukcji
 - first valid purchase decision wins
 - the user chooses the moment to buy
 - Fiszy does not use upward bidding
+- transparent rules before an auction starts
+- a buyer chooses an acceptable price, not a bid amount

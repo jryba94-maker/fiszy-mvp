@@ -9,6 +9,10 @@ const STATIC_PATHS = [
   "/aukcje",
   "/jak-to-dziala",
   "/aukcja-holenderska",
+  "/aukcja-holenderska-a-zwykla-licytacja",
+  "/cena-spada-w-aukcji-holenderskiej",
+  "/czy-aukcja-holenderska-jest-uczciwa",
+  "/jak-kupowac-na-aukcji-holenderskiej",
   "/o-fiszy",
   "/faq",
   "/zasady-aukcji",
@@ -24,13 +28,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     changeFrequency:
       pathname === "/" || pathname === "/aukcje"
         ? "daily"
-        : pathname === "/jak-to-dziala" || pathname === "/aukcja-holenderska" || pathname === "/o-fiszy"
+        : pathname === "/jak-to-dziala" || pathname === "/aukcja-holenderska" || pathname === "/aukcja-holenderska-a-zwykla-licytacja" || pathname === "/cena-spada-w-aukcji-holenderskiej" || pathname === "/czy-aukcja-holenderska-jest-uczciwa" || pathname === "/jak-kupowac-na-aukcji-holenderskiej" || pathname === "/o-fiszy"
           ? "weekly"
           : "monthly",
     priority:
       pathname === "/"
         ? 1
-        : pathname === "/aukcje" || pathname === "/jak-to-dziala" || pathname === "/aukcja-holenderska"
+        : pathname === "/aukcje" || pathname === "/jak-to-dziala" || pathname === "/aukcja-holenderska" || pathname === "/aukcja-holenderska-a-zwykla-licytacja" || pathname === "/cena-spada-w-aukcji-holenderskiej" || pathname === "/czy-aukcja-holenderska-jest-uczciwa" || pathname === "/jak-kupowac-na-aukcji-holenderskiej"
           ? 0.9
           : pathname === "/o-fiszy"
             ? 0.8
