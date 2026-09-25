@@ -231,6 +231,9 @@ export function WaitlistLanding() {
             <strong>Poczekasz dłużej — zapłacisz mniej.</strong><br />
             Tylko jak długo możesz czekać?
           </p>
+          <Link className={styles.demoLink} href="/demo" onClick={() => track("landing_demo_click", analyticsProperties(sourceRef.current ?? trafficSource()))}>
+            Zobacz demo aukcji <span aria-hidden="true">↗</span>
+          </Link>
 
           {state === "success" ? (
             <div className={styles.success} role="status" tabIndex={-1}>
@@ -238,7 +241,7 @@ export function WaitlistLanding() {
               <div><strong>Jesteś na liście.</strong><p>{message}</p></div>
             </div>
           ) : (
-            <form className={styles.form} onSubmit={handleSubmit} noValidate>
+            <form className={styles.form} id="zapis" onSubmit={handleSubmit} noValidate>
               <div className={styles.formRow}>
                 <label className={styles.emailField}>
                   <input
