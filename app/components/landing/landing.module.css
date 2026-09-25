@@ -158,6 +158,26 @@
   font-weight: 800;
 }
 
+.demoLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin: -7px 0 30px;
+  color: #c7b0ff;
+  font-size: .88rem;
+  font-weight: 850;
+  text-decoration: none;
+}
+
+.demoLink:hover {
+  color: #fff;
+}
+
+.demoLink span {
+  color: var(--violet-light);
+  font-size: 1.05rem;
+}
+
 .form {
   width: min(770px, 100%);
 }
