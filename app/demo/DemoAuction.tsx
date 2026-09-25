@@ -111,10 +111,15 @@ export function DemoAuction() {
             <div className={styles.progress} aria-hidden="true"><i style={{ width: `${progress}%` }} /></div>
           </div>
 
-          <div className={styles.clockBox}>
-            <div><span>{state === "countdown" ? "Start aukcji za" : state === "live" ? "Ktoś kupi automatycznie za" : "Czas aukcji"}</span><strong>{formatSeconds(remaining)}</strong></div>
-            <p>{state === "countdown" ? "Przygotuj się." : state === "live" ? "Nie czekaj zbyt długo." : "Tak działa presja momentu."}</p>
-          </div>
+          {state !== "live" ? (
+            <div className={styles.clockBox}>
+              <div>
+                <span>{state === "countdown" ? "Start aukcji za" : "Czas aukcji"}</span>
+                <strong>{formatSeconds(state === "countdown" ? remaining : 0)}</strong>
+              </div>
+              <p>{state === "countdown" ? "Przygotuj się." : "Tak działa presja momentu."}</p>
+            </div>
+          ) : null}
 
           <p className={styles.message} aria-live="polite">{message}</p>
 
