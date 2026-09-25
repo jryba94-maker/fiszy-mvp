@@ -123,7 +123,17 @@ export function DemoAuction() {
 
           <p className={styles.message} aria-live="polite">{message}</p>
 
-          {state === "live" ? (
+          {state === "won" ? (
+            <section className={styles.winnerCard} aria-live="assertive" aria-label={`Wygrałeś AirPods za ${price} zł`}>
+              <span className={styles.winnerSpark} aria-hidden="true">✦</span>
+              <p>Twoja decyzja przyszła pierwsza.</p>
+              <h2>Wygrałeś.</h2>
+              <strong>AirPods za {price} zł</strong>
+              <Link className={styles.winnerCta} href="/#zapis" onClick={() => track("demo_auction_waitlist_click", { outcome: "won" })}>
+                CHCĘ SPRÓBOWAĆ NAPRAWDĘ
+              </Link>
+            </section>
+          ) : state === "live" ? (
             <button className={styles.buyButton} type="button" onClick={buy}>KUP TERAZ — {price} ZŁ</button>
           ) : state === "countdown" ? (
             <button className={styles.buyButton} type="button" disabled>ZA CHWILĘ START</button>
