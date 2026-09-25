@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { serializeJsonLd } from "../../lib/seo";
 import { LegalPage } from "../components/legal/LegalPage";
 
 export const metadata: Metadata = {
@@ -46,7 +47,7 @@ export default function Page() {
   const structuredData = {
     "@context": "https://schema.org",
     "@type": "FAQPage",
-    mainEntity: faq.slice(0, 5).map((item) => ({
+    mainEntity: faq.map((item) => ({
       "@type": "Question",
       name: item.question,
       acceptedAnswer: { "@type": "Answer", text: item.answer },
@@ -57,7 +58,7 @@ export default function Page() {
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(structuredData) }}
       />
       <LegalPage
         eyebrow="Pomoc"

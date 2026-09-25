@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { serializeJsonLd } from "../../lib/seo";
+import { absoluteSiteUrl } from "../../lib/site";
 import { InfoPage } from "../components/public/InfoPage";
 
 export const metadata: Metadata = {
@@ -9,12 +11,36 @@ export const metadata: Metadata = {
 };
 
 export default function HowItWorksPage() {
+  const structuredData = {
+    "@context": "https://schema.org",
+    "@type": "HowTo",
+    name: "Jak działa aukcja holenderska w Fiszy",
+    description:
+      "Cena produktu spada w czasie, a pierwsza osoba, która zdecyduje się kupić po aktualnej cenie, wygrywa aukcję.",
+    url: absoluteSiteUrl("/jak-to-dziala"),
+    step: [
+      "Aukcja startuje od ceny początkowej.",
+      "Uczestnicy obserwują malejącą cenę.",
+      "Uczestnik wybiera moment zakupu.",
+      "Pierwsza poprawnie zapisana decyzja kończy aukcję.",
+    ].map((text, index) => ({
+      "@type": "HowToStep",
+      position: index + 1,
+      text,
+    })),
+  };
+
   return (
-    <InfoPage
-      eyebrow="Jak to działa"
-      title="Cena spada. Ty wybierasz moment."
-      lead="Fiszy to platforma zakupowa oparta na aukcjach holenderskich. Nie licytujesz ceny w górę — obserwujesz, jak cena produktu maleje, i decydujesz, kiedy kupić."
-      sections={[
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(structuredData) }}
+      />
+      <InfoPage
+        eyebrow="Jak to działa"
+        title="Cena spada. Ty wybierasz moment."
+        lead="Fiszy to platforma zakupowa oparta na aukcjach holenderskich. Nie licytujesz ceny w górę — obserwujesz, jak cena produktu maleje, i decydujesz, kiedy kupić."
+        sections={[
         {
           title: "1. Aukcja startuje od ceny początkowej",
           paragraphs: [
@@ -39,7 +65,8 @@ export default function HowItWorksPage() {
             "Pierwsza poprawnie zapisana decyzja zakupu wygrywa. Cena widoczna w chwili zwycięskiego kliknięcia staje się ceną zakupu.",
           ],
         },
-      ]}
-    />
+        ]}
+      />
+    </>
   );
 }

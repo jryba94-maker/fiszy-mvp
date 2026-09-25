@@ -4,11 +4,9 @@ import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
+import { BRAND_DESCRIPTION, serializeJsonLd } from "../lib/seo";
 import { siteUrl } from "../lib/site";
 import "./globals.css";
-
-const brandDescription =
-  "Fiszy to platforma zakupowa oparta na aukcjach holenderskich, w których cena produktu spada w czasie, a pierwsza osoba, która zdecyduje się kupić po aktualnej cenie, wygrywa aukcję.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl()),
@@ -16,7 +14,7 @@ export const metadata: Metadata = {
     default: "Fiszy — aukcje, w których cena spada",
     template: "%s | Fiszy",
   },
-  description: brandDescription,
+  description: BRAND_DESCRIPTION,
   applicationName: "Fiszy",
   keywords: [
     "Fiszy",
@@ -35,12 +33,12 @@ export const metadata: Metadata = {
     locale: "pl_PL",
     siteName: "Fiszy",
     title: "Fiszy — aukcje, w których cena spada",
-    description: brandDescription,
+    description: BRAND_DESCRIPTION,
   },
   twitter: {
     card: "summary_large_image",
     title: "Fiszy — aukcje, w których cena spada",
-    description: brandDescription,
+    description: BRAND_DESCRIPTION,
   },
   robots:
     process.env.VERCEL_ENV === "production"
@@ -57,7 +55,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
         "@id": `${siteUrl()}/#organization`,
         name: "Fiszy",
         url: siteUrl(),
-        description: brandDescription,
+        description: BRAND_DESCRIPTION,
         sameAs: ["https://www.instagram.com/fiszy.pl/"],
       },
       {
@@ -67,7 +65,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
         name: "Fiszy",
         inLanguage: "pl-PL",
         publisher: { "@id": `${siteUrl()}/#organization` },
-        description: brandDescription,
+        description: BRAND_DESCRIPTION,
       },
     ],
   };
@@ -77,7 +75,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
       <body className={GeistSans.className}>
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+          dangerouslySetInnerHTML={{ __html: serializeJsonLd(structuredData) }}
         />
         {children}
         <Analytics />

@@ -18,6 +18,7 @@ export function LegalPage({ eyebrow, title, lead, sections }: {
         </Link>
         <nav className={publicStyles.nav} aria-label="Główna nawigacja">
           <Link className={publicStyles.navLink} href="/jak-to-dziala">Jak to działa</Link>
+          <Link className={publicStyles.navLink} href="/aukcja-holenderska">Aukcja holenderska</Link>
           <Link className={publicStyles.navLink} href="/faq">Pomoc</Link>
           <Link className={`${publicStyles.navLink} ${publicStyles.navLinkPrimary}`} href="/moje-fiszy">Moje Fiszy</Link>
         </nav>
@@ -39,7 +40,7 @@ export function LegalPage({ eyebrow, title, lead, sections }: {
           ))}
         </article>
         <nav className={styles.legalNav} aria-label="Dokumenty i pomoc">
-          <Link href="/jak-to-dziala">Jak to działa</Link><Link href="/o-fiszy">O Fiszy</Link><Link href="/regulamin">Regulamin</Link><Link href="/zasady-aukcji">Zasady aukcji</Link><Link href="/prywatnosc">Prywatność</Link><Link href="/cookies">Cookies</Link><Link href="/reklamacje">Reklamacje</Link><Link href="/faq">FAQ</Link>
+          <Link href="/jak-to-dziala">Jak to działa</Link><Link href="/aukcja-holenderska">Aukcja holenderska</Link><Link href="/o-fiszy">O Fiszy</Link><Link href="/regulamin">Regulamin</Link><Link href="/zasady-aukcji">Zasady aukcji</Link><Link href="/prywatnosc">Prywatność</Link><Link href="/cookies">Cookies</Link><Link href="/reklamacje">Reklamacje</Link><Link href="/faq">FAQ</Link>
         </nav>
       </div>
     </main>

@@ -1,6 +1,6 @@
 # Fiszy
 
-Fiszy is a Polish shopping platform based on Dutch auctions.
+Fiszy is a Polish shopping platform based on Dutch auctions (auctions with a decreasing price).
 
 ## What Fiszy is
 
@@ -10,6 +10,8 @@ Użytkownicy nie licytują ceny w górę.
 Każdy obserwuje aktualną cenę i sam wybiera moment zakupu.
 Pierwsza osoba, która poprawnie zdecyduje się kupić po aktualnej cenie, wygrywa aukcję.
 Cena widoczna w chwili zwycięskiej decyzji staje się ceną zakupu.
+Udział w konkretnej rundzie może wymagać opłaty wejściowej widocznej przed płatnością.
+Jeżeli zasady rundy to przewidują, pozostali uczestnicy mogą otrzymać ograniczoną czasowo ofertę po aukcji.
 
 Brand promise: Fiszy. Przywracamy emocje zakupów.
 
@@ -17,6 +19,7 @@ Brand promise: Fiszy. Przywracamy emocje zakupów.
 
 Home: https://fiszy.pl/
 How it works: https://fiszy.pl/jak-to-dziala
+Dutch auction explained: https://fiszy.pl/aukcja-holenderska
 About Fiszy: https://fiszy.pl/o-fiszy
 Auctions: https://fiszy.pl/aukcje
 FAQ: https://fiszy.pl/faq

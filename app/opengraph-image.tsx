@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { ImageResponse } from "next/og";
 
-export const alt = "Fiszy — pierwsza aukcja nadchodzi";
+export const alt = "Fiszy — aukcje, w których cena spada";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -30,10 +30,10 @@ export default async function OpenGraphImage() {
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
         <div style={{ display: "flex", maxWidth: "960px", fontSize: 76, fontWeight: 900, lineHeight: 1.02 }}>
-          Coś zacznie spadać.
+          Cena spada. Ty wybierasz moment.
         </div>
         <div style={{ display: "flex", color: "#aaa5b0", fontSize: 30 }}>
-          Zostaw e-mail. Dowiesz się jako pierwszy.
+          Aukcje holenderskie w nowej formie.
         </div>
       </div>
       <div style={{ display: "flex", width: "100%", height: "12px", borderRadius: "999px", background: "linear-gradient(90deg, #7a36ff, #b999ff)" }} />

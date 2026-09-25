@@ -26,6 +26,7 @@ export function InfoPage({
         </Link>
         <nav className={styles.nav} aria-label="Główna nawigacja">
           <Link href="/jak-to-dziala">Jak to działa</Link>
+          <Link href="/aukcja-holenderska">Aukcja holenderska</Link>
           <Link href="/o-fiszy">O Fiszy</Link>
           <Link href="/faq">FAQ</Link>
           <Link className={styles.navPrimary} href="/aukcje">Aukcje</Link>
@@ -59,6 +60,7 @@ export function InfoPage({
         <span><strong>Fiszy.</strong> Przywracamy emocje zakupów.</span>
         <nav aria-label="Informacje">
           <Link href="/jak-to-dziala">Jak to działa</Link>
+          <Link href="/aukcja-holenderska">Aukcja holenderska</Link>
           <Link href="/o-fiszy">O Fiszy</Link>
           <Link href="/faq">FAQ</Link>
         </nav>

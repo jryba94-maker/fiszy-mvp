@@ -277,6 +277,16 @@ export function WaitlistLanding() {
         </div>
       </section>
 
+      <footer className={styles.footer}>
+        <p><strong>Fiszy.</strong> Przywracamy emocje zakupów.</p>
+        <nav aria-label="Informacje o Fiszy">
+          <Link href="/jak-to-dziala">Jak to działa</Link>
+          <Link href="/aukcja-holenderska">Aukcja holenderska</Link>
+          <Link href="/o-fiszy">O Fiszy</Link>
+          <Link href="/faq">FAQ</Link>
+        </nav>
+      </footer>
+
     </main>
   );
 }
