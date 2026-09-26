@@ -28,7 +28,6 @@ export function LegalPage({ eyebrow, title, lead, sections }: {
           <p className={styles.eyebrow}>{eyebrow}</p>
           <h1>{title}</h1>
           <p>{lead}</p>
-          <div className={styles.draft}>Wersja robocza portalu · wymaga zatwierdzenia prawnego przed uruchomieniem sprzedaży publicznej</div>
         </header>
         <article className={styles.article}>
           {sections.map((section) => (

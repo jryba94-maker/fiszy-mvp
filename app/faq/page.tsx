@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { serializeJsonLd } from "../../lib/seo";
-import { LegalPage } from "../components/legal/LegalPage";
+import { InfoPage } from "../components/public/InfoPage";
 
 export const metadata: Metadata = {
   title: "FAQ — jak działa Fiszy",
@@ -31,7 +31,7 @@ const faq = [
   },
   {
     question: "Dlaczego płacę za wejście?",
-    answer: "Opłata dotyczy dostępu do jednej rundy. Jej wysokość jest widoczna przed rozpoczęciem płatności. Szczegóły i zasady zwrotów muszą być zatwierdzone w finalnym regulaminie.",
+    answer: "Opłata dotyczy dostępu do jednej rundy. Jej wysokość jest widoczna przed rozpoczęciem płatności. Szczegóły dotyczące opłat i zwrotów znajdziesz w regulaminie oraz zasadach konkretnej aukcji.",
   },
   {
     question: "Gdzie jest moje zamówienie?",
@@ -60,7 +60,7 @@ export default function Page() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: serializeJsonLd(structuredData) }}
       />
-      <LegalPage
+      <InfoPage
         eyebrow="Pomoc"
         title="Najczęstsze pytania"
         lead="Proste odpowiedzi o Fiszy, aukcjach holenderskich, spadającej cenie i zakupie."
