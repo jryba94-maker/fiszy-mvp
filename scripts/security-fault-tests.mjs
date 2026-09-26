@@ -786,6 +786,9 @@ test("webhook orchestration handles refunds, duplicates, order-id upgrades and r
           winner = null;
           return Response.json({ result: 1 });
         }
+        if (script.includes('local next = redis.call("ZPOPMIN", KEYS[2], 1)')) {
+          return Response.json({ result: "" });
+        }
         if (script.includes("record.counts[ARGV[2]]")) {
           return Response.json({ result: "{}" });
         }

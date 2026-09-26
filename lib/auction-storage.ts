@@ -1546,6 +1546,7 @@ return 1
 export async function promoteNextAuctionPurchase(
   runId: string,
   auctionId: string = AUCTION_ID,
+  nowMs = Date.now(),
 ): Promise<AuctionWinner | null> {
   const script = `
 if redis.call("EXISTS", KEYS[1]) == 1 then return "" end
@@ -1556,7 +1557,7 @@ for i = 1, 500 do
   local raw = redis.call("GET", key)
   if raw then
     local winner = cjson.decode(raw)
-    winner.claimedAt = winner.clickedAt
+    winner.claimedAt = ARGV[2]
     winner.clickedAt = nil
     winner.paymentStatus = "pending"
     redis.call("SET", KEYS[1], cjson.encode(winner), "EX", 604800)
@@ -1570,6 +1571,7 @@ return ""
     "EVAL", script, 2,
     winnerKey(runId, auctionId), queueKey(runId, auctionId),
     `${prefix()}:auction:${checkedAuctionId(auctionId)}:run:${checkedRunId(runId)}:purchase-queue:`,
+    new Date(nowMs).toISOString(),
   ]);
   return parseStoredAuctionWinner(raw);
 }
