@@ -3,6 +3,7 @@ import type {
   AdminAuctionRun,
   AdminAuditEvent,
   AdminHealth,
+  AdminLegalDocument,
   AdminOrder,
   AdminParticipant,
   AdminSession,
@@ -17,6 +18,19 @@ import type {
   MutationResult,
   OrderFulfillment,
 } from "./types";
+
+export async function loadLegalDocuments() {
+  const { payload } = await request("/api/admin/legal-documents");
+  const root = asRecord(payload);
+  const documents = Array.isArray(root.documents) ? root.documents : [];
+  return documents.flatMap((value): AdminLegalDocument[] => {
+    const item = asRecord(value);
+    const id = asString(item.id); const title = asString(item.title); const version = asString(item.version);
+    const effectiveAt = asString(item.effectiveAt); const publishedAt = asString(item.publishedAt);
+    const fileName = asString(item.fileName); const status = item.status === "active" || item.status === "archived" ? item.status : null;
+    return id && title && version && effectiveAt && publishedAt && fileName && status ? [{ id, title, version, effectiveAt, publishedAt, fileName, status }] : [];
+  });
+}
 
 type JsonRecord = Record<string, unknown>;
 

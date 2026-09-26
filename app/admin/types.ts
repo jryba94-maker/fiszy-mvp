@@ -147,6 +147,16 @@ export type AdminAuditEvent = {
   details: Record<string, AuditDetail>;
 };
 
+export type AdminLegalDocument = {
+  id: string;
+  title: string;
+  version: string;
+  effectiveAt: string;
+  publishedAt: string;
+  status: "active" | "archived";
+  fileName: string;
+};
+
 export type CursorPage<T> = {
   items: T[];
   nextCursor: string | null;

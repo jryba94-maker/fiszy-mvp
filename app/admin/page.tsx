@@ -26,6 +26,7 @@ import { CatalogPanel } from "./components/CatalogPanel";
 import { HealthPanel } from "./components/HealthPanel";
 import { KpiGrid } from "./components/KpiGrid";
 import { LandingTrafficPanel } from "./components/LandingTrafficPanel";
+import { LegalHistoryPanel } from "./components/LegalHistoryPanel";
 import { MarketingAgentsPanel } from "./components/MarketingAgentsPanel";
 import { OrdersPanel } from "./components/OrdersPanel";
 import { PortalOperationsPanel } from "./components/PortalOperationsPanel";
@@ -41,7 +42,7 @@ import type {
 } from "./types";
 
 type SessionStatus = "checking" | "signed_out" | "authenticated" | "unconfigured";
-type AdminSection = "overview" | "traffic" | "catalog" | "auctions" | "orders" | "history" | "users" | "operations" | "marketing" | "audit";
+type AdminSection = "overview" | "traffic" | "catalog" | "auctions" | "orders" | "history" | "legal" | "users" | "operations" | "marketing" | "audit";
 
 const ADMIN_SECTIONS: Array<{ id: AdminSection; label: string; caption: string }> = [
   { id: "overview", label: "Pulpit", caption: "Wyniki i system" },
@@ -52,6 +53,7 @@ const ADMIN_SECTIONS: Array<{ id: AdminSection; label: string; caption: string }
   { id: "auctions", label: "Aukcje", caption: "Lista i edycja" },
   { id: "orders", label: "Zamówienia", caption: "Realizacja" },
   { id: "history", label: "Rundy", caption: "Uczestnicy" },
+  { id: "legal", label: "Dokumenty", caption: "Wersje i archiwum" },
   { id: "users", label: "Użytkownicy", caption: "Pomoc i lista e-mail" },
   { id: "audit", label: "Dziennik", caption: "Zmiany i zdarzenia" },
 ];
@@ -61,6 +63,7 @@ function sectionAllowed(section: AdminSection, permissions: string[]) {
   if (section === "orders") return permissions.includes("orders:write");
   if (section === "history" || section === "users") return permissions.includes("users:read");
   if (section === "audit") return permissions.includes("audit:read");
+  if (section === "legal") return permissions.includes("audit:read");
   if (section === "traffic") return permissions.includes("audit:read");
   if (section === "operations") return permissions.includes("audit:read") && permissions.includes("users:write");
   if (section === "marketing") return permissions.includes("audit:read");
@@ -600,6 +603,8 @@ export default function AdminPage() {
         auctions={auctions}
         onSessionExpired={handleExpiredSession}
       /></div> : null}
+
+      {activeSection === "legal" ? <div className={styles.sectionStack}><LegalHistoryPanel onSessionExpired={handleExpiredSession} /></div> : null}
 
       {activeSection === "audit" ? <div className={styles.sectionStack}><AuditPanel onSessionExpired={handleExpiredSession} /></div> : null}
 
