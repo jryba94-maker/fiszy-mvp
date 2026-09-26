@@ -339,12 +339,13 @@ const JSON_POST: RequestInit = {
 export async function startEntryCheckout(
   auctionId: string,
   runId: string,
+  ageConfirmed = false,
 ) {
   return (await requestWithLegacyFallback(
     auctionId,
     dynamicRunPath(auctionId, runId, "entry"),
     "/api/auction/entry",
-    { ...JSON_POST, body: JSON.stringify({}) },
+    { ...JSON_POST, body: JSON.stringify({ ageConfirmed }) },
   )) as EntryResponse;
 }
 
@@ -352,12 +353,13 @@ export async function claimAuction(
   auctionId: string,
   runId: string,
   expectedPrice: number,
+  ageConfirmed = false,
 ) {
   return (await requestWithLegacyFallback(
     auctionId,
     dynamicRunPath(auctionId, runId, "buy"),
     "/api/auction/buy",
-    { ...JSON_POST, body: JSON.stringify({ expectedPrice }) },
+    { ...JSON_POST, body: JSON.stringify({ expectedPrice, ageConfirmed }) },
   )) as BuyResponse;
 }
 

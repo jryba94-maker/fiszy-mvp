@@ -10,6 +10,7 @@ import {
   readAuctionRunConfig,
   readAuctionWinner,
   releaseAuctionWinner,
+  promoteNextAuctionPurchase,
   type AuctionEntry,
 } from "../../../../lib/auction-storage";
 import {
@@ -39,6 +40,7 @@ import {
   issueAndQueueRunDiscountEmails,
   queueEntryAndReminderEmails,
   queueOrderConfirmationEmail,
+  queueWinnerEmail,
 } from "../../../../lib/auction-email-notifications";
 import { processMessageOutbox } from "../../../../lib/message-outbox";
 
@@ -425,6 +427,24 @@ async function handleExpiredPurchase(session: StripeCheckoutSession) {
     session.id,
     metadata.auctionId,
   );
+
+  if (released === 1) {
+    const [next, config] = await Promise.all([
+      promoteNextAuctionPurchase(metadata.runId, metadata.auctionId),
+      readAuctionRunConfig(metadata.runId, metadata.auctionId),
+    ]);
+    if (next && config) {
+      await queueWinnerEmail({
+        participantId: next.bidderId,
+        auctionId: metadata.auctionId,
+        runId: metadata.runId,
+        product: config.productName,
+        price: next.price,
+        paymentExpiresAt: null,
+      });
+      await processMessageOutbox({ limit: 10 });
+    }
+  }
 
   logEvent("auction_purchase_expired", {
     auctionId: metadata.auctionId,

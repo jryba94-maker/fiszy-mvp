@@ -11,7 +11,8 @@ import {
 } from "../../../../lib/auction";
 import {
   attachAuctionWinnerCheckout,
-  claimAuctionWinnerIfCurrent,
+  enqueueAuctionPurchase,
+  promoteNextAuctionPurchase,
   readAuctionEntry,
   readAuctionRecord,
   readAuctionWinner,
@@ -28,31 +29,35 @@ import {
   expirePaymentSession,
   isPaymentProviderConfigured,
 } from "../../../../lib/payment-provider";
-import { ensureAccountProfile, isAccountBlocked } from "../../../../lib/portal-storage";
+import { confirmAccountAdult, ensureAccountProfile, isAccountBlocked } from "../../../../lib/portal-storage";
 import { recordBusinessEventSafely } from "../../../../lib/business-analytics";
 import { queueWinnerEmail } from "../../../../lib/auction-email-notifications";
 import { processMessageOutbox } from "../../../../lib/message-outbox";
 import { errorDetails, logEvent } from "../../../../lib/observability";
 
-const PURCHASE_CHECKOUT_WINDOW_SECONDS = 31 * 60;
+const PURCHASE_CHECKOUT_WINDOW_SECONDS = 2 * 60;
 
-type BidderRequest = { expectedPrice?: unknown };
+type BidderRequest = { expectedPrice?: unknown; ageConfirmed?: unknown };
 
 async function authenticatedBidder() {
   const { userId } = await auth();
   if (!userId) return null;
   let blocked: boolean | null = null;
+  let ageConfirmedAt: string | null = null;
   try {
-    [, blocked] = await Promise.all([
+    const [profile, accountBlocked] = await Promise.all([
       ensureAccountProfile(userId),
       isAccountBlocked(userId),
     ]);
+    blocked = accountBlocked;
+    ageConfirmedAt = profile.ageConfirmedAt;
   } catch {
     // Account policy must fail closed when its storage cannot be verified.
   }
   return {
     bidderId: `clerk:${userId}`,
     blocked,
+    ageConfirmedAt,
   };
 }
 
@@ -97,10 +102,18 @@ async function parseBidderBody(request: NextRequest) {
     }
     return {
       expectedPrice: body.expectedPrice as number | undefined,
+      ageConfirmed: body.ageConfirmed === true,
     };
   } catch {
     return null;
   }
+}
+
+async function requireAdultConfirmation(bidder: { bidderId: string; ageConfirmedAt: string | null }, ageConfirmed: boolean) {
+  if (bidder.ageConfirmedAt) return true;
+  if (!ageConfirmed) return false;
+  await confirmAccountAdult(bidder.bidderId.replace(/^clerk:/, ""));
+  return true;
 }
 
 export async function handleEntryGet(
@@ -163,6 +176,9 @@ export async function handleEntryPost(
   if (bidder.blocked === null) return NextResponse.json({ outcome: "storage_error" }, { status: 503 });
   if (bidder.blocked) return NextResponse.json({ outcome: "account_blocked" }, { status: 403 });
   const { bidderId } = bidder;
+  if (!await requireAdultConfirmation(bidder, bidderRequest.ageConfirmed)) {
+    return NextResponse.json({ outcome: "age_confirmation_required" }, { status: 403 });
+  }
   if (!isPaymentProviderConfigured()) {
     return NextResponse.json(
       { outcome: "stripe_not_configured" },
@@ -273,6 +289,9 @@ export async function handleBuyPost(
   if (bidder.blocked) return NextResponse.json({ outcome: "account_blocked" }, { status: 403 });
   const { bidderId } = bidder;
   const { expectedPrice } = bidderRequest;
+  if (!await requireAdultConfirmation(bidder, bidderRequest.ageConfirmed)) {
+    return NextResponse.json({ outcome: "age_confirmation_required" }, { status: 403 });
+  }
   if (!isPaymentProviderConfigured()) {
     return NextResponse.json(
       { outcome: "stripe_not_configured" },
@@ -334,12 +353,10 @@ export async function handleBuyPost(
       );
     }
 
-    const winner: AuctionWinner = {
+    const purchase = {
       bidderId,
       price: timedState.currentPrice,
-      claimedAt: new Date(now).toISOString(),
-      paymentStatus: "pending",
-      paymentProvider: configuredPaymentProvider(),
+      clickedAt: new Date(now).toISOString(),
     };
 
     const checkoutResponse = async (claimedWinner: AuctionWinner, checkoutUrl: string) => {
@@ -502,15 +519,28 @@ export async function handleBuyPost(
       return checkoutResponse(claimedWinner, session.checkoutUrl!);
     };
 
+    const currentWinner = await readAuctionWinner(
+      active.config.runId,
+      active.auctionId,
+    );
+    if (
+      currentWinner?.bidderId === bidderId &&
+      currentWinner.paymentStatus === "pending"
+    ) {
+      return currentWinner.paymentCheckoutUrl
+        ? checkoutResponse(currentWinner, currentWinner.paymentCheckoutUrl)
+        : finishWinnerCheckout(currentWinner);
+    }
+
     let result: number | null;
     try {
-      result = await claimAuctionWinnerIfCurrent(
+      result = await enqueueAuctionPurchase(
         active.config.runId,
         bidderId,
         new Date(active.config.startsAt).getTime(),
         getAuctionEndsAt(active.config).getTime(),
         now,
-        winner,
+        purchase,
         active.auctionId,
       );
     } catch (error) {
@@ -547,8 +577,21 @@ export async function handleBuyPost(
     }
 
     if (result === 1) {
+      const winner = await readAuctionWinner(active.config.runId, active.auctionId);
+      if (!winner || winner.bidderId !== bidderId) {
+        return NextResponse.json({ outcome: "storage_error" }, { status: 503 });
+      }
       await recordBusinessEventSafely({ event: "winner_claimed" });
       return finishWinnerCheckout(winner);
+    }
+
+    if (result === 2) {
+      return NextResponse.json({
+        outcome: "queued",
+        auctionId: active.auctionId,
+        runId: active.config.runId,
+        price: purchase.price,
+      });
     }
 
     if (result === -2) {
@@ -641,6 +684,20 @@ export async function handleCancelPost(
         auctionId,
         winner.claimedAt,
       );
+      if (released === 1) {
+        const next = await promoteNextAuctionPurchase(runId, auctionId);
+        if (next) {
+          await queueWinnerEmail({
+            participantId: next.bidderId,
+            auctionId,
+            runId,
+            product: config?.productName ?? "produkt",
+            price: next.price,
+            paymentExpiresAt: null,
+          });
+          await processMessageOutbox({ limit: 10 });
+        }
+      }
       return NextResponse.json({
         outcome: released === 1 ? "cancelled" : "nothing_to_cancel",
       });
@@ -667,6 +724,20 @@ export async function handleCancelPost(
       auctionId,
       winner.claimedAt,
     );
+    if (released === 1) {
+      const next = await promoteNextAuctionPurchase(runId, auctionId);
+      if (next) {
+        await queueWinnerEmail({
+          participantId: next.bidderId,
+          auctionId,
+          runId,
+          product: config?.productName ?? "produkt",
+          price: next.price,
+          paymentExpiresAt: null,
+        });
+        await processMessageOutbox({ limit: 10 });
+      }
+    }
     return NextResponse.json({
       outcome: released === 1 ? "cancelled" : "nothing_to_cancel",
     });

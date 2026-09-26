@@ -28,6 +28,7 @@ export type AccountProfile = {
   phone: string;
   address: AccountAddress | null;
   preferences: AccountPreferences;
+  ageConfirmedAt: string | null;
   deletionRequestedAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -232,6 +233,7 @@ function parseProfile(raw: unknown): AccountProfile | null {
       phone === null ||
       address === undefined ||
       !preferences ||
+      (candidate.ageConfirmedAt !== undefined && candidate.ageConfirmedAt !== null && !validDate(candidate.ageConfirmedAt)) ||
       !validDate(candidate.createdAt) ||
       !validDate(candidate.updatedAt) ||
       (candidate.deletionRequestedAt !== null && !validDate(candidate.deletionRequestedAt))
@@ -246,6 +248,7 @@ function parseProfile(raw: unknown): AccountProfile | null {
       phone,
       address,
       preferences,
+      ageConfirmedAt: candidate.ageConfirmedAt ?? null,
       deletionRequestedAt: candidate.deletionRequestedAt ?? null,
       createdAt: candidate.createdAt as string,
       updatedAt: candidate.updatedAt as string,
@@ -264,6 +267,7 @@ function newProfile(accountId: string, now = new Date().toISOString()): AccountP
     phone: "",
     address: null,
     preferences: defaultPreferences(),
+    ageConfirmedAt: null,
     deletionRequestedAt: null,
     createdAt: now,
     updatedAt: now,
@@ -301,6 +305,37 @@ export async function readAccountProfile(accountIdValue: string) {
   const raw = await redisCommand<string>(["GET", accountProfileKey(accountId)]);
   const profile = parseProfile(raw);
   return profile?.accountId === accountId ? profile : null;
+}
+
+export async function confirmAccountAdult(accountIdValue: string) {
+  const accountId = checkedAccountId(accountIdValue);
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const current = await ensureAccountProfile(accountId);
+    if (current.ageConfirmedAt) return current;
+    const next = {
+      ...current,
+      ageConfirmedAt: new Date().toISOString(),
+      revision: current.revision + 1,
+      updatedAt: new Date().toISOString(),
+    } satisfies AccountProfile;
+    const updated = await redisCommand<number>([
+      "EVAL",
+      `
+local raw = redis.call("GET", KEYS[1])
+if not raw then return 0 end
+local ok, current = pcall(cjson.decode, raw)
+if not ok or type(current) ~= "table" or current.revision ~= tonumber(ARGV[1]) then return 0 end
+redis.call("SET", KEYS[1], ARGV[2])
+return 1
+`,
+      1,
+      accountProfileKey(accountId),
+      current.revision,
+      JSON.stringify(next),
+    ]);
+    if (updated === 1) return next;
+  }
+  throw new Error("Account profile changed during age confirmation.");
 }
 
 export type AccountProfilePatch = {

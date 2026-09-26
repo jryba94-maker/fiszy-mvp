@@ -26,7 +26,7 @@ export default function PrivacyPage() {
 
         <section>
           <h2>1. Kto jest administratorem danych?</h2>
-          <p>Administratorem Twoich danych osobowych jest <strong>Jakub Ryba, operator serwisu Fiszy</strong>.</p>
+          <p>Administratorem Twoich danych osobowych jest <strong>Jakub Ryba — właściciel Fiszy</strong>.</p>
           <p>W każdej sprawie dotyczącej danych lub wycofania zgody możesz napisać na <a href="mailto:rodo@fiszy.pl">rodo@fiszy.pl</a>.</p>
         </section>
 

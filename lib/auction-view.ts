@@ -122,9 +122,9 @@ function toPublicAuction(
   const status: PublicAuction["status"] = order
     ? "sold"
     : winner
-      ? winner.paymentStatus === "pending"
-        ? "payment_pending"
-        : "sold"
+      ? winner.paymentStatus === "paid"
+        ? "sold"
+        : timedState.status
       : timedState.status;
 
   return {
@@ -138,7 +138,7 @@ function toPublicAuction(
     startPrice: config.startPrice,
     floorPrice: config.floorPrice,
     durationMinutes: config.durationMinutes,
-    currentPrice: order?.amount ?? winner?.price ?? timedState.currentPrice,
+    currentPrice: order?.amount ?? timedState.currentPrice,
     entryFee: config.entryFee,
     status,
     startsAt: config.startsAt,

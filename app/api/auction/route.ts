@@ -43,11 +43,11 @@ export async function GET() {
   const status = order
     ? "sold"
     : winner
-    ? winner.paymentStatus === "pending"
-      ? "payment_pending"
-      : "sold"
+    ? winner.paymentStatus === "paid"
+      ? "sold"
+      : timedState.status
     : timedState.status;
-  const currentPrice = order?.amount ?? winner?.price ?? timedState.currentPrice;
+  const currentPrice = order?.amount ?? timedState.currentPrice;
 
   return NextResponse.json(
     {

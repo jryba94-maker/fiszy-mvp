@@ -243,6 +243,26 @@
   text-align: center;
 }
 
+.ageConfirmation {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 0 0 12px;
+  color: #6b6d67;
+  font-size: 0.73rem;
+  line-height: 1.35;
+  text-align: left;
+}
+
+.ageConfirmation input {
+  width: 16px;
+  height: 16px;
+  margin: 1px 0 0;
+  accent-color: #8d45ff;
+}
+
+.ageConfirmation a { color: inherit; text-decoration: underline; }
+
 .entryActive {
   color: #36740a;
   font-weight: 850;

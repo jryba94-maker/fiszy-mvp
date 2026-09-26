@@ -93,6 +93,9 @@ function timerAt(
 }
 
 function outcomeMessage(outcome: string, action: "entry" | "buy") {
+  if (outcome === "age_confirmation_required") {
+    return "Aby korzystać z aukcji, zaznacz potwierdzenie ukończenia 18 lat.";
+  }
   if (outcome === "stripe_not_configured") {
     return "Płatności nie są jeszcze skonfigurowane w tym środowisku.";
   }
@@ -128,6 +131,7 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
   const [isBuying, setIsBuying] = useState(false);
   const [entryFeedback, setEntryFeedback] = useState<Feedback>(null);
   const [purchaseFeedback, setPurchaseFeedback] = useState<Feedback>(null);
+  const [ageConfirmed, setAgeConfirmed] = useState(false);
   const { isLoaded: isAuthLoaded, isSignedIn } = useAuth();
   const cancelAttemptRef = useRef<string | null>(null);
   const pollingDelay = auction?.status === "sold" || auction?.status === "ended" ? 15_000 : 1_000;
@@ -352,7 +356,7 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
     } else if (displayStatus === "live" && !hasCurrentEntry) {
       auctionMessage = "Aukcja już trwa. Do tej rundy nie można już dołączyć.";
     } else if (displayStatus === "live") {
-      auctionMessage = "Cena spada. Pierwszy poprawny klik rezerwuje widoczną kwotę.";
+      auctionMessage = "Cena spada. Kliknięcie zapisuje Twoją cenę i miejsce w kolejce zakupu.";
     } else if (displayStatus === "payment_pending") {
       auctionMessage = `Pierwszy klik zarezerwował produkt za ${visiblePrice} zł. Czekamy na płatność zwycięzcy.`;
     } else if (displayStatus === "sold") {
@@ -399,7 +403,7 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
     setIsEntering(true);
     setEntryFeedback(null);
     try {
-      const data = await startEntryCheckout(auction.auctionId, auction.runId);
+      const data = await startEntryCheckout(auction.auctionId, auction.runId, ageConfirmed);
       if (data.outcome === "checkout" && data.checkoutUrl) {
         recordAuctionEvent(auction, { entryState: "checkout" });
         window.location.assign(data.checkoutUrl);
@@ -429,6 +433,7 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
         auction.auctionId,
         auction.runId,
         visiblePrice,
+        ageConfirmed,
       );
       if (data.outcome === "checkout" && data.checkoutUrl) {
         recordAuctionEvent({ ...auction, currentPrice: visiblePrice }, {
@@ -436,6 +441,12 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
           reservedPrice: data.price ?? visiblePrice,
         });
         window.location.assign(data.checkoutUrl);
+        return;
+      }
+      if (data.outcome === "queued") {
+        setPurchaseFeedback({
+          text: `Zapisaliśmy Cię w kolejce po cenie ${data.price ?? visiblePrice} zł. Jeśli wcześniejsza płatność nie dojdzie do skutku, dostaniesz swoją kolej.`,
+        });
         return;
       }
       if (data.outcome === "lost") {
@@ -447,7 +458,7 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
           purchaseState: "lost",
         });
         setPurchaseFeedback({
-          text: "Ktoś kliknął wcześniej. Produkt został zarezerwowany dla zwycięzcy.",
+          text: "Ktoś kliknął wcześniej. Sprawdź aktualny stan aukcji.",
           error: true,
         });
         return;
@@ -600,6 +611,7 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
             </div>
 
             <div className={`${styles.actionArea} ${styles.desktopAction}`}>
+              {(canEnter || canBuy) ? <label className={styles.ageConfirmation}><input type="checkbox" checked={ageConfirmed} onChange={(event) => setAgeConfirmed(event.target.checked)} /><span>Potwierdzam, że mam ukończone 18 lat i akceptuję <Link href="/regulamin">Regulamin</Link>.</span></label> : null}
               <button
                 className={styles.primaryButton}
                 type="button"
@@ -622,12 +634,13 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
 
         <section className={styles.proof} aria-label="Zasady bezpieczeństwa aukcji">
           <div className={styles.proofItem}><strong>Wejście przed startem</strong><span>Dołączasz do wybranej rundy do chwili jej rozpoczęcia.</span></div>
-          <div className={styles.proofItem}><strong>Jedna decyzja</strong><span>Serwer zapisuje pierwsze poprawne kliknięcie i widoczną wtedy cenę.</span></div>
+          <div className={styles.proofItem}><strong>Kolejka decyzji</strong><span>Serwer zapisuje kliknięcie, cenę i kolejność — bez przewagi odświeżania strony.</span></div>
           <div className={styles.proofItem}><strong>Bezpieczne rozliczenie</strong><span>Wejście i zakup odbywają się w szyfrowanym systemie operatora płatności.</span></div>
         </section>
       </div>
 
       <div className={styles.mobileAction}>
+        {(canEnter || canBuy) ? <label className={styles.ageConfirmation}><input type="checkbox" checked={ageConfirmed} onChange={(event) => setAgeConfirmed(event.target.checked)} /><span>Potwierdzam, że mam ukończone 18 lat i akceptuję <Link href="/regulamin">Regulamin</Link>.</span></label> : null}
         <button
           className={styles.primaryButton}
           type="button"

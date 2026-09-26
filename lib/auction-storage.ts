@@ -42,6 +42,12 @@ export type AuctionEntry = {
   paymentSessionId?: string;
 };
 
+export type AuctionQueueEntry = {
+  bidderId: string;
+  price: number;
+  clickedAt: string;
+};
+
 export type ParticipantRunRecord = {
   schemaVersion: 1;
   participantId: string;
@@ -127,6 +133,20 @@ export function auctionRunConfigKey(
 
 export function winnerKey(runId: string, auctionId: string = AUCTION_ID) {
   return `${prefix()}:auction:${checkedAuctionId(auctionId)}:run:${checkedRunId(runId)}:winner`;
+}
+
+function queueKey(runId: string, auctionId: string = AUCTION_ID) {
+  return `${prefix()}:auction:${checkedAuctionId(auctionId)}:run:${checkedRunId(runId)}:purchase-queue`;
+}
+
+function queueSequenceKey(runId: string, auctionId: string = AUCTION_ID) {
+  return `${prefix()}:auction:${checkedAuctionId(auctionId)}:run:${checkedRunId(runId)}:purchase-queue-sequence`;
+}
+
+function queueEntryKey(runId: string, bidderId: string, auctionId: string = AUCTION_ID) {
+  const participantId = normalizeParticipantId(bidderId);
+  if (!participantId) throw new Error("Invalid participant id.");
+  return `${prefix()}:auction:${checkedAuctionId(auctionId)}:run:${checkedRunId(runId)}:purchase-queue:${participantId}`;
 }
 
 export function entryKey(
@@ -1469,6 +1489,89 @@ return 0
     endsAtMs,
     JSON.stringify(winner),
   ]);
+}
+
+export async function enqueueAuctionPurchase(
+  runId: string,
+  bidderId: string,
+  startsAtMs: number,
+  endsAtMs: number,
+  nowMs: number,
+  entry: AuctionQueueEntry,
+  auctionId: string = AUCTION_ID,
+) {
+  const script = `
+local configRaw = redis.call("GET", KEYS[1])
+if not configRaw then return -3 end
+local ok, config = pcall(cjson.decode, configRaw)
+if not ok or type(config) ~= "table" or config.runId ~= ARGV[1] then return -1 end
+if tonumber(ARGV[3]) < tonumber(ARGV[4]) or tonumber(ARGV[3]) >= tonumber(ARGV[5]) then return -1 end
+if redis.call("EXISTS", KEYS[2]) ~= 1 then return -2 end
+if redis.call("EXISTS", KEYS[5]) == 1 then
+  if redis.call("EXISTS", KEYS[3]) == 1 then return 1 end
+  return 2
+end
+redis.call("SET", KEYS[5], ARGV[6], "EX", 604800)
+local sequence = redis.call("INCR", KEYS[4])
+redis.call("EXPIRE", KEYS[4], 604800)
+redis.call("ZADD", KEYS[6], sequence, ARGV[2])
+redis.call("EXPIRE", KEYS[6], 604800)
+if redis.call("EXISTS", KEYS[3]) == 1 then return 2 end
+local popped = redis.call("ZPOPMIN", KEYS[6], 1)
+if not popped or not popped[1] then return -3 end
+local winnerRaw = redis.call("GET", ARGV[7] .. popped[1])
+if not winnerRaw then return -3 end
+local winner = cjson.decode(winnerRaw)
+winner.claimedAt = winner.clickedAt
+winner.clickedAt = nil
+winner.paymentStatus = "pending"
+redis.call("SET", KEYS[3], cjson.encode(winner), "EX", 604800)
+redis.call("DEL", ARGV[7] .. popped[1])
+return 1
+`;
+
+  return redisCommand<number>([
+    "EVAL", script, 6,
+    auctionConfigKey(auctionId),
+    entryKey(runId, bidderId, auctionId),
+    winnerKey(runId, auctionId),
+    queueSequenceKey(runId, auctionId),
+    queueEntryKey(runId, bidderId, auctionId),
+    queueKey(runId, auctionId),
+    runId, bidderId, nowMs, startsAtMs, endsAtMs, JSON.stringify(entry),
+    `${prefix()}:auction:${checkedAuctionId(auctionId)}:run:${checkedRunId(runId)}:purchase-queue:`,
+  ]);
+}
+
+export async function promoteNextAuctionPurchase(
+  runId: string,
+  auctionId: string = AUCTION_ID,
+): Promise<AuctionWinner | null> {
+  const script = `
+if redis.call("EXISTS", KEYS[1]) == 1 then return "" end
+for i = 1, 500 do
+  local next = redis.call("ZPOPMIN", KEYS[2], 1)
+  if not next or not next[1] then return "" end
+  local key = ARGV[1] .. next[1]
+  local raw = redis.call("GET", key)
+  if raw then
+    local winner = cjson.decode(raw)
+    winner.claimedAt = winner.clickedAt
+    winner.clickedAt = nil
+    winner.paymentStatus = "pending"
+    redis.call("SET", KEYS[1], cjson.encode(winner), "EX", 604800)
+    redis.call("DEL", key)
+    return cjson.encode(winner)
+  end
+end
+return ""
+`;
+  const raw = await redisCommand<string>([
+    "EVAL", script, 2,
+    winnerKey(runId, auctionId), queueKey(runId, auctionId),
+    `${prefix()}:auction:${checkedAuctionId(auctionId)}:run:${checkedRunId(runId)}:purchase-queue:`,
+  ]);
+  return parseStoredAuctionWinner(raw);
 }
 
 export async function attachAuctionWinnerCheckout(
