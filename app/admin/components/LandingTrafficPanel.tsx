@@ -77,10 +77,11 @@ export function LandingTrafficPanel({ onSessionExpired }: Props) {
         <button className={styles.secondaryButton} type="button" onClick={() => void load()} disabled={loading}>{loading ? "Odświeżam…" : "Odśwież"}</button>
       </div>
       {error ? <p className={styles.errorNotice} role="alert">{error}</p> : null}
-      <p className={styles.trafficNote}>Anonimowy pomiar, ostatnie 30 dni. Dane odświeżają się co 10 sekund. Unikalnych odwiedzających rozpoznajemy po identyfikatorze zapisanym w przeglądarce od wdrożenia tej zmiany.</p>
+      <p className={styles.trafficNote}>Anonimowy pomiar, ostatnie 30 dni. Dane odświeżają się co 10 sekund. Wejścia w demo są mierzone osobno, również przy wejściu bezpośrednim.</p>
 
       <div className={styles.trafficKpis}>
         <article><span>Wejścia</span><strong>{number.format(traffic?.totals.views ?? 0)}</strong><small>odsłony landing page</small></article>
+        <article><span>Demo</span><strong>{number.format(traffic?.totals.events.demo_opened ?? 0)}</strong><small>rozpoczęte symulacje</small></article>
         <article><span>Unikalni odwiedzający</span><strong>{number.format(traffic?.totals.uniqueVisitors ?? 0)}</strong><small>rozpoznane przeglądarki</small></article>
         <article><span>Unikalne sesje</span><strong>{number.format(traffic?.totals.uniqueSessions ?? 0)}</strong><small>osobne wizyty</small></article>
         <article><span>Aktywny czas</span><strong>{seconds(traffic?.averageActiveSeconds ?? 0)}</strong><small>średnio na stronie</small></article>
@@ -116,6 +117,7 @@ export function LandingTrafficPanel({ onSessionExpired }: Props) {
           <div className={styles.subpanelTitle}><div><p className={styles.eyebrow}>1. Lejek konwersji</p><h3>Od wejścia do zapisu</h3></div></div>
           <ol className={styles.funnelList}>
             <li><span>Wejście</span><strong>{number.format(traffic?.totals.uniqueSessions ?? 0)}</strong></li>
+            <li><span>Wejście w demo</span><strong>{number.format(traffic?.totals.events.demo_opened ?? 0)}</strong></li>
             <li><span>Scroll 50%</span><strong>{number.format(traffic?.totals.events.scroll_50 ?? 0)}</strong></li>
             <li><span>Formularz rozpoczęty</span><strong>{number.format(traffic?.totals.events.form_started ?? 0)}</strong></li>
             <li><span>Próba zapisu</span><strong>{number.format(traffic?.totals.events.cta_attempt ?? 0)}</strong></li>
