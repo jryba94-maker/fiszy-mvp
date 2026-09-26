@@ -91,7 +91,11 @@ function parseDay(raw: unknown): DailyTraffic | null {
     const views = number(value.views); const uniqueSessions = number(value.uniqueSessions); const activeSeconds = number(value.activeSeconds); const timedSessions = number(value.timedSessions);
     if (views === null || uniqueSessions === null || activeSeconds === null || timedSessions === null || !value.events || !value.sources) return null;
     const events = emptyEvents();
-    for (const event of LANDING_EVENTS) { const count = number(value.events[event]); if (count === null) return null; events[event] = count; }
+    for (const event of LANDING_EVENTS) {
+      const count = value.events[event] === undefined ? 0 : number(value.events[event]);
+      if (count === null) return null;
+      events[event] = count;
+    }
     const sources: DailyTraffic["sources"] = {};
     for (const [id, item] of Object.entries(value.sources)) {
       if (!/^[a-f0-9]{20}$/.test(id) || !item || typeof item !== "object") continue;
