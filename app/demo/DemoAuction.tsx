@@ -1,7 +1,6 @@
 "use client";
 
 import { track } from "@vercel/analytics";
-import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import styles from "./demo.module.css";
@@ -149,13 +148,10 @@ export function DemoAuction() {
       <section className={styles.shell} aria-labelledby="demo-title">
         <div className={styles.visual} aria-hidden="true">
           <div className={styles.halo} />
-          <Image
+          <img
             className={styles.productImage}
-            src="/images/airpods-pro-case.png"
+            src="https://www.apple.com/v/airpods-pro/t/images/overview/battery/case__b87ou7jna9de_large_2x.png"
             alt=""
-            fill
-            sizes="(max-width: 850px) 100vw, 55vw"
-            priority
           />
           <p>AirPods Pro</p>
         </div>
