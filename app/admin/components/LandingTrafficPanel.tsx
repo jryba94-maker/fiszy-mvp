@@ -61,7 +61,7 @@ export function LandingTrafficPanel({ onSessionExpired }: Props) {
   }, [traffic]);
 
   const dailyChart = useMemo(() => {
-    const days = traffic?.daily ?? [];
+    const days = [...(traffic?.daily ?? [])].reverse();
     const max = Math.max(1, ...days.flatMap((day) => [day.uniqueVisitors, day.views]));
     const x = (index: number) => 52 + index * (828 / Math.max(1, days.length - 1));
     const y = (value: number) => 250 - value / max * 215;
@@ -94,7 +94,7 @@ export function LandingTrafficPanel({ onSessionExpired }: Props) {
         <div className={styles.dailyTrafficChart}>
           <svg viewBox="0 0 900 300" role="img" aria-labelledby="daily-chart-title daily-chart-description">
             <title id="daily-chart-title">Liczba wejść według dnia</title>
-            <desc id="daily-chart-description">Daty na osi poziomej, liczba wejść na osi pionowej. Dwie linie pokazują osoby oraz odsłony.</desc>
+            <desc id="daily-chart-description">Najnowsza data jest po lewej stronie osi poziomej. Dwie linie pokazują osoby oraz odsłony.</desc>
             {dailyChart.ticks.map((tick) => <g key={tick}><line className={styles.chartGridLine} x1="52" x2="880" y1={dailyChart.y(tick)} y2={dailyChart.y(tick)} /><text className={styles.chartAxisText} x="42" y={dailyChart.y(tick) + 4} textAnchor="end">{tick}</text></g>)}
             <line className={styles.chartAxisLine} x1="52" x2="880" y1="250" y2="250" />
             <line className={styles.chartAxisLine} x1="52" x2="52" y1="35" y2="250" />
