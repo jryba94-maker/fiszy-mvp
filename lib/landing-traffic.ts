@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { redisCommand } from "./redis";
 
-export const LANDING_EVENTS = ["scroll_25", "scroll_50", "scroll_75", "scroll_100", "form_started", "cta_attempt", "signup"] as const;
+export const LANDING_EVENTS = ["scroll_25", "scroll_50", "scroll_75", "scroll_100", "form_started", "cta_attempt", "signup", "demo_opened"] as const;
 export type LandingEvent = (typeof LANDING_EVENTS)[number];
 
 type DailyTraffic = {
