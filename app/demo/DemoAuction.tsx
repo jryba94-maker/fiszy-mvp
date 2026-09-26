@@ -16,6 +16,40 @@ function formatSeconds(value: number) {
   return `00:${String(Math.max(0, value)).padStart(2, "0")}`;
 }
 
+function demoTrafficSource() {
+  const params = new URLSearchParams(window.location.search);
+  const campaign = [params.get("utm_source"), params.get("utm_medium"), params.get("utm_campaign")]
+    .map((value) => value?.trim().slice(0, 80))
+    .filter(Boolean)
+    .join("/");
+  if (campaign) return campaign;
+  try { return document.referrer ? new URL(document.referrer).hostname.slice(0, 80) : "direct"; }
+  catch { return "direct"; }
+}
+
+function demoVisitorId() {
+  try {
+    const key = "fiszy_landing_visitor_id";
+    const saved = localStorage.getItem(key);
+    if (saved && /^[a-f0-9-]{36}$/i.test(saved)) return saved;
+    const id = crypto.randomUUID();
+    localStorage.setItem(key, id);
+    return id;
+  } catch { return crypto.randomUUID(); }
+}
+
+function demoSessionId() {
+  try {
+    const key = "fiszy_landing_session";
+    const now = Date.now();
+    const saved = JSON.parse(localStorage.getItem(key) || "null") as { id?: unknown; lastSeen?: unknown } | null;
+    const id = saved && typeof saved.lastSeen === "number" && now - saved.lastSeen >= 0 && now - saved.lastSeen < 30 * 60_000 && typeof saved.id === "string" && /^[a-f0-9-]{36}$/i.test(saved.id)
+      ? saved.id : crypto.randomUUID();
+    localStorage.setItem(key, JSON.stringify({ id, lastSeen: now }));
+    return id;
+  } catch { return crypto.randomUUID(); }
+}
+
 export function DemoAuction() {
   const [state, setState] = useState<DemoState>("countdown");
   const [elapsed, setElapsed] = useState(0);
@@ -25,6 +59,12 @@ export function DemoAuction() {
 
   useEffect(() => {
     track("demo_auction_opened", { product: "airpods", start_price: START_PRICE });
+    void fetch("/api/analytics/landing", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "event", event: "demo_opened", sessionId: demoSessionId(), source: demoTrafficSource(), visitorId: demoVisitorId() }),
+      keepalive: true,
+    }).catch(() => undefined);
     const interval = window.setInterval(() => {
       if (finishedRef.current) {
         window.clearInterval(interval);
