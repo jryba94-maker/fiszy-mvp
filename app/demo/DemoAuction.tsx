@@ -59,10 +59,19 @@ export function DemoAuction() {
 
   useEffect(() => {
     track("demo_auction_opened", { product: "airpods", start_price: START_PRICE });
+    const sessionId = demoSessionId();
+    const visitorId = demoVisitorId();
+    const source = demoTrafficSource();
     void fetch("/api/analytics/landing", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type: "event", event: "demo_opened", sessionId: demoSessionId(), source: demoTrafficSource(), visitorId: demoVisitorId() }),
+      body: JSON.stringify({ type: "view", sessionId, viewId: crypto.randomUUID(), visitorId, source }),
+      keepalive: true,
+    }).catch(() => undefined);
+    void fetch("/api/analytics/landing", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "event", event: "demo_opened", sessionId, source }),
       keepalive: true,
     }).catch(() => undefined);
     const interval = window.setInterval(() => {
