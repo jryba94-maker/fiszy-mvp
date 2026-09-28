@@ -235,7 +235,7 @@ export function DemoAuction() {
             </div>
           ) : null}
 
-          <p className={styles.message} aria-live="polite">{message}</p>
+          {state === "countdown" || state === "live" ? <p className={styles.message} aria-live="polite">{message}</p> : null}
 
           {state === "won" ? (
             <section className={styles.winnerCard} aria-live="assertive" aria-label={`Wygrałeś ${product.name} za ${price} zł`}>
