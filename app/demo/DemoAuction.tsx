@@ -16,7 +16,6 @@ type DemoProduct = {
   name: string;
   price: number;
   image: string;
-  blendIntoBackground?: boolean;
 };
 
 const DEMO_PRODUCTS: DemoProduct[] = [
@@ -24,26 +23,25 @@ const DEMO_PRODUCTS: DemoProduct[] = [
     id: "airpods-pro-3",
     name: "AirPods Pro 3",
     price: 1099,
-    image: "https://www.apple.com/v/airpods-pro/t/images/overview/battery/case__b87ou7jna9de_large_2x.png",
+    image: "/demo/packshots/airpods.webp",
   },
   {
     id: "apple-watch-se-3",
     name: "Apple Watch SE 3",
     price: 1099,
-    image: "https://www.hellostore.id/cdn/shop/files/AppleWatchSE3Starlight40mm_1.png?v=1762856428",
+    image: "/demo/packshots/watch.webp",
   },
   {
     id: "nintendo-switch-2",
     name: "Nintendo Switch 2",
     price: 2199,
-    image: "https://img1.kakaku.k-img.com/Images/news_icv/1200x630/2025041/20250411160839_524_.jpg",
+    image: "/demo/packshots/switch.webp",
   },
   {
     id: "dyson-airwrap-id",
     name: "Dyson Airwrap i.d.",
     price: 1999,
-    image: "https://cdn.mos.cms.futurecdn.net/Pz4vwdCDWypo8PBF3SJSFV.png",
-    blendIntoBackground: true,
+    image: "/demo/packshots/dyson.webp",
   },
 ];
 
@@ -209,7 +207,7 @@ export function DemoAuction() {
       <section className={styles.shell} aria-labelledby="demo-title">
         <div className={styles.visual} aria-hidden="true">
           <div className={styles.halo} />
-          <img className={`${styles.productImage} ${product.blendIntoBackground ? styles.productImageBlend : ""}`} src={product.image} alt="" />
+          <img className={styles.productImage} src={product.image} alt="" />
           <p>{product.name}</p>
         </div>
 
