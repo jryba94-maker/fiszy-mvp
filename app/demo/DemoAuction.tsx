@@ -209,7 +209,7 @@ export function DemoAuction() {
       <section className={styles.shell} aria-labelledby="demo-title">
         <div className={styles.visual} aria-hidden="true">
           <div className={styles.halo} />
-          <img className={\`${styles.productImage} ${product.blendIntoBackground ? styles.productImageBlend : ""}\`} src={product.image} alt="" />
+          <img className={`${styles.productImage} ${product.blendIntoBackground ? styles.productImageBlend : ""}`} src={product.image} alt="" />
           <p>{product.name}</p>
         </div>
 
