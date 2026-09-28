@@ -16,6 +16,7 @@ type DemoProduct = {
   name: string;
   price: number;
   image: string;
+  blendIntoBackground?: boolean;
 };
 
 const DEMO_PRODUCTS: DemoProduct[] = [
@@ -42,6 +43,7 @@ const DEMO_PRODUCTS: DemoProduct[] = [
     name: "Dyson Airwrap i.d.",
     price: 1999,
     image: "https://cdn.mos.cms.futurecdn.net/Pz4vwdCDWypo8PBF3SJSFV.png",
+    blendIntoBackground: true,
   },
 ];
 
@@ -207,7 +209,7 @@ export function DemoAuction() {
       <section className={styles.shell} aria-labelledby="demo-title">
         <div className={styles.visual} aria-hidden="true">
           <div className={styles.halo} />
-          <img className={styles.productImage} src={product.image} alt="" />
+          <img className={\`${styles.productImage} ${product.blendIntoBackground ? styles.productImageBlend : ""}\`} src={product.image} alt="" />
           <p>{product.name}</p>
         </div>
 
