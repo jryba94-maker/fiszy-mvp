@@ -58,7 +58,7 @@ function demoSessionId() {
 export function DemoAuction() {
   const [state, setState] = useState<DemoState>("countdown");
   const [elapsed, setElapsed] = useState(0);
-  const [liveSeconds, setLiveSeconds] = useState(() => randomLiveSeconds());
+  const liveSecondsRef = useRef(randomLiveSeconds());
   const startRef = useRef(Date.now());
   const reportedStart = useRef(false);
   const finishedRef = useRef(false);
@@ -95,8 +95,8 @@ export function DemoAuction() {
         reportedStart.current = true;
         track("demo_auction_started", { product: "airpods" });
       }
-      if (liveElapsed >= liveSeconds) {
-        setElapsed(liveSeconds);
+      if (liveElapsed >= liveSecondsRef.current) {
+        setElapsed(liveSecondsRef.current);
         finishedRef.current = true;
         setState((current) => current === "won" ? current : "lost");
         window.clearInterval(interval);
@@ -106,21 +106,21 @@ export function DemoAuction() {
       setElapsed(liveElapsed);
     }, 200);
     return () => window.clearInterval(interval);
-  }, [liveSeconds]);
+  }, []);
 
   const liveElapsed = state === "countdown" ? 0 : elapsed;
   const price = START_PRICE - Math.floor(liveElapsed / 5) * DROP;
   const remaining = state === "countdown"
     ? COUNTDOWN_SECONDS - elapsed
-    : Math.max(0, liveSeconds - liveElapsed);
-  const progress = Math.min(100, (liveElapsed / liveSeconds) * 100);
+    : Math.max(0, liveSecondsRef.current - liveElapsed);
+  const progress = Math.min(100, (liveElapsed / liveSecondsRef.current) * 100);
 
   const restart = () => {
     startRef.current = Date.now();
     reportedStart.current = false;
     finishedRef.current = false;
     setElapsed(0);
-    setLiveSeconds(randomLiveSeconds());
+    liveSecondsRef.current = randomLiveSeconds();
     setState("countdown");
     track("demo_auction_restarted", { product: "airpods" });
   };
