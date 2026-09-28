@@ -6,8 +6,8 @@ import { useEffect, useRef, useState } from "react";
 import styles from "./demo.module.css";
 
 const COUNTDOWN_SECONDS = 5;
-const MIN_LIVE_SECONDS = 5;
-const MAX_LIVE_SECONDS = 30;
+const MIN_LIVE_SECONDS = 15;
+const MAX_LIVE_SECONDS = 35;
 
 type DemoState = "countdown" | "live" | "won" | "lost";
 
@@ -256,10 +256,19 @@ export function DemoAuction() {
           ) : state === "countdown" ? (
             <button className={styles.buyButton} type="button" disabled>ZA CHWILĘ START</button>
           ) : (
-            <div className={styles.endActions}>
-              <Link className={styles.joinButton} href="/#zapis" onClick={() => track("demo_auction_waitlist_click", { outcome: state, product: product.id })}>CHCĘ BYĆ NA PIERWSZEJ AUKCJI</Link>
+            <section className={`${styles.winnerCard} ${styles.lostCard}`} aria-live="assertive" aria-label={`Ktoś był przed Tobą i kupił ${product.name} za ${price} zł`}>
+              <span className={`${styles.confetti} ${styles.confettiOne}`} aria-hidden="true">✕</span>
+              <span className={`${styles.confetti} ${styles.confettiTwo}`} aria-hidden="true">✕</span>
+              <span className={styles.winnerSpark} aria-hidden="true">!</span>
+              <p>Ktoś podjął decyzję wcześniej</p>
+              <h2>Ktoś był przed Tobą.</h2>
+              <strong>{product.name} za {price} zł</strong>
+              <span className={styles.winnerNote}>W tej symulacji ktoś kliknął szybciej.</span>
+              <Link className={styles.winnerCta} href="/#zapis" onClick={() => track("demo_auction_waitlist_click", { outcome: "lost", product: product.id })}>
+                CHCĘ SPRÓBOWAĆ NAPRAWDĘ
+              </Link>
               <button className={styles.restartButton} type="button" onClick={restart}>Zagraj jeszcze raz</button>
-            </div>
+            </section>
           )}
           <p className={styles.note}>To symulacja. Niczego tutaj nie kupujesz ani nie płacisz.</p>
         </div>
