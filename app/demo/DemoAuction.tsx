@@ -80,14 +80,13 @@ export function DemoAuction() {
       body: JSON.stringify({ type: "event", event: "demo_opened", sessionId, source }),
       keepalive: true,
     }).catch(() => undefined);
-    const interval = window.setInterval(() => {
-      if (finishedRef.current) {
-        window.clearInterval(interval);
-        return;
-      }
-      const passed = Math.floor((Date.now() - startRef.current) / 1000);
+    let frame = 0;
+    const tick = () => {
+      if (finishedRef.current) return;
+      const passed = (Date.now() - startRef.current) / 1000;
       if (passed < COUNTDOWN_SECONDS) {
         setElapsed(passed);
+        frame = window.requestAnimationFrame(tick);
         return;
       }
       const liveElapsed = passed - COUNTDOWN_SECONDS;
@@ -99,13 +98,14 @@ export function DemoAuction() {
         setElapsed(liveSecondsRef.current);
         finishedRef.current = true;
         setState((current) => current === "won" ? current : "lost");
-        window.clearInterval(interval);
         return;
       }
       setState("live");
       setElapsed(liveElapsed);
-    }, 200);
-    return () => window.clearInterval(interval);
+      frame = window.requestAnimationFrame(tick);
+    };
+    frame = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(frame);
   }, []);
 
   const liveElapsed = state === "countdown" ? 0 : elapsed;
@@ -113,7 +113,7 @@ export function DemoAuction() {
   const remaining = state === "countdown"
     ? COUNTDOWN_SECONDS - elapsed
     : Math.max(0, liveSecondsRef.current - liveElapsed);
-  const progress = Math.min(100, (liveElapsed / liveSecondsRef.current) * 100);
+  const progress = Math.min(100, (liveElapsed / MAX_LIVE_SECONDS) * 100);
 
   const restart = () => {
     startRef.current = Date.now();
@@ -181,7 +181,7 @@ export function DemoAuction() {
             <div className={styles.clockBox}>
               <div>
                 <span>{state === "countdown" ? "Start aukcji za" : "Czas aukcji"}</span>
-                <strong>{formatSeconds(state === "countdown" ? remaining : 0)}</strong>
+                <strong>{formatSeconds(state === "countdown" ? Math.ceil(remaining) : 0)}</strong>
               </div>
               <p>{state === "countdown" ? "Przygotuj się." : "Tak działa presja momentu."}</p>
             </div>
