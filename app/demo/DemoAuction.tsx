@@ -5,17 +5,56 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import styles from "./demo.module.css";
 
-const START_PRICE = 599;
-const DROP = 29;
 const COUNTDOWN_SECONDS = 5;
 const MIN_LIVE_SECONDS = 5;
 const MAX_LIVE_SECONDS = 30;
+
+type DemoState = "countdown" | "live" | "won" | "lost";
+
+type DemoProduct = {
+  id: string;
+  name: string;
+  price: number;
+  image: string;
+};
+
+const DEMO_PRODUCTS: DemoProduct[] = [
+  {
+    id: "airpods-pro-3",
+    name: "AirPods Pro 3",
+    price: 1099,
+    image: "https://www.apple.com/v/airpods-pro/t/images/overview/battery/case__b87ou7jna9de_large_2x.png",
+  },
+  {
+    id: "apple-watch-se-3",
+    name: "Apple Watch SE 3",
+    price: 1099,
+    image: "https://www.hellostore.id/cdn/shop/files/AppleWatchSE3Starlight40mm_1.png?v=1762856428",
+  },
+  {
+    id: "nintendo-switch-2",
+    name: "Nintendo Switch 2",
+    price: 2199,
+    image: "https://img1.kakaku.k-img.com/Images/news_icv/1200x630/2025041/20250411160839_524_.jpg",
+  },
+  {
+    id: "dyson-airwrap-id",
+    name: "Dyson Airwrap i.d.",
+    price: 1999,
+    image: "https://cdn.mos.cms.futurecdn.net/Pz4vwdCDWypo8PBF3SJSFV.png",
+  },
+];
 
 function randomLiveSeconds() {
   return Math.floor(Math.random() * (MAX_LIVE_SECONDS - MIN_LIVE_SECONDS + 1)) + MIN_LIVE_SECONDS;
 }
 
-type DemoState = "countdown" | "live" | "won" | "lost";
+function randomProduct(exceptId?: string) {
+  const options = exceptId
+    ? DEMO_PRODUCTS.filter((product) => product.id !== exceptId)
+    : DEMO_PRODUCTS;
+  return options[Math.floor(Math.random() * options.length)];
+}
 
 function formatSeconds(value: number) {
   return `00:${String(Math.max(0, value)).padStart(2, "0")}`;
@@ -58,13 +97,16 @@ function demoSessionId() {
 export function DemoAuction() {
   const [state, setState] = useState<DemoState>("countdown");
   const [elapsed, setElapsed] = useState(0);
+  const [runId, setRunId] = useState(0);
+  const productRef = useRef<DemoProduct>(randomProduct());
   const liveSecondsRef = useRef(randomLiveSeconds());
   const startRef = useRef(Date.now());
   const reportedStart = useRef(false);
   const finishedRef = useRef(false);
 
   useEffect(() => {
-    track("demo_auction_opened", { product: "airpods", start_price: START_PRICE });
+    const product = productRef.current;
+    track("demo_auction_opened", { product: product.id, start_price: product.price });
     const sessionId = demoSessionId();
     const visitorId = demoVisitorId();
     const source = demoTrafficSource();
@@ -80,6 +122,9 @@ export function DemoAuction() {
       body: JSON.stringify({ type: "event", event: "demo_opened", sessionId, source }),
       keepalive: true,
     }).catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
     let frame = 0;
     const tick = () => {
       if (finishedRef.current) return;
@@ -89,10 +134,11 @@ export function DemoAuction() {
         frame = window.requestAnimationFrame(tick);
         return;
       }
+
       const liveElapsed = passed - COUNTDOWN_SECONDS;
       if (!reportedStart.current) {
         reportedStart.current = true;
-        track("demo_auction_started", { product: "airpods" });
+        track("demo_auction_started", { product: productRef.current.id });
       }
       if (liveElapsed >= liveSecondsRef.current) {
         setElapsed(liveSecondsRef.current);
@@ -100,36 +146,42 @@ export function DemoAuction() {
         setState((current) => current === "won" ? current : "lost");
         return;
       }
+
       setState("live");
       setElapsed(liveElapsed);
       frame = window.requestAnimationFrame(tick);
     };
+
     frame = window.requestAnimationFrame(tick);
     return () => window.cancelAnimationFrame(frame);
-  }, []);
+  }, [runId]);
 
+  const product = productRef.current;
+  const drop = Math.round(product.price * 0.08);
   const liveElapsed = state === "countdown" ? 0 : elapsed;
-  const price = START_PRICE - Math.floor(liveElapsed / 5) * DROP;
+  const price = product.price - Math.floor(liveElapsed / 5) * drop;
   const remaining = state === "countdown"
     ? COUNTDOWN_SECONDS - elapsed
     : Math.max(0, liveSecondsRef.current - liveElapsed);
   const progress = Math.min(100, (liveElapsed / MAX_LIVE_SECONDS) * 100);
 
   const restart = () => {
+    productRef.current = randomProduct(productRef.current.id);
+    liveSecondsRef.current = randomLiveSeconds();
     startRef.current = Date.now();
     reportedStart.current = false;
     finishedRef.current = false;
     setElapsed(0);
-    liveSecondsRef.current = randomLiveSeconds();
     setState("countdown");
-    track("demo_auction_restarted", { product: "airpods" });
+    setRunId((current) => current + 1);
+    track("demo_auction_restarted", { product: productRef.current.id });
   };
 
   const buy = () => {
     if (state !== "live") return;
     finishedRef.current = true;
     setState("won");
-    track("demo_auction_won", { product: "airpods", price });
+    track("demo_auction_won", { product: product.id, price });
   };
 
   const status = state === "countdown"
@@ -142,8 +194,8 @@ export function DemoAuction() {
     : state === "live"
       ? "Cena właśnie spada. Kliknij, zanim ktoś zrobi to przed Tobą."
       : state === "won"
-        ? `Byłeś pierwszy. W tym demo kupiłeś AirPods za ${price} zł.`
-        : `Ktoś był szybszy i kupił AirPods za ${price} zł.`;
+        ? `Byłeś pierwszy. W tym demo kupiłeś ${product.name} za ${price} zł.`
+        : `Ktoś był szybszy i kupił ${product.name} za ${price} zł.`;
 
   return (
     <main className={styles.page}>
@@ -155,21 +207,17 @@ export function DemoAuction() {
       <section className={styles.shell} aria-labelledby="demo-title">
         <div className={styles.visual} aria-hidden="true">
           <div className={styles.halo} />
-          <img
-            className={styles.productImage}
-            src="https://www.apple.com/v/airpods-pro/t/images/overview/battery/case__b87ou7jna9de_large_2x.png"
-            alt=""
-          />
-          <p>AirPods Pro</p>
+          <img className={styles.productImage} src={product.image} alt="" />
+          <p>{product.name}</p>
         </div>
 
         <div className={styles.panel}>
           <div className={styles.topline}>
             <span className={`${styles.status} ${state === "live" ? styles.statusLive : ""}`}><i /> {status}</span>
-            <span className={styles.regularPrice}>cena regularna 599 zł</span>
+            <span className={styles.regularPrice}>cena regularna {product.price} zł</span>
           </div>
           <p className={styles.eyebrow}>Jedna decyzja. Jedna cena.</p>
-          <h1 id="demo-title">AirPods Pro</h1>
+          <h1 id="demo-title">{product.name}</h1>
 
           <div className={styles.priceBlock}>
             <span>Aktualna cena</span>
@@ -190,16 +238,16 @@ export function DemoAuction() {
           <p className={styles.message} aria-live="polite">{message}</p>
 
           {state === "won" ? (
-            <section className={styles.winnerCard} aria-live="assertive" aria-label={`Wygrałeś AirPods za ${price} zł`}>
+            <section className={styles.winnerCard} aria-live="assertive" aria-label={`Wygrałeś ${product.name} za ${price} zł`}>
               <span className={`${styles.confetti} ${styles.confettiOne}`} aria-hidden="true">✦</span>
               <span className={`${styles.confetti} ${styles.confettiTwo}`} aria-hidden="true">✦</span>
               <span className={`${styles.confetti} ${styles.confettiThree}`} aria-hidden="true">●</span>
               <span className={styles.winnerSpark} aria-hidden="true">✦</span>
               <p>Twoja decyzja przyszła pierwsza</p>
               <h2>Wygrałeś.</h2>
-              <strong>AirPods Pro za {price} zł</strong>
+              <strong>{product.name} za {price} zł</strong>
               <span className={styles.winnerNote}>W tej symulacji byłeś szybszy od pozostałych.</span>
-              <Link className={styles.winnerCta} href="/#zapis" onClick={() => track("demo_auction_waitlist_click", { outcome: "won" })}>
+              <Link className={styles.winnerCta} href="/#zapis" onClick={() => track("demo_auction_waitlist_click", { outcome: "won", product: product.id })}>
                 CHCĘ SPRÓBOWAĆ NAPRAWDĘ
               </Link>
             </section>
@@ -209,7 +257,7 @@ export function DemoAuction() {
             <button className={styles.buyButton} type="button" disabled>ZA CHWILĘ START</button>
           ) : (
             <div className={styles.endActions}>
-              <Link className={styles.joinButton} href="/#zapis" onClick={() => track("demo_auction_waitlist_click", { outcome: state })}>CHCĘ BYĆ NA PIERWSZEJ AUKCJI</Link>
+              <Link className={styles.joinButton} href="/#zapis" onClick={() => track("demo_auction_waitlist_click", { outcome: state, product: product.id })}>CHCĘ BYĆ NA PIERWSZEJ AUKCJI</Link>
               <button className={styles.restartButton} type="button" onClick={restart}>Zagraj jeszcze raz</button>
             </div>
           )}
