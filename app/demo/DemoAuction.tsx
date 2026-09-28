@@ -8,7 +8,12 @@ import styles from "./demo.module.css";
 const START_PRICE = 599;
 const DROP = 29;
 const COUNTDOWN_SECONDS = 5;
-const LIVE_SECONDS = 35;
+const MIN_LIVE_SECONDS = 5;
+const MAX_LIVE_SECONDS = 30;
+
+function randomLiveSeconds() {
+  return Math.floor(Math.random() * (MAX_LIVE_SECONDS - MIN_LIVE_SECONDS + 1)) + MIN_LIVE_SECONDS;
+}
 
 type DemoState = "countdown" | "live" | "won" | "lost";
 
@@ -53,6 +58,7 @@ function demoSessionId() {
 export function DemoAuction() {
   const [state, setState] = useState<DemoState>("countdown");
   const [elapsed, setElapsed] = useState(0);
+  const [liveSeconds, setLiveSeconds] = useState(() => randomLiveSeconds());
   const startRef = useRef(Date.now());
   const reportedStart = useRef(false);
   const finishedRef = useRef(false);
@@ -89,8 +95,8 @@ export function DemoAuction() {
         reportedStart.current = true;
         track("demo_auction_started", { product: "airpods" });
       }
-      if (liveElapsed >= LIVE_SECONDS) {
-        setElapsed(LIVE_SECONDS);
+      if (liveElapsed >= liveSeconds) {
+        setElapsed(liveSeconds);
         finishedRef.current = true;
         setState((current) => current === "won" ? current : "lost");
         window.clearInterval(interval);
@@ -100,20 +106,21 @@ export function DemoAuction() {
       setElapsed(liveElapsed);
     }, 200);
     return () => window.clearInterval(interval);
-  }, []);
+  }, [liveSeconds]);
 
   const liveElapsed = state === "countdown" ? 0 : elapsed;
   const price = START_PRICE - Math.floor(liveElapsed / 5) * DROP;
   const remaining = state === "countdown"
     ? COUNTDOWN_SECONDS - elapsed
-    : Math.max(0, LIVE_SECONDS - liveElapsed);
-  const progress = Math.min(100, (liveElapsed / LIVE_SECONDS) * 100);
+    : Math.max(0, liveSeconds - liveElapsed);
+  const progress = Math.min(100, (liveElapsed / liveSeconds) * 100);
 
   const restart = () => {
     startRef.current = Date.now();
     reportedStart.current = false;
     finishedRef.current = false;
     setElapsed(0);
+    setLiveSeconds(randomLiveSeconds());
     setState("countdown");
     track("demo_auction_restarted", { product: "airpods" });
   };
