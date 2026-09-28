@@ -252,7 +252,7 @@ export function DemoAuction() {
               </Link>
             </section>
           ) : state === "live" ? (
-            <button className={styles.buyButton} type="button" onClick={buy}>KUP TERAZ — {price} ZŁ</button>
+            <button className={styles.buyButton} type="button" onClick={buy}>LICYTUJ! — {price} ZŁ</button>
           ) : state === "countdown" ? (
             <button className={styles.buyButton} type="button" disabled>ZA CHWILĘ START</button>
           ) : (
