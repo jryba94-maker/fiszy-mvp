@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
     if (!validLandingSession(body.sessionId)) return NextResponse.json({ outcome: "invalid_request" }, { status: 400 });
     const input = { sessionId: body.sessionId, source: landingSource(body.source) };
     if (body.type === "view") await recordLandingView({ ...input, viewId: body.viewId, visitorId: body.visitorId });
-    else if (body.type === "duration" && typeof body.seconds === "number") await recordLandingDuration({ ...input, seconds: body.seconds });
+    else if (body.type === "duration" && typeof body.seconds === "number") await recordLandingDuration({ ...input, durationId: body.durationId, seconds: body.seconds });
     else if (body.type === "event" && typeof body.event === "string" && (LANDING_EVENTS as readonly string[]).includes(body.event)) await recordLandingEvent({ ...input, event: body.event as LandingEvent });
     else return NextResponse.json({ outcome: "invalid_request" }, { status: 400 });
     return new NextResponse(null, { status: 204 });
