@@ -100,6 +100,7 @@ export function WaitlistLanding() {
     const sourceLabel = [source.utmSource, source.utmMedium, source.utmCampaign].filter(Boolean).join("/") || source.referrerHost || "direct";
     const sessionId = landingSessionId();
     const viewId = crypto.randomUUID();
+    const durationId = crypto.randomUUID();
     landingSessionRef.current = sessionId;
     reportTraffic({ type: "view", sessionId, viewId, visitorId: landingVisitorId(), source: sourceLabel });
     track("landing_view", analyticsProperties(source));
@@ -122,7 +123,7 @@ export function WaitlistLanding() {
     };
     const reportDuration = () => {
       closeVisibleWindow();
-      reportTraffic({ type: "duration", sessionId, source: sourceLabel, seconds: Math.round(activeMs / 1000) }, true);
+      reportTraffic({ type: "duration", sessionId, durationId, source: sourceLabel, seconds: Math.round(activeMs / 1000) }, true);
     };
     document.addEventListener("visibilitychange", onVisibilityChange);
     window.addEventListener("pagehide", reportDuration);
