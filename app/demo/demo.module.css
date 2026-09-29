@@ -15,13 +15,13 @@
 
 .signupScreen { display:grid; width:min(720px,100%); min-height:min(720px,calc(100vh - 100px)); align-content:center; justify-items:center; margin:0 auto; border:1px solid rgba(255,255,255,.12); border-radius:30px; padding:clamp(32px,7vw,76px); background:radial-gradient(circle at 50% 8%,rgba(123,44,255,.42),transparent 30%),#111114; text-align:center; }
 .signupBadge { border:1px solid rgba(167,122,255,.48); border-radius:999px; padding:8px 12px; color:#dfd4ff; font-size:.68rem; font-weight:900; letter-spacing:.09em; text-transform:uppercase; }
-.signupEyebrow { margin:34px 0 10px; color:#a77aff; font-size:.74rem; font-weight:900; letter-spacing:.1em; text-transform:uppercase; }
+.signupKicker { margin:34px 0 10px; color:#a77aff; font-size:.74rem; font-weight:900; letter-spacing:.1em; text-transform:uppercase; }
 .signupScreen h1 { max-width:620px; margin:0; font-size:clamp(2.6rem,6vw,4.6rem); font-weight:650; letter-spacing:-.075em; line-height:.94; }
-.signupLead { max-width:480px; margin:23px 0 18px; color:#c0bbc6; font-size:1rem; line-height:1.55; }
-.signupProof { display:grid; width:min(100%,460px); gap:3px; margin:0 0 12px; border:1px solid rgba(167,122,255,.32); border-radius:15px; padding:13px 16px; background:rgba(123,44,255,.1); }
-.signupProof strong { color:#f4f0ff; font-size:.83rem; }
-.signupProof span { color:#bfb6cf; font-size:.77rem; }
-.signupPerk { max-width:450px; margin:0 0 24px; color:#e5dcff; font-size:.8rem; font-weight:700; line-height:1.45; }
+.signupBenefits { display:grid; width:min(100%,460px); gap:8px; margin:26px 0 16px; text-align:left; }
+.signupBenefits p { display:flex; align-items:center; gap:10px; margin:0; border:1px solid rgba(255,255,255,.11); border-radius:14px; padding:12px 14px; background:rgba(255,255,255,.035); color:#c3bdcc; font-size:.78rem; line-height:1.35; }
+.signupBenefits i { display:grid; flex:0 0 auto; width:21px; aspect-ratio:1; place-items:center; border-radius:50%; background:rgba(123,44,255,.24); color:#cdb6ff; font-size:.76rem; font-style:normal; font-weight:900; }
+.signupBenefits strong { color:#f4f0ff; }
+.signupLead { max-width:480px; margin:0 0 24px; color:#a9a2b1; font-size:.82rem; line-height:1.5; }
 .signupForm { display:grid; width:min(100%,460px); gap:10px; text-align:left; }
 .signupForm > label:not(.signupConsent) { color:#aaa4b0; font-size:.72rem; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
 .signupForm input[type="email"] { width:100%; border:1px solid rgba(255,255,255,.18); border-radius:14px; padding:17px 16px; outline:none; background:rgba(5,5,7,.82); color:#fff; font:inherit; }
@@ -33,4 +33,4 @@
 .signupSuccess,.signupError { margin:3px 0 0; font-size:.8rem; line-height:1.4; text-align:center; }
 .signupSuccess { color:#d8cbff; }.signupError { color:#ffb7bd; }
 .backToDemo { margin-top:25px; border:0; background:transparent; color:#bcb6c5; cursor:pointer; font-size:.78rem; font-weight:700; }
-@media (max-width:850px) { .signupScreen { min-height:calc(100vh - 82px); padding:42px 22px; border-radius:22px; }.signupEyebrow { margin-top:28px; }.signupLead { font-size:.94rem; } }
+@media (max-width:850px) { .signupScreen { min-height:calc(100vh - 82px); padding:42px 22px; border-radius:22px; }.signupKicker { margin-top:28px; }.signupLead { font-size:.94rem; } }
