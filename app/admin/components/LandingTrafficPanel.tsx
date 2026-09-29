@@ -77,10 +77,10 @@ export function LandingTrafficPanel({ onSessionExpired }: Props) {
         <button className={styles.secondaryButton} type="button" onClick={() => void load()} disabled={loading}>{loading ? "Odświeżam…" : "Odśwież"}</button>
       </div>
       {error ? <p className={styles.errorNotice} role="alert">{error}</p> : null}
-      <p className={styles.trafficNote}>Anonimowy pomiar, ostatnie 30 dni. Dane odświeżają się co 10 sekund. Wejścia w demo są mierzone osobno, również przy wejściu bezpośrednim.</p>
+      <p className={styles.trafficNote}>Anonimowy pomiar, ostatnie 30 dni. Dane odświeżają się co 10 sekund. Czas aktywny obejmuje landing i demo; wejścia w demo są mierzone także bezpośrednio.</p>
 
       <div className={styles.trafficKpis}>
-        <article><span>Wejścia</span><strong>{number.format(traffic?.totals.views ?? 0)}</strong><small>odsłony landing page</small></article>
+        <article><span>Odsłony</span><strong>{number.format(traffic?.totals.views ?? 0)}</strong><small>landing i demo</small></article>
         <article><span>Demo</span><strong>{number.format(traffic?.totals.events.demo_opened ?? 0)}</strong><small>rozpoczęte symulacje</small></article>
         <article><span>Unikalni odwiedzający</span><strong>{number.format(traffic?.totals.uniqueVisitors ?? 0)}</strong><small>rozpoznane przeglądarki</small></article>
         <article><span>Unikalne sesje</span><strong>{number.format(traffic?.totals.uniqueSessions ?? 0)}</strong><small>osobne wizyty</small></article>
