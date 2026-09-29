@@ -19,7 +19,8 @@ export type AuditAction =
   | "service_case.updated"
   | "privacy.request.updated"
   | "outbox.message.retried"
-  | "operations.reconciled";
+  | "operations.reconciled"
+  | "waitlist.signup.deleted";
 
 export type AuditEvent = {
   schemaVersion: 1;
@@ -81,6 +82,7 @@ const ACTION_RESOURCE_TYPES: Record<AuditAction, string> = {
   "privacy.request.updated": "privacy_request",
   "outbox.message.retried": "outbox_message",
   "operations.reconciled": "operations_run",
+  "waitlist.signup.deleted": "waitlist_signup",
 };
 
 function auditCutoffScore() {
