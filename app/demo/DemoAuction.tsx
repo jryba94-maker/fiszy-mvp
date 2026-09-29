@@ -2,7 +2,7 @@
 
 import { track } from "@vercel/analytics";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import styles from "./demo.module.css";
 
 const COUNTDOWN_SECONDS = 5;
@@ -98,6 +98,11 @@ export function DemoAuction() {
   const [state, setState] = useState<DemoState>("countdown");
   const [elapsed, setElapsed] = useState(0);
   const [runId, setRunId] = useState(0);
+  const [showSignup, setShowSignup] = useState(false);
+  const [email, setEmail] = useState("");
+  const [consent, setConsent] = useState(false);
+  const [signupState, setSignupState] = useState<"idle" | "submitting" | "success" | "error">("idle");
+  const [signupMessage, setSignupMessage] = useState("");
   const productRef = useRef<DemoProduct>(randomProduct());
   const liveSecondsRef = useRef(randomLiveSeconds());
   const startRef = useRef(Date.now());
@@ -184,6 +189,49 @@ export function DemoAuction() {
     track("demo_auction_won", { product: product.id, price });
   };
 
+  const openSignup = () => {
+    setShowSignup(true);
+    setSignupState("idle");
+    setSignupMessage("");
+    track("demo_auction_first_auction_opened", { outcome: state, product: product.id });
+  };
+
+  const submitSignup = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const normalizedEmail = email.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail) || !consent) {
+      setSignupState("error");
+      setSignupMessage(!consent ? "Potwierdź zgodę, aby dołączyć do pierwszej aukcji." : "Wpisz poprawny adres e-mail.");
+      return;
+    }
+    setSignupState("submitting");
+    setSignupMessage("");
+    const params = new URLSearchParams(window.location.search);
+    const source = {
+      utmSource: params.get("utm_source") ?? "demo",
+      utmMedium: params.get("utm_medium"),
+      utmCampaign: params.get("utm_campaign"),
+      utmContent: params.get("utm_content"),
+      utmTerm: params.get("utm_term"),
+      referrerHost: (() => { try { return document.referrer ? new URL(document.referrer).hostname : null; } catch { return null; } })(),
+    };
+    try {
+      const response = await fetch("/api/waitlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: normalizedEmail, consent: true, source }),
+      });
+      if (!response.ok) throw new Error("signup_failed");
+      const result = await response.json().catch(() => null) as { created?: boolean } | null;
+      setSignupState("success");
+      setSignupMessage(result?.created === false ? "Ten adres jest już na liście pierwszej aukcji." : "Jesteś na liście. Damy Ci znać przed startem.");
+      track("demo_auction_waitlist_signup", { product: product.id, outcome: state });
+    } catch {
+      setSignupState("error");
+      setSignupMessage("Nie udało się zapisać. Spróbuj ponownie za chwilę.");
+    }
+  };
+
   const status = state === "countdown"
     ? "DEMO ZA CHWILĘ"
     : state === "live"
@@ -204,6 +252,22 @@ export function DemoAuction() {
         <span className={styles.demoBadge}>Demo aukcji</span>
       </header>
 
+      {showSignup ? (
+        <section className={styles.signupScreen} aria-labelledby="first-auction-title">
+          <span className={styles.signupBadge}>Pierwsza aukcja Fiszy</span>
+          <p className={styles.signupEyebrow}>To było tylko demo.</p>
+          <h1 id="first-auction-title">Przy prawdziwej aukcji ktoś naprawdę będzie pierwszy.</h1>
+          <p className={styles.signupLead}>Zostaw e-mail. Dostaniesz termin, produkt i dostęp jako pierwszy.</p>
+          <form className={styles.signupForm} onSubmit={submitSignup}>
+            <label htmlFor="demo-email">Twój e-mail</label>
+            <input id="demo-email" type="email" inputMode="email" autoComplete="email" placeholder="Twój e-mail" value={email} onChange={(event) => setEmail(event.target.value)} required maxLength={254} disabled={signupState === "submitting" || signupState === "success"} />
+            <button type="submit" disabled={signupState === "submitting" || signupState === "success"}>{signupState === "submitting" ? "ZAPISUJĘ…" : signupState === "success" ? "JESTEŚ NA LIŚCIE" : "ZAPISZ MNIE"}</button>
+            <label className={styles.signupConsent}><input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} disabled={signupState === "submitting" || signupState === "success"} /> <span>Chcę otrzymać e-mail o starcie pierwszej aukcji. Zgodę mogę wycofać w każdej chwili.</span></label>
+            {signupMessage ? <p className={signupState === "success" ? styles.signupSuccess : styles.signupError} aria-live="polite">{signupMessage}</p> : null}
+          </form>
+          <button className={styles.backToDemo} type="button" onClick={() => setShowSignup(false)}>Wróć do demo</button>
+        </section>
+      ) : (
       <section className={styles.shell} aria-labelledby="demo-title">
         <div className={styles.visual} aria-hidden="true">
           <div className={styles.halo} />
@@ -247,9 +311,7 @@ export function DemoAuction() {
               <h2>Wygrałeś.</h2>
               <strong>{product.name} za {price} zł</strong>
               <span className={styles.winnerNote}>W tej symulacji byłeś szybszy od pozostałych.</span>
-              <Link className={styles.winnerCta} href="/#zapis" onClick={() => track("demo_auction_waitlist_click", { outcome: "won", product: product.id })}>
-                CHCĘ SPRÓBOWAĆ NAPRAWDĘ
-              </Link>
+              <button className={styles.winnerCta} type="button" onClick={openSignup}>CHCĘ BYĆ NA PIERWSZEJ AUKCJI</button>
             </section>
           ) : state === "live" ? (
             <button className={styles.buyButton} type="button" onClick={buy}>LICYTUJ! — {price} ZŁ</button>
@@ -264,15 +326,14 @@ export function DemoAuction() {
               <h2>Ktoś był przed Tobą.</h2>
               <strong>{product.name} za {price} zł</strong>
               <span className={styles.winnerNote}>W tej symulacji ktoś kliknął szybciej.</span>
-              <Link className={styles.winnerCta} href="/#zapis" onClick={() => track("demo_auction_waitlist_click", { outcome: "lost", product: product.id })}>
-                CHCĘ SPRÓBOWAĆ NAPRAWDĘ
-              </Link>
+              <button className={styles.winnerCta} type="button" onClick={openSignup}>CHCĘ BYĆ NA PIERWSZEJ AUKCJI</button>
               <button className={styles.restartButton} type="button" onClick={restart}>Zagraj jeszcze raz</button>
             </section>
           )}
           <p className={styles.note}>To symulacja. Niczego tutaj nie kupujesz ani nie płacisz.</p>
         </div>
       </section>
+      )}
     </main>
   );
 }
