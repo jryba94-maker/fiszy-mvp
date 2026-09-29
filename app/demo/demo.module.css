@@ -17,7 +17,11 @@
 .signupBadge { border:1px solid rgba(167,122,255,.48); border-radius:999px; padding:8px 12px; color:#dfd4ff; font-size:.68rem; font-weight:900; letter-spacing:.09em; text-transform:uppercase; }
 .signupEyebrow { margin:34px 0 10px; color:#a77aff; font-size:.74rem; font-weight:900; letter-spacing:.1em; text-transform:uppercase; }
 .signupScreen h1 { max-width:620px; margin:0; font-size:clamp(2.6rem,6vw,4.6rem); font-weight:650; letter-spacing:-.075em; line-height:.94; }
-.signupLead { max-width:460px; margin:23px 0 29px; color:#c0bbc6; font-size:1rem; line-height:1.55; }
+.signupLead { max-width:480px; margin:23px 0 18px; color:#c0bbc6; font-size:1rem; line-height:1.55; }
+.signupProof { display:grid; width:min(100%,460px); gap:3px; margin:0 0 12px; border:1px solid rgba(167,122,255,.32); border-radius:15px; padding:13px 16px; background:rgba(123,44,255,.1); }
+.signupProof strong { color:#f4f0ff; font-size:.83rem; }
+.signupProof span { color:#bfb6cf; font-size:.77rem; }
+.signupPerk { max-width:450px; margin:0 0 24px; color:#e5dcff; font-size:.8rem; font-weight:700; line-height:1.45; }
 .signupForm { display:grid; width:min(100%,460px); gap:10px; text-align:left; }
 .signupForm > label:not(.signupConsent) { color:#aaa4b0; font-size:.72rem; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
 .signupForm input[type="email"] { width:100%; border:1px solid rgba(255,255,255,.18); border-radius:14px; padding:17px 16px; outline:none; background:rgba(5,5,7,.82); color:#fff; font:inherit; }
