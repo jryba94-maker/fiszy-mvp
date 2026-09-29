@@ -21,7 +21,8 @@ export async function recordSuccessfulAdminAudit(
       | "service_case"
       | "privacy_request"
       | "outbox_message"
-      | "operations_run";
+      | "operations_run"
+      | "waitlist_signup";
     resourceId: string;
     details: AuditDetails;
   },
