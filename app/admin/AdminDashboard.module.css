@@ -1635,7 +1635,11 @@
 .waitlistRow span, .waitlistRow strong, .waitlistRow small { display: block; min-width: 0; }
 .waitlistRow strong { overflow: hidden; text-overflow: ellipsis; }
 .waitlistRow small { margin-top: 3px; color: var(--admin-muted); }
-.waitlistRow time { flex: 0 0 auto; color: var(--admin-muted); font-size: .7rem; font-weight: 750; }
+.waitlistActions { display: flex; flex: 0 0 auto; align-items: center; gap: 10px; }
+.waitlistRow time { color: var(--admin-muted); font-size: .7rem; font-weight: 750; }
+.deleteWaitlistButton { border: 1px solid rgba(255, 118, 101, .55); border-radius: 9px; padding: 7px 9px; background: rgba(124, 40, 25, .18); color: #ffc4bb; cursor: pointer; font-size: .72rem; font-weight: 800; }
+.deleteWaitlistButton:hover:not(:disabled) { border-color: rgba(255, 118, 101, .9); background: rgba(124, 40, 25, .38); }
+.deleteWaitlistButton:disabled { cursor: wait; opacity: .65; }
 
 .subpanelTitle,
 .ticketTop {
@@ -1689,6 +1693,7 @@
   .userDetail dl { grid-template-columns: 1fr; }
   .userRow { align-items: flex-start; flex-direction: column; }
   .waitlistRow { align-items: flex-start; flex-direction: column; }
+  .waitlistActions { width: 100%; justify-content: space-between; }
 }
 
 @media (max-width: 900px) {
