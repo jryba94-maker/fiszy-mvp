@@ -6,6 +6,7 @@ import { listSortedSetPage } from "./sorted-set-pagination";
 export const WAITLIST_CONSENT_VERSION = "first-auction-v1-2026-08-24";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const SUBSCRIBER_ID_PATTERN = /^[a-f0-9]{64}$/;
 const SOURCE_FIELDS = [
   "utmSource",
   "utmMedium",
@@ -213,6 +214,28 @@ export async function listWaitlistSignups(input: {
     return record?.subscriberId === page.members[index] ? [record] : [];
   });
   return { signups, total: count ?? signups.length, nextCursor: page.nextCursor };
+}
+
+export function validWaitlistSubscriberId(value: unknown): value is string {
+  return typeof value === "string" && SUBSCRIBER_ID_PATTERN.test(value);
+}
+
+export async function deleteWaitlistSignup(subscriberId: string) {
+  if (!validWaitlistSubscriberId(subscriberId)) return null;
+  const removed = await redisCommand<number>([
+    "EVAL",
+    `
+if redis.call("EXISTS", KEYS[1]) == 0 then return 0 end
+redis.call("DEL", KEYS[1])
+redis.call("ZREM", KEYS[2], ARGV[1])
+return 1
+`,
+    2,
+    waitlistSubscriberKey(subscriberId),
+    waitlistIndexKey(),
+    subscriberId,
+  ]);
+  return removed === 1;
 }
 
 export async function consumeWaitlistRateLimit(clientAddress: string) {
