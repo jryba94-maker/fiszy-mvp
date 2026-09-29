@@ -255,14 +255,13 @@ export function DemoAuction() {
       {showSignup ? (
         <section className={styles.signupScreen} aria-labelledby="first-auction-title">
           <span className={styles.signupBadge}>Pierwsza aukcja Fiszy nadchodzi</span>
-          <p className={styles.signupEyebrow}>Byłeś gotowy kliknąć w demo.</p>
-          <h1 id="first-auction-title">A przy prawdziwej aukcji?</h1>
-          <p className={styles.signupLead}>Zapisz się na pierwszą. Zapisani jako pierwsi poznają produkt, godzinę aukcji i zasady wejścia.</p>
-          <div className={styles.signupProof}>
-            <strong>100+ osób już sprawdziło demo.</strong>
-            <span>Dołącz do nich.</span>
+          <p className={styles.signupKicker}>To było tylko demo.</p>
+          <h1 id="first-auction-title">Byłeś gotowy kliknąć w demo.<br />A przy prawdziwej aukcji?</h1>
+          <div className={styles.signupBenefits}>
+            <p><i aria-hidden="true">✓</i><span><strong>100+ osób</strong> już sprawdziło demo. Dołącz do nich.</span></p>
+            <p><i aria-hidden="true">✓</i><span><strong>Pierwsze 100 zapisanych</strong> dostanie wcześniejszy dostęp.</span></p>
           </div>
-          <p className={styles.signupPerk}>Pierwsze 100 zapisanych dostanie wcześniejszy dostęp do pierwszej aukcji.</p>
+          <p className={styles.signupLead}>Zapisani jako pierwsi poznają produkt, godzinę aukcji i zasady wejścia.</p>
           <form className={styles.signupForm} onSubmit={submitSignup}>
             <label htmlFor="demo-email">Twój e-mail</label>
             <input id="demo-email" type="email" inputMode="email" autoComplete="email" placeholder="Twój e-mail" value={email} onChange={(event) => setEmail(event.target.value)} required maxLength={254} disabled={signupState === "submitting" || signupState === "success"} />
