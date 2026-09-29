@@ -201,6 +201,21 @@ export function PortalOperationsPanel({ onSessionExpired }: { onSessionExpired: 
     finally { setBusy(""); }
   };
 
+  const deleteWaitlistSignup = async (signup: WaitlistSignup) => {
+    const accepted = window.confirm(`Usunąć ${signup.email} z listy zainteresowanych pierwszą aukcją? Tej operacji nie można cofnąć.`);
+    if (!accepted) return;
+    setBusy(`waitlist-delete-${signup.subscriberId}`);
+    setError("");
+    try {
+      await adminRequest<{ outcome: "ok" }>(`/api/admin/waitlist/${encodeURIComponent(signup.subscriberId)}`, { method: "DELETE" });
+      setWaitlist((current) => current.filter((item) => item.subscriberId !== signup.subscriberId));
+      setWaitlistTotal((current) => Math.max(0, current - 1));
+    } catch (deleteError) {
+      if ((deleteError as { status?: number }).status === 401) onSessionExpired();
+      else setError(deleteError instanceof Error ? deleteError.message : "Nie udało się usunąć adresu.");
+    } finally { setBusy(""); }
+  };
+
   return (
     <section className={styles.portalOperations} aria-labelledby="portal-operations-title" aria-busy={loading}>
       <div className={styles.sectionHeader}>
@@ -251,7 +266,10 @@ export function PortalOperationsPanel({ onSessionExpired }: { onSessionExpired: 
             const campaign = [signup.source.utmSource, signup.source.utmCampaign].filter(Boolean).join(" / ") || signup.source.referrerHost || "wejście bezpośrednie";
             return <div className={styles.waitlistRow} key={signup.subscriberId}>
               <span><strong>{signup.email}</strong><small>{campaign}</small></span>
-              <time dateTime={signup.createdAt}>{WAITLIST_DATE_FORMATTER.format(new Date(signup.createdAt))}</time>
+              <div className={styles.waitlistActions}>
+                <time dateTime={signup.createdAt}>{WAITLIST_DATE_FORMATTER.format(new Date(signup.createdAt))}</time>
+                <button className={styles.deleteWaitlistButton} type="button" onClick={() => void deleteWaitlistSignup(signup)} disabled={busy === `waitlist-delete-${signup.subscriberId}`}>{busy === `waitlist-delete-${signup.subscriberId}` ? "Usuwam…" : "Usuń"}</button>
+              </div>
             </div>;
           })}</div> : <p className={styles.emptyState}>Pierwsze zapisy z landing page pojawią się tutaj.</p>}
           <a className={styles.secondaryButton} href="/api/admin/waitlist?format=csv" download>Pobierz pełną listę CSV</a>
