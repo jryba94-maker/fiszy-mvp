@@ -108,6 +108,8 @@ export function DemoAuction() {
   const startRef = useRef(Date.now());
   const reportedStart = useRef(false);
   const finishedRef = useRef(false);
+  const trafficSessionRef = useRef("");
+  const trafficSourceRef = useRef("direct");
 
   useEffect(() => {
     const product = productRef.current;
@@ -115,6 +117,9 @@ export function DemoAuction() {
     const sessionId = demoSessionId();
     const visitorId = demoVisitorId();
     const source = demoTrafficSource();
+    const durationId = crypto.randomUUID();
+    trafficSessionRef.current = sessionId;
+    trafficSourceRef.current = source;
     void fetch("/api/analytics/landing", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -127,6 +132,32 @@ export function DemoAuction() {
       body: JSON.stringify({ type: "event", event: "demo_opened", sessionId, source }),
       keepalive: true,
     }).catch(() => undefined);
+
+    let visibleStartedAt = performance.now();
+    let activeMs = 0;
+    const closeVisibleWindow = () => {
+      if (visibleStartedAt) { activeMs += performance.now() - visibleStartedAt; visibleStartedAt = 0; }
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") closeVisibleWindow();
+      else if (!visibleStartedAt) visibleStartedAt = performance.now();
+    };
+    const reportDuration = () => {
+      closeVisibleWindow();
+      void fetch("/api/analytics/landing", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "duration", sessionId, durationId, source, seconds: Math.round(activeMs / 1000) }),
+        keepalive: true,
+      }).catch(() => undefined);
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("pagehide", reportDuration);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("pagehide", reportDuration);
+      reportDuration();
+    };
   }, []);
 
   useEffect(() => {
@@ -225,6 +256,14 @@ export function DemoAuction() {
       const result = await response.json().catch(() => null) as { created?: boolean } | null;
       setSignupState("success");
       setSignupMessage(result?.created === false ? "Ten adres jest już na liście pierwszej aukcji." : "Jesteś na liście. Damy Ci znać przed startem.");
+      if (result?.created !== false && trafficSessionRef.current) {
+        void fetch("/api/analytics/landing", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: "event", event: "signup", sessionId: trafficSessionRef.current, source: trafficSourceRef.current }),
+          keepalive: true,
+        }).catch(() => undefined);
+      }
       track("demo_auction_waitlist_signup", { product: product.id, outcome: state });
     } catch {
       setSignupState("error");
