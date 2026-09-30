@@ -3,35 +3,14 @@
 import { track } from "@vercel/analytics";
 import Link from "next/link";
 import { FormEvent, useEffect, useRef, useState } from "react";
+import { landingAttribution, landingSourceLabel } from "../../../lib/landing-attribution";
 import { LEGACY_AUCTION_ID } from "../public/auction-data";
 import { latestPendingReturn } from "../public/device-history";
 import styles from "./landing.module.css";
 
 type SignupState = "idle" | "submitting" | "success" | "error";
 
-function cleanTrackingValue(value: string | null) {
-  return value?.trim().slice(0, 160) || null;
-}
-
-function trafficSource() {
-  const params = new URLSearchParams(window.location.search);
-  let referrerHost: string | null = null;
-  try {
-    referrerHost = document.referrer ? new URL(document.referrer).hostname.slice(0, 160) : null;
-  } catch {
-    referrerHost = null;
-  }
-  return {
-    utmSource: cleanTrackingValue(params.get("utm_source")),
-    utmMedium: cleanTrackingValue(params.get("utm_medium")),
-    utmCampaign: cleanTrackingValue(params.get("utm_campaign")),
-    utmContent: cleanTrackingValue(params.get("utm_content")),
-    utmTerm: cleanTrackingValue(params.get("utm_term")),
-    referrerHost,
-  };
-}
-
-function analyticsProperties(source: ReturnType<typeof trafficSource>) {
+function analyticsProperties(source: ReturnType<typeof landingAttribution>) {
   return {
     source: source.utmSource ?? "direct",
     medium: source.utmMedium ?? "none",
@@ -95,18 +74,18 @@ export function WaitlistLanding() {
 
   useEffect(() => {
     if (redirectLegacyPaymentReturn()) return;
-    const source = trafficSource();
+    const source = landingAttribution();
     sourceRef.current = source;
-    const sourceLabel = [source.utmSource, source.utmMedium, source.utmCampaign].filter(Boolean).join("/") || source.referrerHost || "direct";
+    const sourceLabel = landingSourceLabel(source);
     const sessionId = landingSessionId();
     const viewId = crypto.randomUUID();
     const durationId = crypto.randomUUID();
     landingSessionRef.current = sessionId;
-    reportTraffic({ type: "view", sessionId, viewId, visitorId: landingVisitorId(), source: sourceLabel });
+    reportTraffic({ type: "view", page: "landing", sessionId, viewId, visitorId: landingVisitorId(), source: sourceLabel });
     track("landing_view", analyticsProperties(source));
 
     const reportedTrafficEvents = new Set<string>();
-    const reportEvent = (event: "scroll_25" | "scroll_50" | "scroll_75" | "scroll_100" | "form_started" | "cta_attempt") => {
+    const reportEvent = (event: "scroll_25" | "scroll_50" | "scroll_75" | "scroll_100" | "form_started" | "cta_attempt" | "demo_opened" | "signup_started") => {
       if (reportedTrafficEvents.has(event)) return;
       reportedTrafficEvents.add(event);
       reportTraffic({ type: "event", sessionId, source: sourceLabel, event });
@@ -153,8 +132,8 @@ export function WaitlistLanding() {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (state === "submitting" || state === "success") return;
-    const source = sourceRef.current ?? trafficSource();
-    const sourceLabel = [source.utmSource, source.utmMedium, source.utmCampaign].filter(Boolean).join("/") || source.referrerHost || "direct";
+    const source = sourceRef.current ?? landingAttribution();
+    const sourceLabel = landingSourceLabel(source);
     reportTraffic({ type: "event", sessionId: landingSessionRef.current, source: sourceLabel, event: "cta_attempt" });
     track("waitlist_cta_click", analyticsProperties(source));
     const normalizedEmail = email.trim();
@@ -175,7 +154,7 @@ export function WaitlistLanding() {
       const response = await fetch("/api/waitlist", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: normalizedEmail, consent, source }),
+        body: JSON.stringify({ email: normalizedEmail, consent, source, traffic: { sessionId: landingSessionRef.current, source: sourceLabel } }),
       });
       if (!response.ok) {
         const data = await response.json().catch(() => null) as { outcome?: string } | null;
@@ -184,7 +163,6 @@ export function WaitlistLanding() {
       const result = await response.json().catch(() => null) as { created?: boolean } | null;
       setState("success");
       setMessage(result?.created === false ? "Ten adres jest już na liście." : "Damy Ci znać przed pierwszym startem.");
-      if (result?.created !== false) reportTraffic({ type: "event", sessionId: landingSessionRef.current, source: sourceLabel, event: "signup" });
       track("waitlist_signup_success", analyticsProperties(source));
     } catch (error) {
       const rateLimited = error instanceof Error && error.message === "rate_limited";
@@ -203,9 +181,10 @@ export function WaitlistLanding() {
     setEmail(value);
     if (!startedTypingRef.current && value.length > 0) {
       startedTypingRef.current = true;
-      const source = sourceRef.current ?? trafficSource();
-      const sourceLabel = [source.utmSource, source.utmMedium, source.utmCampaign].filter(Boolean).join("/") || source.referrerHost || "direct";
+      const source = sourceRef.current ?? landingAttribution();
+      const sourceLabel = landingSourceLabel(source);
       reportTraffic({ type: "event", sessionId: landingSessionRef.current, source: sourceLabel, event: "form_started" });
+      reportTraffic({ type: "event", sessionId: landingSessionRef.current, source: sourceLabel, event: "signup_started" });
       track("waitlist_email_input_started", analyticsProperties(source));
     }
   };
@@ -232,7 +211,7 @@ export function WaitlistLanding() {
             <strong>Poczekasz dłużej — zapłacisz mniej.</strong><br />
             Tylko jak długo możesz czekać?
           </p>
-          <Link className={styles.demoButton} href="/demo" onClick={() => track("landing_demo_click", analyticsProperties(sourceRef.current ?? trafficSource()))}>
+          <Link className={styles.demoButton} href="/demo" onClick={() => { const source = sourceRef.current ?? landingAttribution(); reportTraffic({ type: "event", sessionId: landingSessionRef.current, source: landingSourceLabel(source), event: "demo_opened" }); track("landing_demo_click", analyticsProperties(source)); }}>
             <span className={styles.demoButtonIcon} aria-hidden="true">▶</span>
             <span><small>Nie wiesz, kiedy kliknąć?</small>Zagraj w demo aukcji</span>
             <b aria-hidden="true">↗</b>
@@ -259,7 +238,7 @@ export function WaitlistLanding() {
                     maxLength={254}
                     aria-describedby="waitlist-note waitlist-message"
                     onFocus={() => {
-                      const source = sourceRef.current ?? trafficSource();
+                      const source = sourceRef.current ?? landingAttribution();
                       track("waitlist_email_focus", analyticsProperties(source));
                     }}
                     onChange={(event) => handleInput(event.target.value)}
