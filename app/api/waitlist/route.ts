@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { errorDetails, logEvent } from "../../../lib/observability";
 import { recordBusinessEventSafely } from "../../../lib/business-analytics";
 import { hasSameOrigin } from "../../../lib/request-origin";
+import { landingSource, recordLandingEvent, validLandingSession } from "../../../lib/landing-traffic";
 import { enqueueTransactionalMessage, processMessageOutbox } from "../../../lib/message-outbox";
 import {
   consumeWaitlistRateLimit,
@@ -49,6 +50,10 @@ export async function POST(request: NextRequest) {
   }
 
   const input = normalizeWaitlistSignup(body);
+  const traffic = body && typeof body === "object" ? (body as { traffic?: { sessionId?: unknown; source?: unknown } }).traffic : null;
+  const funnelTraffic = traffic && validLandingSession(traffic.sessionId)
+    ? { sessionId: traffic.sessionId, source: landingSource(traffic.source) }
+    : null;
   if (!input) {
     return NextResponse.json({ outcome: "invalid_request" }, { status: 400 });
   }
@@ -62,6 +67,10 @@ export async function POST(request: NextRequest) {
       campaign: input.source.utmCampaign ?? null,
     });
     if (result.created) {
+      if (funnelTraffic) {
+        try { await recordLandingEvent({ ...funnelTraffic, event: "signup" }); }
+        catch (error) { logEvent("waitlist.signup.traffic_failed", errorDetails(error), "warning"); }
+      }
       await recordBusinessEventSafely({
         event: "waitlist_signup",
         campaign: [input.source.utmSource, input.source.utmMedium, input.source.utmCampaign]
