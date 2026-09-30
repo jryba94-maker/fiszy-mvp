@@ -601,3 +601,20 @@
   }
   .formRow button { transition: none; }
 }
+
+
+.demoProof { display:flex; flex-wrap:wrap; gap:8px 16px; margin:-15px 0 16px; color:#b5aebe; font-size:.73rem; font-weight:700; }
+.demoProof span::before { color:#a77aff; content:"• "; }
+.eventFormat { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin:0 0 25px; color:#d6d0dd; font-size:.76rem; font-weight:850; letter-spacing:.025em; }
+.eventFormat i { color:#7b2cff; font-style:normal; }
+.secondaryJoin { border:0; padding:4px 0; background:transparent; color:#cbbcff; cursor:pointer; font:inherit; font-size:.82rem; font-weight:800; text-decoration:underline; text-decoration-color:rgba(167,122,255,.5); text-underline-offset:5px; }
+.secondaryJoin:hover { color:#fff; text-decoration-color:#a77aff; }
+@media (max-width:620px) {
+  .heroContent { padding-top:42px; padding-bottom:36px; }
+  .demoButton { width:100%; margin-bottom:23px; }
+  .demoProof { display:grid; gap:5px; margin:-8px 0 17px; font-size:.7rem; }
+  .eventFormat { margin-bottom:22px; font-size:.72rem; }
+  .secondaryJoin { max-width:290px; font-size:.74rem; line-height:1.45; text-align:left; }
+  .formRow { grid-template-columns:1fr; }
+  .formRow button { min-height:52px; }
+}
