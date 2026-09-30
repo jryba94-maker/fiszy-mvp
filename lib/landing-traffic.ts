@@ -91,7 +91,7 @@ if redis.call("SET", KEYS[3], "1", "NX", "EX", ARGV[6]) then
     if ARGV[9] == "landing" then record.landingViews = tonumber(record.landingViews or 0) + 1 end
     if ARGV[9] == "demo" then record.demoViews = tonumber(record.demoViews or 0) + 1 end
   end
-  if ARGV[2] == "view" and ARGV[10] ~= "" then redis.call("SADD", KEYS[4], ARGV[11]); redis.call("EXPIRE", KEYS[4], ARGV[6]) end
+  if ARGV[2] == "view" and ARGV[10] ~= "" then redis.call("SADD", KEYS[4], ARGV[10]); redis.call("EXPIRE", KEYS[4], ARGV[6]) end
   if ARGV[2] == "duration" then record.activeSeconds = tonumber(record.activeSeconds or 0) + tonumber(ARGV[5]); record.timedSessions = tonumber(record.timedSessions or 0) + 1 end
   if ARGV[2] == "event" then record.events[ARGV[4]] = tonumber(record.events[ARGV[4]] or 0) + 1 end
   local current = record.sources[ARGV[3]] or {label=ARGV[7],views=0,signups=0}
