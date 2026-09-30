@@ -117,7 +117,8 @@ export async function recordLandingDuration(input: { sessionId: string; duration
 function parseDay(raw: unknown): DailyTraffic | null {
   if (typeof raw !== "string" || !raw) return null;
   try {
-    const value = JSON.parse(raw) as { schemaVersion?: number; date?: unknown; views?: unknown; landingViews?: unknown; demoViews?: unknown; legacyViews?: unknown; uniqueSessions?: unknown; activeSeconds?: unknown; timedSessions?: unknown; events?: Record<string, unknown>; sources?: Record<string, unknown>; updatedAt?: unknown };\n    if ((value.schemaVersion !== 1 && value.schemaVersion !== 2) || typeof value.date !== "string" || !/^\\d{4}-\\d{2}-\\d{2}$/.test(value.date)) return null;
+    const value = JSON.parse(raw) as { schemaVersion?: number; date?: unknown; views?: unknown; landingViews?: unknown; demoViews?: unknown; legacyViews?: unknown; uniqueSessions?: unknown; activeSeconds?: unknown; timedSessions?: unknown; events?: Record<string, unknown>; sources?: Record<string, unknown>; updatedAt?: unknown };
+    if ((value.schemaVersion !== 1 && value.schemaVersion !== 2) || typeof value.date !== "string" || !/^\\d{4}-\\d{2}-\\d{2}$/.test(value.date)) return null;
     const number = (candidate: unknown) => Number.isSafeInteger(candidate) && Number(candidate) >= 0 ? Number(candidate) : null;
     const views = number(value.views); const uniqueSessions = number(value.uniqueSessions); const activeSeconds = number(value.activeSeconds); const timedSessions = number(value.timedSessions);
     if (views === null || uniqueSessions === null || activeSeconds === null || timedSessions === null || !value.events || !value.sources) return null;
