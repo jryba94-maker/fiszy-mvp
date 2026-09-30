@@ -60,6 +60,7 @@ export function WaitlistLanding() {
   const [state, setState] = useState<SignupState>("idle");
   const [message, setMessage] = useState("");
   const [signupOpen, setSignupOpen] = useState(false);
+  const [demoCount, setDemoCount] = useState<number | null>(null);
   const sourceRef = useRef<ReturnType<typeof landingAttribution> | null>(null);
   const startedTypingRef = useRef(false);
   const landingSessionRef = useRef("");
@@ -128,6 +129,30 @@ export function WaitlistLanding() {
       window.removeEventListener("pagehide", reportDuration);
       reportDuration();
     };
+  }, []);
+
+
+  useEffect(() => {
+    let frame = 0;
+    let cancelled = false;
+    void fetch("/api/analytics/landing", { cache: "no-store" })
+      .then(async (response) => response.ok ? response.json() as Promise<{ demoOpened?: unknown }> : null)
+      .then((payload) => {
+        const target = typeof payload?.demoOpened === "number" && Number.isSafeInteger(payload.demoOpened)
+          ? Math.max(0, payload.demoOpened)
+          : null;
+        if (target === null || cancelled) return;
+        const from = Math.max(0, target - 10);
+        const startedAt = performance.now();
+        const tick = (now: number) => {
+          const progress = Math.min(1, (now - startedAt) / 700);
+          setDemoCount(Math.round(from + (target - from) * (1 - Math.pow(1 - progress, 3))));
+          if (progress < 1 && !cancelled) frame = requestAnimationFrame(tick);
+        };
+        frame = requestAnimationFrame(tick);
+      })
+      .catch(() => undefined);
+    return () => { cancelled = true; cancelAnimationFrame(frame); };
   }, []);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -218,7 +243,7 @@ export function WaitlistLanding() {
             <b aria-hidden="true">↗</b>
           </Link>
           <div className={styles.demoProof} aria-label="Informacja o zainteresowaniu">
-            <span>100+ osób już sprawdziło demo.</span>
+            <span><strong>{demoCount === null ? "…" : demoCount.toLocaleString("pl-PL")}</strong> osób już sprawdziło demo.</span>
             <span>Lista pierwszej aukcji jest otwarta.</span>
           </div>
           <div className={styles.eventFormat} aria-label="Format pierwszej aukcji">
