@@ -61,7 +61,7 @@ function formatSeconds(value: number) {
   return `00:${String(Math.max(0, value)).padStart(2, "0")}`;
 }
 
-function demoTrafficSource() { return landingSourceLabel(landingAttribution()); }\n\nfunction demoVisitorId() {
+function demoVisitorId() {
   try {
     const key = "fiszy_landing_visitor_id";
     const saved = localStorage.getItem(key);
