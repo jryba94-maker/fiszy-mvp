@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { type LandingEvent, LANDING_EVENTS, landingSource, recordLandingDuration, recordLandingEvent, recordLandingView, validLandingPage, validLandingSession } from "../../../../lib/landing-traffic";
+import { type LandingEvent, LANDING_EVENTS, landingSource, recordLandingDuration, recordLandingEvent, recordLandingView, readLandingTraffic, validLandingPage, validLandingSession } from "../../../../lib/landing-traffic";
 import { hasSameOrigin } from "../../../../lib/request-origin";
 
 export const dynamic = "force-dynamic";
@@ -17,4 +17,18 @@ export async function POST(request: NextRequest) {
     else return NextResponse.json({ outcome: "invalid_request" }, { status: 400 });
     return new NextResponse(null, { status: 204 });
   } catch { return NextResponse.json({ outcome: "storage_error" }, { status: 503 }); }
+}
+
+
+export async function GET() {
+  try {
+    const traffic = await readLandingTraffic(30);
+    if (!traffic) throw new Error("traffic_unavailable");
+    return NextResponse.json(
+      { demoOpened: traffic.totals.events.demo_opened },
+      { headers: { "Cache-Control": "public, max-age=60, s-maxage=60, stale-while-revalidate=300" } },
+    );
+  } catch {
+    return NextResponse.json({ outcome: "storage_error" }, { status: 503 });
+  }
 }
