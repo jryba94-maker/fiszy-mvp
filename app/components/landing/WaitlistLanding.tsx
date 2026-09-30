@@ -59,6 +59,7 @@ export function WaitlistLanding() {
   const [consent, setConsent] = useState(false);
   const [state, setState] = useState<SignupState>("idle");
   const [message, setMessage] = useState("");
+  const [signupOpen, setSignupOpen] = useState(false);
   const sourceRef = useRef<ReturnType<typeof landingAttribution> | null>(null);
   const startedTypingRef = useRef(false);
   const landingSessionRef = useRef("");
@@ -216,13 +217,20 @@ export function WaitlistLanding() {
             <span><small>Nie wiesz, kiedy kliknąć?</small>Zagraj w demo aukcji</span>
             <b aria-hidden="true">↗</b>
           </Link>
+          <div className={styles.demoProof} aria-label="Informacja o zainteresowaniu">
+            <span>100+ osób już sprawdziło demo.</span>
+            <span>Lista pierwszej aukcji jest otwarta.</span>
+          </div>
+          <div className={styles.eventFormat} aria-label="Format pierwszej aukcji">
+            <span>1 produkt</span><i aria-hidden="true">·</i><span>1 godzina</span><i aria-hidden="true">·</i><span>Cena spada</span>
+          </div>
 
           {state === "success" ? (
             <div className={styles.success} role="status" tabIndex={-1}>
               <span aria-hidden="true">✓</span>
               <div><strong>Jesteś na liście.</strong><p>{message}</p></div>
             </div>
-          ) : (
+          ) : signupOpen ? (
             <form className={styles.form} id="zapis" onSubmit={handleSubmit} noValidate>
               <div className={styles.formRow}>
                 <label className={styles.emailField}>
@@ -245,7 +253,7 @@ export function WaitlistLanding() {
                   />
                 </label>
                 <button type="submit" disabled={state === "submitting"} aria-busy={state === "submitting"}>
-                  <span>{state === "submitting" ? "Zapisuję…" : "Chcę wiedzieć pierwszy"}</span>
+                  <span>{state === "submitting" ? "Zapisuję…" : "Zapisz mnie na pierwszą aukcję"}</span>
                   <b aria-hidden="true">↗</b>
                 </button>
               </div>
@@ -255,9 +263,13 @@ export function WaitlistLanding() {
                   Chcę otrzymać e-mail o starcie pierwszej aukcji. Zgodę mogę wycofać w każdej chwili. Szczegóły w <Link href="/prywatnosc" target="_blank" rel="noopener noreferrer">polityce prywatności</Link>.
                 </span>
               </label>
-              <p id="waitlist-note" className={styles.formNote}>Bez spamu. Jedna wiadomość, kiedy nadejdzie właściwy moment.</p>
+              <p id="waitlist-note" className={styles.formNote}>Tylko informacje o pierwszej aukcji. Bez codziennych maili.</p>
               <p id="waitlist-message" className={styles.error} role="alert">{state === "error" ? message : ""}</p>
             </form>
+          ) : (
+            <button className={styles.secondaryJoin} type="button" onClick={() => setSignupOpen(true)}>
+              Wiem, jak to działa — chcę być na pierwszej aukcji
+            </button>
           )}
         </div>
       </section>
