@@ -84,24 +84,24 @@ if raw then
 else
   record = {schemaVersion=2,date=ARGV[1],views=0,landingViews=0,demoViews=0,legacyViews=0,uniqueSessions=0,activeSeconds=0,timedSessions=0,events={},sources={}}
 end
-if redis.call("SET", KEYS[2], "1", "NX", "EX", ARGV[7]) then record.uniqueSessions = tonumber(record.uniqueSessions or 0) + 1 end
-if redis.call("SET", KEYS[3], "1", "NX", "EX", ARGV[7]) then
+if redis.call("SET", KEYS[2], "1", "NX", "EX", ARGV[6]) then record.uniqueSessions = tonumber(record.uniqueSessions or 0) + 1 end
+if redis.call("SET", KEYS[3], "1", "NX", "EX", ARGV[6]) then
   if ARGV[2] == "view" then
     record.views = tonumber(record.views or 0) + 1
-    if ARGV[10] == "landing" then record.landingViews = tonumber(record.landingViews or 0) + 1 end
-    if ARGV[10] == "demo" then record.demoViews = tonumber(record.demoViews or 0) + 1 end
+    if ARGV[9] == "landing" then record.landingViews = tonumber(record.landingViews or 0) + 1 end
+    if ARGV[9] == "demo" then record.demoViews = tonumber(record.demoViews or 0) + 1 end
   end
-  if ARGV[2] == "view" and ARGV[11] ~= "" then redis.call("SADD", KEYS[4], ARGV[11]); redis.call("EXPIRE", KEYS[4], ARGV[7]) end
+  if ARGV[2] == "view" and ARGV[10] ~= "" then redis.call("SADD", KEYS[4], ARGV[11]); redis.call("EXPIRE", KEYS[4], ARGV[6]) end
   if ARGV[2] == "duration" then record.activeSeconds = tonumber(record.activeSeconds or 0) + tonumber(ARGV[5]); record.timedSessions = tonumber(record.timedSessions or 0) + 1 end
   if ARGV[2] == "event" then record.events[ARGV[4]] = tonumber(record.events[ARGV[4]] or 0) + 1 end
-  local current = record.sources[ARGV[3]] or {label=ARGV[8],views=0,signups=0}
+  local current = record.sources[ARGV[3]] or {label=ARGV[7],views=0,signups=0}
   if ARGV[2] == "view" then current.views = tonumber(current.views or 0) + 1 end
   if ARGV[2] == "event" and ARGV[4] == "signup" then current.signups = tonumber(current.signups or 0) + 1 end
   record.sources[ARGV[3]] = current
 end
-record.updatedAt = ARGV[9]
+record.updatedAt = ARGV[8]
 local encoded = cjson.encode(record)
-redis.call("SET", KEYS[1], encoded, "EX", ARGV[7])
+redis.call("SET", KEYS[1], encoded, "EX", ARGV[6])
 return encoded`,
     5, dayKey(date), unique, dedupe, visitorsKey(date), timedSession,
     date, input.kind, sourceId, event, seconds, RETENTION_SECONDS, source, new Date(now).toISOString(),
