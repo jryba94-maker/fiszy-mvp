@@ -247,7 +247,7 @@ export function WaitlistLanding() {
             <span>Lista pierwszej aukcji jest otwarta.</span>
           </div>
           <div className={styles.eventFormat} aria-label="Format pierwszej aukcji">
-            <span>1 produkt</span><i aria-hidden="true">·</i><span>1 godzina</span><i aria-hidden="true">·</i><span>Cena spada</span>
+            <span>1 produkt</span><i aria-hidden="true">·</i><span>1 godzina</span><i aria-hidden="true">·</i><span>Najniższa cena</span>
           </div>
 
           {state === "success" ? (
