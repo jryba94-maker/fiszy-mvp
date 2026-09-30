@@ -133,7 +133,7 @@ function parseDay(raw: unknown): DailyTraffic | null {
       sources[id] = { label: source.label, views: sourceViews, signups };
     }
     return {
-      schemaVersion: 2, date: value.date!, views, uniqueSessions, activeSeconds, timedSessions, events, sources,
+      schemaVersion: 2, date: value.date, views, uniqueSessions, activeSeconds, timedSessions, events, sources,
       landingViews: value.schemaVersion === 2 ? number(value.landingViews) ?? 0 : 0,
       demoViews: value.schemaVersion === 2 ? number(value.demoViews) ?? 0 : 0,
       legacyViews: value.schemaVersion === 2 ? number(value.legacyViews) ?? 0 : views,
