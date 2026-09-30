@@ -34,3 +34,16 @@
 .signupSuccess { color:#d8cbff; }.signupError { color:#ffb7bd; }
 .backToDemo { margin-top:25px; border:0; background:transparent; color:#bcb6c5; cursor:pointer; font-size:.78rem; font-weight:700; }
 @media (max-width:850px) { .signupScreen { min-height:calc(100vh - 82px); padding:42px 22px; border-radius:22px; }.signupKicker { margin-top:28px; }.signupLead { font-size:.94rem; } }
+
+.resultSignup { margin-top:14px; border:1px solid rgba(167,122,255,.32); border-radius:18px; padding:18px; background:rgba(123,44,255,.08); }
+.resultSignup > p { margin:0 0 13px; color:#f3effb; font-size:.91rem; font-weight:800; text-align:center; }
+.resultSignupLost { border-color:rgba(255,116,123,.3); background:rgba(181,39,51,.08); }
+.resultSignupForm { display:grid; gap:9px; }
+.resultSignupForm input[type="email"] { width:100%; min-height:49px; border:1px solid rgba(255,255,255,.16); border-radius:12px; padding:0 14px; outline:0; background:#09090b; color:#fff; font:inherit; }
+.resultSignupForm input[type="email"]:focus { border-color:#a77aff; box-shadow:0 0 0 3px rgba(123,44,255,.16); }
+.resultSignupForm button { width:100%; min-height:52px; border:0; border-radius:12px; background:#fff; color:#21102f; cursor:pointer; font-size:.76rem; font-weight:900; letter-spacing:.01em; }
+.resultSignupForm button:disabled { cursor:wait; opacity:.72; }
+.resultSignupForm label { display:flex; align-items:flex-start; gap:8px; color:#aaa3b1; font-size:.68rem; line-height:1.35; }
+.resultSignupForm label input { width:16px; height:16px; margin:1px 0 0; accent-color:#7b2cff; }
+.resultSignupForm small { text-align:center; }
+@media (max-width:850px) { .resultSignup { margin-top:12px; } .resultSignupForm { padding-bottom:0; } }
