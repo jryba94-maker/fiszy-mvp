@@ -211,6 +211,7 @@ export function DemoAuction() {
   const buy = () => {
     if (state !== "live") return;
     finishedRef.current = true;
+    if (trafficSessionRef.current) void fetch("/api/analytics/landing", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "event", event: "demo_finished", sessionId: trafficSessionRef.current, source: trafficSourceRef.current }), keepalive: true }).catch(() => undefined);
     setState("won");
     track("demo_auction_won", { product: product.id, price });
   };
