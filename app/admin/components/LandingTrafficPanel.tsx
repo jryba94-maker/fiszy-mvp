@@ -5,8 +5,8 @@ import styles from "../AdminDashboard.module.css";
 
 type Traffic = {
   days: number;
-  daily: Array<{ date: string; views: number; uniqueSessions: number; uniqueVisitors: number }>;
-  totals: { views: number; uniqueSessions: number; uniqueVisitors: number; activeSeconds: number; timedSessions: number; events: Record<string, number> };
+  daily: Array<{ date: string; views: number; landingViews: number; demoViews: number; legacyViews: number; uniqueSessions: number; uniqueVisitors: number }>;
+  totals: { views: number; landingViews: number; demoViews: number; legacyViews: number; uniqueSessions: number; uniqueVisitors: number; activeSeconds: number; timedSessions: number; events: Record<string, number> };
   conversion: { formStarted: number; ctaAttempt: number; signup: number };
   averageActiveSeconds: number;
   sources: Array<{ label: string; views: number; signups: number; signupRate: number }>;
@@ -77,11 +77,12 @@ export function LandingTrafficPanel({ onSessionExpired }: Props) {
         <button className={styles.secondaryButton} type="button" onClick={() => void load()} disabled={loading}>{loading ? "Odświeżam…" : "Odśwież"}</button>
       </div>
       {error ? <p className={styles.errorNotice} role="alert">{error}</p> : null}
-      <p className={styles.trafficNote}>Anonimowy pomiar, ostatnie 30 dni. Dane odświeżają się co 10 sekund. Czas aktywny obejmuje landing i demo; wejścia w demo są mierzone także bezpośrednio.</p>
+      <p className={styles.trafficNote}>Anonimowy pomiar, ostatnie 30 dni. Dane odświeżają się co 10 sekund. Jeden lejek: landing → demo → konwersja. Odsłony landingu i demo są rozdzielone od tej poprawki; wcześniejsze dane pozostają jako historia.</p>
 
       <div className={styles.trafficKpis}>
-        <article><span>Odsłony</span><strong>{number.format(traffic?.totals.views ?? 0)}</strong><small>landing i demo</small></article>
-        <article><span>Demo</span><strong>{number.format(traffic?.totals.events.demo_opened ?? 0)}</strong><small>rozpoczęte symulacje</small></article>
+        <article><span>Landing</span><strong>{number.format(traffic?.totals.landingViews ?? 0)}</strong><small>odsłony landingu</small></article>
+        <article><span>Odsłony demo</span><strong>{number.format(traffic?.totals.demoViews ?? 0)}</strong><small>bez mieszania z landingiem</small></article>
+        <article><span>Demo rozpoczęte</span><strong>{number.format(traffic?.totals.events.demo_opened ?? 0)}</strong><small>krok 2 lejka</small></article>
         <article><span>Unikalni odwiedzający</span><strong>{number.format(traffic?.totals.uniqueVisitors ?? 0)}</strong><small>rozpoznane przeglądarki</small></article>
         <article><span>Unikalne sesje</span><strong>{number.format(traffic?.totals.uniqueSessions ?? 0)}</strong><small>osobne wizyty</small></article>
         <article><span>Aktywny czas</span><strong>{seconds(traffic?.averageActiveSeconds ?? 0)}</strong><small>średnio na stronie</small></article>
@@ -116,12 +117,12 @@ export function LandingTrafficPanel({ onSessionExpired }: Props) {
         <article className={styles.trafficCard}>
           <div className={styles.subpanelTitle}><div><p className={styles.eyebrow}>1. Lejek konwersji</p><h3>Od wejścia do zapisu</h3></div></div>
           <ol className={styles.funnelList}>
-            <li><span>Wejście</span><strong>{number.format(traffic?.totals.uniqueSessions ?? 0)}</strong></li>
-            <li><span>Wejście w demo</span><strong>{number.format(traffic?.totals.events.demo_opened ?? 0)}</strong></li>
-            <li><span>Scroll 50%</span><strong>{number.format(traffic?.totals.events.scroll_50 ?? 0)}</strong></li>
-            <li><span>Formularz rozpoczęty</span><strong>{number.format(traffic?.totals.events.form_started ?? 0)}</strong></li>
-            <li><span>Próba zapisu</span><strong>{number.format(traffic?.totals.events.cta_attempt ?? 0)}</strong></li>
-            <li><span>Zapis potwierdzony</span><strong>{number.format(traffic?.totals.events.signup ?? 0)}</strong></li>
+            <li><span>1. Wejście na landing</span><strong>{number.format(traffic?.totals.landingViews ?? 0)}</strong></li>
+            <li><span>2. Demo otwarte</span><strong>{number.format(traffic?.totals.events.demo_opened ?? 0)}</strong></li>
+            <li><span>3. Demo zakończone</span><strong>{number.format(traffic?.totals.events.demo_finished ?? 0)}</strong></li>
+            <li><span>4. CTA pierwszej aukcji</span><strong>{number.format(traffic?.totals.events.first_auction_cta ?? 0)}</strong></li>
+            <li><span>5. Formularz rozpoczęty</span><strong>{number.format(traffic?.totals.events.signup_started ?? 0)}</strong></li>
+            <li><span>6. Zapis potwierdzony</span><strong>{number.format(traffic?.totals.events.signup ?? 0)}</strong></li>
           </ol>
         </article>
         <article className={styles.trafficCard}>
