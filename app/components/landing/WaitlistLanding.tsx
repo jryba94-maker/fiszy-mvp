@@ -145,7 +145,7 @@ export function WaitlistLanding() {
         const from = Math.max(0, target - 10);
         const startedAt = performance.now();
         const tick = (now: number) => {
-          const progress = Math.min(1, (now - startedAt) / 700);
+          const progress = Math.min(1, (now - startedAt) / 10_000);
           setDemoCount(Math.round(from + (target - from) * (1 - Math.pow(1 - progress, 3))));
           if (progress < 1 && !cancelled) frame = requestAnimationFrame(tick);
         };
