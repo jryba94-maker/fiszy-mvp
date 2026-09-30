@@ -88,7 +88,6 @@ export function DemoAuction() {
   const [state, setState] = useState<DemoState>("countdown");
   const [elapsed, setElapsed] = useState(0);
   const [runId, setRunId] = useState(0);
-  const [showSignup, setShowSignup] = useState(false);
   const [email, setEmail] = useState("");
   const [consent, setConsent] = useState(false);
   const [signupState, setSignupState] = useState<"idle" | "submitting" | "success" | "error">("idle");
@@ -174,6 +173,7 @@ export function DemoAuction() {
         setElapsed(liveSecondsRef.current);
         finishedRef.current = true;
         if (trafficSessionRef.current) void fetch("/api/analytics/landing", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "event", event: "demo_finished", sessionId: trafficSessionRef.current, source: trafficSourceRef.current }), keepalive: true }).catch(() => undefined);
+        if (trafficSessionRef.current) void fetch("/api/analytics/landing", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "event", event: "first_auction_cta", sessionId: trafficSessionRef.current, source: trafficSourceRef.current }), keepalive: true }).catch(() => undefined);
         setState((current) => current === "won" ? current : "lost");
         return;
       }
@@ -212,16 +212,9 @@ export function DemoAuction() {
     if (state !== "live") return;
     finishedRef.current = true;
     if (trafficSessionRef.current) void fetch("/api/analytics/landing", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "event", event: "demo_finished", sessionId: trafficSessionRef.current, source: trafficSourceRef.current }), keepalive: true }).catch(() => undefined);
+        if (trafficSessionRef.current) void fetch("/api/analytics/landing", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "event", event: "first_auction_cta", sessionId: trafficSessionRef.current, source: trafficSourceRef.current }), keepalive: true }).catch(() => undefined);
     setState("won");
     track("demo_auction_won", { product: product.id, price });
-  };
-
-  const openSignup = () => {
-    setShowSignup(true);
-    if (trafficSessionRef.current) void fetch("/api/analytics/landing", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "event", event: "first_auction_cta", sessionId: trafficSessionRef.current, source: trafficSourceRef.current }), keepalive: true }).catch(() => undefined);
-    setSignupState("idle");
-    setSignupMessage("");
-    track("demo_auction_first_auction_opened", { outcome: state, product: product.id });
   };
 
   const submitSignup = async (event: FormEvent<HTMLFormElement>) => {
@@ -272,26 +265,6 @@ export function DemoAuction() {
         <span className={styles.demoBadge}>Demo aukcji</span>
       </header>
 
-      {showSignup ? (
-        <section className={styles.signupScreen} aria-labelledby="first-auction-title">
-          <span className={styles.signupBadge}>Pierwsza aukcja Fiszy nadchodzi</span>
-          <p className={styles.signupKicker}>To było tylko demo.</p>
-          <h1 id="first-auction-title">Byłeś gotowy kliknąć w demo.<br />A przy prawdziwej aukcji?</h1>
-          <div className={styles.signupBenefits}>
-            <p><i aria-hidden="true">✓</i><span><strong>100+ osób</strong> już sprawdziło demo. Dołącz do nich.</span></p>
-            <p><i aria-hidden="true">✓</i><span><strong>Pierwsze 100 zapisanych</strong> dostanie wcześniejszy dostęp.</span></p>
-          </div>
-          <p className={styles.signupLead}>Zapisani jako pierwsi poznają produkt, godzinę aukcji i zasady wejścia.</p>
-          <form className={styles.signupForm} onSubmit={submitSignup}>
-            <label htmlFor="demo-email">Twój e-mail</label>
-            <input id="demo-email" type="email" inputMode="email" autoComplete="email" placeholder="Twój e-mail" value={email} onFocus={() => { if (!signupStartedRef.current && trafficSessionRef.current) { signupStartedRef.current = true; void fetch("/api/analytics/landing", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "event", event: "signup_started", sessionId: trafficSessionRef.current, source: trafficSourceRef.current }), keepalive: true }).catch(() => undefined); } }} onChange={(event) => setEmail(event.target.value)} required maxLength={254} disabled={signupState === "submitting" || signupState === "success"} />
-            <button type="submit" disabled={signupState === "submitting" || signupState === "success"}>{signupState === "submitting" ? "ZAPISUJĘ…" : signupState === "success" ? "JESTEŚ NA LIŚCIE" : "ZAPISZ MNIE"}</button>
-            <label className={styles.signupConsent}><input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} disabled={signupState === "submitting" || signupState === "success"} /> <span>Chcę otrzymać e-mail o starcie pierwszej aukcji. Zgodę mogę wycofać w każdej chwili.</span></label>
-            {signupMessage ? <p className={signupState === "success" ? styles.signupSuccess : styles.signupError} aria-live="polite">{signupMessage}</p> : null}
-          </form>
-          <button className={styles.backToDemo} type="button" onClick={() => setShowSignup(false)}>Wróć do demo</button>
-        </section>
-      ) : (
       <section className={styles.shell} aria-labelledby="demo-title">
         <div className={styles.visual} aria-hidden="true">
           <div className={styles.halo} />
@@ -335,8 +308,7 @@ export function DemoAuction() {
               <h2>Wygrałeś.</h2>
               <strong>{product.name} za {price} zł</strong>
               <span className={styles.winnerNote}>W tej symulacji byłeś szybszy od pozostałych.</span>
-              <button className={styles.winnerCta} type="button" onClick={openSignup}>CHCĘ BYĆ NA PIERWSZEJ AUKCJI</button>
-            </section>
+                          </section>
           ) : state === "live" ? (
             <button className={styles.buyButton} type="button" onClick={buy}>LICYTUJ! — {price} ZŁ</button>
           ) : state === "countdown" ? (
@@ -350,14 +322,23 @@ export function DemoAuction() {
               <h2>Ktoś był przed Tobą.</h2>
               <strong>{product.name} za {price} zł</strong>
               <span className={styles.winnerNote}>W tej symulacji ktoś kliknął szybciej.</span>
-              <button className={styles.winnerCta} type="button" onClick={openSignup}>CHCĘ BYĆ NA PIERWSZEJ AUKCJI</button>
-              <button className={styles.restartButton} type="button" onClick={restart}>Zagraj jeszcze raz</button>
+                            <button className={styles.restartButton} type="button" onClick={restart}>Zagraj jeszcze raz</button>
             </section>
           )}
+          {(state === "won" || state === "lost") ? (
+            <section className={`${styles.resultSignup} ${state === "lost" ? styles.resultSignupLost : ""}`} aria-label="Zapis na pierwszą aukcję">
+              <p>{state === "won" ? "Chcesz sprawdzić to naprawdę?" : "Następnym razem decyzja będzie należeć do Ciebie."}</p>
+              <form className={styles.resultSignupForm} onSubmit={submitSignup}>
+                <input id="demo-email" type="email" inputMode="email" autoComplete="email" placeholder="Twój e-mail" value={email} onFocus={() => { if (!signupStartedRef.current && trafficSessionRef.current) { signupStartedRef.current = true; void fetch("/api/analytics/landing", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "event", event: "signup_started", sessionId: trafficSessionRef.current, source: trafficSourceRef.current }), keepalive: true }).catch(() => undefined); } }} onChange={(event) => setEmail(event.target.value)} required maxLength={254} disabled={signupState === "submitting" || signupState === "success"} />
+                <button type="submit" disabled={signupState === "submitting" || signupState === "success"}>{signupState === "submitting" ? "ZAPISUJĘ…" : signupState === "success" ? "JESTEŚ NA LIŚCIE" : "ZAPISZ MNIE NA PIERWSZĄ AUKCJĘ"}</button>
+                <label><input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} disabled={signupState === "submitting" || signupState === "success"} /> <span>Tylko informacje o pierwszej aukcji. Bez codziennych maili.</span></label>
+                {signupMessage ? <small className={signupState === "success" ? styles.signupSuccess : styles.signupError} aria-live="polite">{signupMessage}</small> : null}
+              </form>
+            </section>
+          ) : null}
           <p className={styles.note}>To symulacja. Niczego tutaj nie kupujesz ani nie płacisz.</p>
         </div>
       </section>
-      )}
     </main>
   );
 }
