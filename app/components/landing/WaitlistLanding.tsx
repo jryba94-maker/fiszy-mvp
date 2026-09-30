@@ -59,7 +59,7 @@ export function WaitlistLanding() {
   const [consent, setConsent] = useState(false);
   const [state, setState] = useState<SignupState>("idle");
   const [message, setMessage] = useState("");
-  const sourceRef = useRef<ReturnType<typeof trafficSource> | null>(null);
+  const sourceRef = useRef<ReturnType<typeof landingAttribution> | null>(null);
   const startedTypingRef = useRef(false);
   const landingSessionRef = useRef("");
 
