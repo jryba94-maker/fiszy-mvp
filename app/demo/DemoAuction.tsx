@@ -2,6 +2,7 @@
 
 import { track } from "@vercel/analytics";
 import Link from "next/link";
+import { landingAttribution, landingSourceLabel } from "../../lib/landing-attribution";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import styles from "./demo.module.css";
 
@@ -60,18 +61,7 @@ function formatSeconds(value: number) {
   return `00:${String(Math.max(0, value)).padStart(2, "0")}`;
 }
 
-function demoTrafficSource() {
-  const params = new URLSearchParams(window.location.search);
-  const campaign = [params.get("utm_source"), params.get("utm_medium"), params.get("utm_campaign")]
-    .map((value) => value?.trim().slice(0, 80))
-    .filter(Boolean)
-    .join("/");
-  if (campaign) return campaign;
-  try { return document.referrer ? new URL(document.referrer).hostname.slice(0, 80) : "direct"; }
-  catch { return "direct"; }
-}
-
-function demoVisitorId() {
+function demoTrafficSource() { return landingSourceLabel(landingAttribution()); }\n\nfunction demoVisitorId() {
   try {
     const key = "fiszy_landing_visitor_id";
     const saved = localStorage.getItem(key);
@@ -110,20 +100,24 @@ export function DemoAuction() {
   const finishedRef = useRef(false);
   const trafficSessionRef = useRef("");
   const trafficSourceRef = useRef("direct");
+  const trafficAttributionRef = useRef<ReturnType<typeof landingAttribution> | null>(null);
+  const signupStartedRef = useRef(false);
 
   useEffect(() => {
     const product = productRef.current;
     track("demo_auction_opened", { product: product.id, start_price: product.price });
     const sessionId = demoSessionId();
     const visitorId = demoVisitorId();
-    const source = demoTrafficSource();
+    const attribution = landingAttribution();
+    const source = landingSourceLabel(attribution);
     const durationId = crypto.randomUUID();
     trafficSessionRef.current = sessionId;
     trafficSourceRef.current = source;
+    trafficAttributionRef.current = attribution;
     void fetch("/api/analytics/landing", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type: "view", sessionId, viewId: crypto.randomUUID(), visitorId, source }),
+      body: JSON.stringify({ type: "view", page: "demo", sessionId, viewId: crypto.randomUUID(), visitorId, source }),
       keepalive: true,
     }).catch(() => undefined);
     void fetch("/api/analytics/landing", {
@@ -179,6 +173,7 @@ export function DemoAuction() {
       if (liveElapsed >= liveSecondsRef.current) {
         setElapsed(liveSecondsRef.current);
         finishedRef.current = true;
+        if (trafficSessionRef.current) void fetch("/api/analytics/landing", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "event", event: "demo_finished", sessionId: trafficSessionRef.current, source: trafficSourceRef.current }), keepalive: true }).catch(() => undefined);
         setState((current) => current === "won" ? current : "lost");
         return;
       }
@@ -222,6 +217,7 @@ export function DemoAuction() {
 
   const openSignup = () => {
     setShowSignup(true);
+    if (trafficSessionRef.current) void fetch("/api/analytics/landing", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "event", event: "first_auction_cta", sessionId: trafficSessionRef.current, source: trafficSourceRef.current }), keepalive: true }).catch(() => undefined);
     setSignupState("idle");
     setSignupMessage("");
     track("demo_auction_first_auction_opened", { outcome: state, product: product.id });
@@ -237,33 +233,17 @@ export function DemoAuction() {
     }
     setSignupState("submitting");
     setSignupMessage("");
-    const params = new URLSearchParams(window.location.search);
-    const source = {
-      utmSource: params.get("utm_source") ?? "demo",
-      utmMedium: params.get("utm_medium"),
-      utmCampaign: params.get("utm_campaign"),
-      utmContent: params.get("utm_content"),
-      utmTerm: params.get("utm_term"),
-      referrerHost: (() => { try { return document.referrer ? new URL(document.referrer).hostname : null; } catch { return null; } })(),
-    };
+    const source = trafficAttributionRef.current ?? landingAttribution();
     try {
       const response = await fetch("/api/waitlist", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: normalizedEmail, consent: true, source }),
+        body: JSON.stringify({ email: normalizedEmail, consent: true, source, traffic: { sessionId: trafficSessionRef.current, source: trafficSourceRef.current } }),
       });
       if (!response.ok) throw new Error("signup_failed");
       const result = await response.json().catch(() => null) as { created?: boolean } | null;
       setSignupState("success");
       setSignupMessage(result?.created === false ? "Ten adres jest już na liście pierwszej aukcji." : "Jesteś na liście. Damy Ci znać przed startem.");
-      if (result?.created !== false && trafficSessionRef.current) {
-        void fetch("/api/analytics/landing", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ type: "event", event: "signup", sessionId: trafficSessionRef.current, source: trafficSourceRef.current }),
-          keepalive: true,
-        }).catch(() => undefined);
-      }
       track("demo_auction_waitlist_signup", { product: product.id, outcome: state });
     } catch {
       setSignupState("error");
@@ -303,7 +283,7 @@ export function DemoAuction() {
           <p className={styles.signupLead}>Zapisani jako pierwsi poznają produkt, godzinę aukcji i zasady wejścia.</p>
           <form className={styles.signupForm} onSubmit={submitSignup}>
             <label htmlFor="demo-email">Twój e-mail</label>
-            <input id="demo-email" type="email" inputMode="email" autoComplete="email" placeholder="Twój e-mail" value={email} onChange={(event) => setEmail(event.target.value)} required maxLength={254} disabled={signupState === "submitting" || signupState === "success"} />
+            <input id="demo-email" type="email" inputMode="email" autoComplete="email" placeholder="Twój e-mail" value={email} onFocus={() => { if (!signupStartedRef.current && trafficSessionRef.current) { signupStartedRef.current = true; void fetch("/api/analytics/landing", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "event", event: "signup_started", sessionId: trafficSessionRef.current, source: trafficSourceRef.current }), keepalive: true }).catch(() => undefined); } }} onChange={(event) => setEmail(event.target.value)} required maxLength={254} disabled={signupState === "submitting" || signupState === "success"} />
             <button type="submit" disabled={signupState === "submitting" || signupState === "success"}>{signupState === "submitting" ? "ZAPISUJĘ…" : signupState === "success" ? "JESTEŚ NA LIŚCIE" : "ZAPISZ MNIE"}</button>
             <label className={styles.signupConsent}><input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} disabled={signupState === "submitting" || signupState === "success"} /> <span>Chcę otrzymać e-mail o starcie pierwszej aukcji. Zgodę mogę wycofać w każdej chwili.</span></label>
             {signupMessage ? <p className={signupState === "success" ? styles.signupSuccess : styles.signupError} aria-live="polite">{signupMessage}</p> : null}
