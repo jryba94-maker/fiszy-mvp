@@ -1,13 +1,20 @@
 import { createHash } from "node:crypto";
 import { redisCommand } from "./redis";
 
-export const LANDING_EVENTS = ["scroll_25", "scroll_50", "scroll_75", "scroll_100", "form_started", "cta_attempt", "signup", "demo_opened"] as const;
+export const LANDING_EVENTS = [
+  "scroll_25", "scroll_50", "scroll_75", "scroll_100", "form_started", "cta_attempt",
+  "signup", "demo_opened", "demo_finished", "first_auction_cta", "signup_started",
+] as const;
 export type LandingEvent = (typeof LANDING_EVENTS)[number];
+export type LandingPage = "landing" | "demo";
 
 type DailyTraffic = {
-  schemaVersion: 1;
+  schemaVersion: 2;
   date: string;
   views: number;
+  landingViews: number;
+  demoViews: number;
+  legacyViews: number;
   uniqueSessions: number;
   activeSeconds: number;
   timedSessions: number;
@@ -27,6 +34,9 @@ function dateInWarsaw(now: number) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Warsaw", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(now));
 }
 function emptyEvents() { return Object.fromEntries(LANDING_EVENTS.map((event) => [event, 0])) as Record<LandingEvent, number>; }
+function zeroDay(date: string): DailyTraffic {
+  return { schemaVersion: 2, date, views: 0, landingViews: 0, demoViews: 0, legacyViews: 0, uniqueSessions: 0, activeSeconds: 0, timedSessions: 0, events: emptyEvents(), sources: {}, updatedAt: "" };
+}
 
 export function validLandingSession(value: unknown): value is string {
   return typeof value === "string" && SESSION_PATTERN.test(value);
@@ -37,7 +47,11 @@ export function landingSource(value: unknown) {
   return source && /^[a-z0-9][a-z0-9._:/ -]{0,79}$/.test(source) ? source : "direct";
 }
 
-async function write(input: { sessionId: string; viewId?: unknown; visitorId?: unknown; durationId?: unknown; source: string; kind: "view" | "event" | "duration"; event?: LandingEvent; seconds?: number; now?: number }) {
+export function validLandingPage(value: unknown): value is LandingPage {
+  return value === "landing" || value === "demo";
+}
+
+async function write(input: { sessionId: string; viewId?: unknown; visitorId?: unknown; durationId?: unknown; source: string; kind: "view" | "event" | "duration"; page?: LandingPage; event?: LandingEvent; seconds?: number; now?: number }) {
   const now = input.now ?? Date.now();
   const date = dateInWarsaw(now);
   const source = landingSource(input.source);
@@ -59,32 +73,44 @@ local raw = redis.call("GET", KEYS[1])
 local record
 if raw then
   local ok, parsed = pcall(cjson.decode, raw)
-  if not ok or type(parsed) ~= "table" or parsed.schemaVersion ~= 1 or parsed.date ~= ARGV[1] then return nil end
+  if not ok or type(parsed) ~= "table" or parsed.date ~= ARGV[1] then return nil end
   record = parsed
+  if record.schemaVersion == 1 then
+    record.schemaVersion = 2
+    record.legacyViews = tonumber(record.views or 0)
+    record.landingViews = 0
+    record.demoViews = 0
+  elseif record.schemaVersion ~= 2 then return nil end
 else
-  record = {schemaVersion=1,date=ARGV[1],views=0,uniqueSessions=0,activeSeconds=0,timedSessions=0,events={},sources={}}
+  record = {schemaVersion=2,date=ARGV[1],views=0,landingViews=0,demoViews=0,legacyViews=0,uniqueSessions=0,activeSeconds=0,timedSessions=0,events={},sources={}}
 end
-if redis.call("SET", KEYS[2], "1", "NX", "EX", ARGV[6]) then record.uniqueSessions = tonumber(record.uniqueSessions or 0) + 1 end
-if redis.call("SET", KEYS[3], "1", "NX", "EX", ARGV[6]) then
-  if ARGV[2] == "view" then record.views = tonumber(record.views or 0) + 1 end
-  if ARGV[2] == "view" and ARGV[9] ~= "" then redis.call("SADD", KEYS[4], ARGV[9]); redis.call("EXPIRE", KEYS[4], ARGV[6]) end
+if redis.call("SET", KEYS[2], "1", "NX", "EX", ARGV[7]) then record.uniqueSessions = tonumber(record.uniqueSessions or 0) + 1 end
+if redis.call("SET", KEYS[3], "1", "NX", "EX", ARGV[7]) then
+  if ARGV[2] == "view" then
+    record.views = tonumber(record.views or 0) + 1
+    if ARGV[10] == "landing" then record.landingViews = tonumber(record.landingViews or 0) + 1 end
+    if ARGV[10] == "demo" then record.demoViews = tonumber(record.demoViews or 0) + 1 end
+  end
+  if ARGV[2] == "view" and ARGV[11] ~= "" then redis.call("SADD", KEYS[4], ARGV[11]); redis.call("EXPIRE", KEYS[4], ARGV[7]) end
   if ARGV[2] == "duration" then record.activeSeconds = tonumber(record.activeSeconds or 0) + tonumber(ARGV[5]); record.timedSessions = tonumber(record.timedSessions or 0) + 1 end
   if ARGV[2] == "event" then record.events[ARGV[4]] = tonumber(record.events[ARGV[4]] or 0) + 1 end
-  local current = record.sources[ARGV[3]] or {label=ARGV[7],views=0,signups=0}
+  local current = record.sources[ARGV[3]] or {label=ARGV[8],views=0,signups=0}
   if ARGV[2] == "view" then current.views = tonumber(current.views or 0) + 1 end
   if ARGV[2] == "event" and ARGV[4] == "signup" then current.signups = tonumber(current.signups or 0) + 1 end
   record.sources[ARGV[3]] = current
 end
-record.updatedAt = ARGV[8]
+record.updatedAt = ARGV[9]
 local encoded = cjson.encode(record)
-redis.call("SET", KEYS[1], encoded, "EX", ARGV[6])
+redis.call("SET", KEYS[1], encoded, "EX", ARGV[7])
 return encoded`,
-    5, dayKey(date), unique, dedupe, visitorsKey(date), timedSession, date, input.kind, sourceId, event, seconds, RETENTION_SECONDS, source, new Date(now).toISOString(), validLandingSession(input.visitorId) ? input.visitorId : "",
+    5, dayKey(date), unique, dedupe, visitorsKey(date), timedSession,
+    date, input.kind, sourceId, event, seconds, RETENTION_SECONDS, source, new Date(now).toISOString(),
+    input.page ?? "", validLandingSession(input.visitorId) ? input.visitorId : "",
   ]);
   if (!result) throw new Error("Unable to write landing traffic.");
 }
 
-export async function recordLandingView(input: { sessionId: string; viewId?: unknown; visitorId?: unknown; source: string; now?: number }) { await write({ ...input, kind: "view" }); }
+export async function recordLandingView(input: { sessionId: string; viewId?: unknown; visitorId?: unknown; source: string; page: LandingPage; now?: number }) { await write({ ...input, kind: "view" }); }
 export async function recordLandingEvent(input: { sessionId: string; source: string; event: LandingEvent; now?: number }) { await write({ ...input, kind: "event" }); }
 export async function recordLandingDuration(input: { sessionId: string; durationId?: unknown; source: string; seconds: number; now?: number }) { await write({ ...input, kind: "duration" }); }
 
@@ -92,16 +118,12 @@ function parseDay(raw: unknown): DailyTraffic | null {
   if (typeof raw !== "string" || !raw) return null;
   try {
     const value = JSON.parse(raw) as Partial<DailyTraffic>;
-    if (value.schemaVersion !== 1 || !/^\d{4}-\d{2}-\d{2}$/.test(value.date ?? "")) return null;
+    if (value.schemaVersion !== 1 && value.schemaVersion !== 2 || !/^\d{4}-\d{2}-\d{2}$/.test(value.date ?? "")) return null;
     const number = (candidate: unknown) => Number.isSafeInteger(candidate) && Number(candidate) >= 0 ? Number(candidate) : null;
     const views = number(value.views); const uniqueSessions = number(value.uniqueSessions); const activeSeconds = number(value.activeSeconds); const timedSessions = number(value.timedSessions);
     if (views === null || uniqueSessions === null || activeSeconds === null || timedSessions === null || !value.events || !value.sources) return null;
     const events = emptyEvents();
-    for (const event of LANDING_EVENTS) {
-      const count = value.events[event] === undefined ? 0 : number(value.events[event]);
-      if (count === null) return null;
-      events[event] = count;
-    }
+    for (const event of LANDING_EVENTS) { const count = value.events[event] === undefined ? 0 : number(value.events[event]); if (count === null) return null; events[event] = count; }
     const sources: DailyTraffic["sources"] = {};
     for (const [id, item] of Object.entries(value.sources)) {
       if (!/^[a-f0-9]{20}$/.test(id) || !item || typeof item !== "object") continue;
@@ -110,7 +132,13 @@ function parseDay(raw: unknown): DailyTraffic | null {
       if (typeof source.label !== "string" || sourceViews === null || signups === null) continue;
       sources[id] = { label: source.label, views: sourceViews, signups };
     }
-    return { schemaVersion: 1, date: value.date!, views, uniqueSessions, activeSeconds, timedSessions, events, sources, updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : "" };
+    return {
+      schemaVersion: 2, date: value.date!, views, uniqueSessions, activeSeconds, timedSessions, events, sources,
+      landingViews: value.schemaVersion === 2 ? number(value.landingViews) ?? 0 : 0,
+      demoViews: value.schemaVersion === 2 ? number(value.demoViews) ?? 0 : 0,
+      legacyViews: value.schemaVersion === 2 ? number(value.legacyViews) ?? 0 : views,
+      updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : "",
+    };
   } catch { return null; }
 }
 
@@ -119,25 +147,18 @@ export async function readLandingTraffic(days = 30, now = Date.now()) {
   const dates = Array.from({ length: days }, (_, offset) => dateInWarsaw(now - offset * 86_400_000)).reverse();
   const raw = await redisCommand<Array<string | null>>(["MGET", ...dates.map(dayKey)]);
   const visitorCounts = await redisCommand<number[]>(["EVAL", `local counts = {}; for i=1,#KEYS do counts[i] = redis.call("SCARD", KEYS[i]) end; counts[#KEYS+1] = #redis.call("SUNION", unpack(KEYS)); return counts`, dates.length, ...dates.map(visitorsKey)]);
-  const daily = dates.map((date, index) => ({ ...(parseDay(raw?.[index]) ?? { schemaVersion: 1 as const, date, views: 0, uniqueSessions: 0, activeSeconds: 0, timedSessions: 0, events: emptyEvents(), sources: {}, updatedAt: "" }), uniqueVisitors: visitorCounts?.[index] ?? 0 }));
-  const totals = { views: 0, uniqueSessions: 0, uniqueVisitors: visitorCounts?.[dates.length] ?? 0, activeSeconds: 0, timedSessions: 0, events: emptyEvents() };
+  const daily = dates.map((date, index) => ({ ...(parseDay(raw?.[index]) ?? zeroDay(date)), uniqueVisitors: visitorCounts?.[index] ?? 0 }));
+  const totals = { views: 0, landingViews: 0, demoViews: 0, legacyViews: 0, uniqueSessions: 0, uniqueVisitors: visitorCounts?.[dates.length] ?? 0, activeSeconds: 0, timedSessions: 0, events: emptyEvents() };
   const sourceMap = new Map<string, { views: number; signups: number }>();
   for (const day of daily) {
-    totals.views += day.views; totals.uniqueSessions += day.uniqueSessions; totals.activeSeconds += day.activeSeconds; totals.timedSessions += day.timedSessions;
+    totals.views += day.views; totals.landingViews += day.landingViews; totals.demoViews += day.demoViews; totals.legacyViews += day.legacyViews; totals.uniqueSessions += day.uniqueSessions; totals.activeSeconds += day.activeSeconds; totals.timedSessions += day.timedSessions;
     for (const event of LANDING_EVENTS) totals.events[event] += day.events[event];
-    for (const source of Object.values(day.sources)) {
-      const current = sourceMap.get(source.label) ?? { views: 0, signups: 0 };
-      current.views += source.views; current.signups += source.signups; sourceMap.set(source.label, current);
-    }
+    for (const source of Object.values(day.sources)) { const current = sourceMap.get(source.label) ?? { views: 0, signups: 0 }; current.views += source.views; current.signups += source.signups; sourceMap.set(source.label, current); }
   }
   const percent = (value: number, base: number) => base ? Math.round(value / base * 10_000) / 100 : 0;
   return {
     days, daily, totals,
-    conversion: {
-      formStarted: percent(totals.events.form_started, totals.uniqueSessions),
-      ctaAttempt: percent(totals.events.cta_attempt, totals.uniqueSessions),
-      signup: percent(totals.events.signup, totals.uniqueSessions),
-    },
+    conversion: { formStarted: percent(totals.events.signup_started, totals.uniqueSessions), ctaAttempt: percent(totals.events.first_auction_cta, totals.uniqueSessions), signup: percent(totals.events.signup, totals.uniqueSessions) },
     averageActiveSeconds: totals.timedSessions ? Math.round(totals.activeSeconds / totals.timedSessions) : 0,
     sources: [...sourceMap.entries()].map(([label, value]) => ({ label, ...value, signupRate: percent(value.signups, value.views) })).sort((a, b) => b.views - a.views).slice(0, 20),
   };
