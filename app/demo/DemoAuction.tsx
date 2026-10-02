@@ -204,11 +204,83 @@ export function DemoAuction() {
 
   const shareResult = async () => {
     const resultText = `Kliknąłem przy ${price} zł w demo Fiszy. ${timingPercent}% osób czekało dłużej. Jak dobry masz timing?`;
+    const card = await new Promise<File | null>((resolve) => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 1080;
+      canvas.height = 1920;
+      const context = canvas.getContext("2d");
+      if (!context) return resolve(null);
+
+      const background = context.createLinearGradient(0, 0, 1080, 1920);
+      background.addColorStop(0, "#08060d");
+      background.addColorStop(.45, "#26104d");
+      background.addColorStop(1, "#08060d");
+      context.fillStyle = background;
+      context.fillRect(0, 0, canvas.width, canvas.height);
+
+      const glow = context.createRadialGradient(540, 720, 20, 540, 720, 600);
+      glow.addColorStop(0, "rgba(167,122,255,.72)");
+      glow.addColorStop(.5, "rgba(123,44,255,.23)");
+      glow.addColorStop(1, "rgba(123,44,255,0)");
+      context.fillStyle = glow;
+      context.fillRect(0, 0, canvas.width, canvas.height);
+
+      context.fillStyle = "#ffffff";
+      context.font = "900 110px Arial, sans-serif";
+      context.fillText("Fiszy", 94, 156);
+      context.fillStyle = "#7b2cff";
+      context.fillText(".", 346, 156);
+
+      context.strokeStyle = "rgba(255,255,255,.24)";
+      context.lineWidth = 3;
+      context.roundRect(94, 280, 892, 1080, 42);
+      context.stroke();
+
+      context.fillStyle = "#cdb6ff";
+      context.font = "800 36px Arial, sans-serif";
+      context.fillText("MÓJ TIMING W DEMO", 152, 390);
+
+      context.fillStyle = "#ffffff";
+      context.font = "700 92px Arial, sans-serif";
+      context.fillText("Kliknąłem przy", 152, 540);
+      context.font = "900 220px Arial, sans-serif";
+      context.fillText(`${price} zł`, 145, 760);
+
+      context.fillStyle = "#e8ddff";
+      context.font = "700 60px Arial, sans-serif";
+      context.fillText(`${timingPercent}% osób czekało dłużej.`, 152, 925);
+
+      context.fillStyle = "rgba(255,255,255,.12)";
+      context.fillRect(152, 1030, 776, 2);
+      context.fillStyle = "#ffffff";
+      context.font = "700 53px Arial, sans-serif";
+      context.fillText(product.name, 152, 1140);
+      context.fillStyle = "#c7bfce";
+      context.font = "500 42px Arial, sans-serif";
+      context.fillText("Jak dobry masz timing?", 152, 1245);
+
+      context.fillStyle = "#b68cff";
+      context.font = "800 38px Arial, sans-serif";
+      context.fillText("fiszy.pl/demo", 94, 1710);
+      context.fillStyle = "#ffffff";
+      context.font = "900 73px Arial, sans-serif";
+      context.fillText("PRZYWRACAMY EMOCJE ZAKUPÓW", 94, 1800);
+
+      canvas.toBlob((blob) => resolve(blob ? new File([blob], "fiszy-moj-timing.png", { type: "image/png" }) : null), "image/png");
+    });
+
     try {
-      if (navigator.share) {
+      if (card && navigator.share && (!navigator.canShare || navigator.canShare({ files: [card] }))) {
+        await navigator.share({ files: [card], title: "Mój timing w Fiszy", text: resultText });
+      } else if (card) {
+        const downloadUrl = URL.createObjectURL(card);
+        const link = document.createElement("a");
+        link.href = downloadUrl;
+        link.download = "fiszy-moj-timing.png";
+        link.click();
+        URL.revokeObjectURL(downloadUrl);
+      } else if (navigator.share) {
         await navigator.share({ title: "Mój timing w Fiszy", text: resultText, url: window.location.href });
-      } else if (navigator.clipboard) {
-        await navigator.clipboard.writeText(`${resultText} ${window.location.href}`);
       } else {
         return;
       }
@@ -334,7 +406,7 @@ export function DemoAuction() {
                 <span>Twój timing</span>
                 <strong>Kliknąłeś przy {price} zł.</strong>
                 <p>{timingPercent}% osób czekało dłużej.</p>
-                <button type="button" onClick={shareResult}>Pokaż swój wynik</button>
+                <button type="button" onClick={shareResult}>Udostępnij kartę w Stories</button>
               </div>
             </section>
           ) : state === "live" ? (
@@ -354,7 +426,7 @@ export function DemoAuction() {
                 <span>Twój timing</span>
                 <strong>Dotarłeś do {price} zł.</strong>
                 <p>{timingPercent}% osób czekało dłużej.</p>
-                <button type="button" onClick={shareResult}>Pokaż swój wynik</button>
+                <button type="button" onClick={shareResult}>Udostępnij kartę w Stories</button>
               </div>
               <button className={styles.restartButton} type="button" onClick={restart}>Zagraj jeszcze raz</button>
             </section>
