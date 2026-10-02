@@ -6,11 +6,16 @@
 .eyebrow { margin: 0; color: #d7f23b; font-size: .69rem; font-weight: 900; letter-spacing: .14em; text-transform: uppercase; }
 .live { display: inline-flex; align-items: center; align-self: flex-start; gap: 7px; padding: 8px 10px; border-radius: 999px; background: rgba(215,242,59,.12); color: #e7ff75; font-size: .75rem; font-weight: 800; white-space: nowrap; }
 .live i { width: 7px; height: 7px; border-radius: 50%; background: #d7f23b; }
+.sourceStatus { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; color: rgba(255,255,255,.55); font-size: .76rem; }
+.sourceStatus strong { color: #fff; margin-right: 5px; }
+.sourceStatus span { padding: 6px 8px; border: 1px solid rgba(255,255,255,.1); border-radius: 999px; background: rgba(255,255,255,.04); }
 .layout { display: grid; grid-template-columns: minmax(280px, .72fr) minmax(0, 1.28fr); gap: 22px; margin-top: 24px; }
 .form { display: grid; align-content: start; gap: 13px; padding: 18px; border-radius: 18px; background: rgba(255,255,255,.055); }
 .form label { display: grid; gap: 6px; color: rgba(255,255,255,.68); font-size: .74rem; font-weight: 850; letter-spacing: .04em; text-transform: uppercase; }
 .form input, .form textarea { width: 100%; border: 1px solid rgba(255,255,255,.13); border-radius: 11px; padding: 10px 11px; background: #060608; color: #fff; font: inherit; font-size: .92rem; letter-spacing: 0; line-height: 1.4; text-transform: none; }
 .form textarea { min-height: 115px; resize: vertical; }
+.form textarea.notes { min-height: 74px; }
+.twoFields { display: grid; grid-template-columns: 1.2fr .8fr; gap: 10px; }
 .form input:focus, .form textarea:focus { outline: 3px solid rgba(141,92,246,.45); border-color: #8d5cf6; }
 .runButton { min-height: 48px; border: 0; border-radius: 11px; background: #d7f23b; color: #111; cursor: pointer; font-weight: 950; letter-spacing: .04em; }
 .runButton:disabled { cursor: not-allowed; opacity: .45; }
@@ -24,8 +29,8 @@
 .message { padding: 15px; border: 1px solid rgba(255,255,255,.1); border-radius: 14px; background: rgba(255,255,255,.035); }
 .agent { display: flex; align-items: center; gap: 9px; }
 .agent > span { display: grid; width: 31px; height: 31px; place-items: center; border-radius: 9px; color: #111; font-size: .69rem; font-weight: 950; }
-.agent_Creative { background: #8d5cf6; }.agent_AB { background: #d7f23b; }.agent_Performance { background: #fff; }
 .agent strong, .agent small { display: block; }.agent small { margin-top: 1px; color: rgba(255,255,255,.42); font-size: .7rem; }
 .message p { margin: 12px 0 0; color: rgba(255,255,255,.76); font-size: .88rem; line-height: 1.55; white-space: pre-wrap; }
+.auction { margin: 13px 0 0; color: #e7ff75; font-size: .8rem; }
 .empty { margin: 32px 0; color: rgba(255,255,255,.5); line-height: 1.55; }
-@media (max-width: 800px) { .header, .threadHead { display: grid; }.layout { grid-template-columns: 1fr; }.thread time { text-align: left; }.panel { border-radius: 18px; } }
+@media (max-width: 800px) { .header, .threadHead { display: grid; }.layout, .twoFields { grid-template-columns: 1fr; }.thread time { text-align: left; }.panel { border-radius: 18px; } }
