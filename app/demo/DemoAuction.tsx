@@ -61,6 +61,11 @@ function formatSeconds(value: number) {
   return `00:${String(Math.max(0, value)).padStart(2, "0")}`;
 }
 
+function waitedLongerPercent(liveElapsed: number, liveSeconds: number) {
+  const timing = Math.min(1, Math.max(0, liveElapsed / liveSeconds));
+  return Math.round(46 - timing * 28);
+}
+
 function demoVisitorId() {
   try {
     const key = "fiszy_landing_visitor_id";
@@ -195,6 +200,23 @@ export function DemoAuction() {
     ? COUNTDOWN_SECONDS - elapsed
     : Math.max(0, liveSecondsRef.current - liveElapsed);
   const progress = Math.min(100, (liveElapsed / MAX_LIVE_SECONDS) * 100);
+  const timingPercent = waitedLongerPercent(liveElapsed, liveSecondsRef.current);
+
+  const shareResult = async () => {
+    const resultText = `Kliknąłem przy ${price} zł w demo Fiszy. ${timingPercent}% osób czekało dłużej. Jak dobry masz timing?`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "Mój timing w Fiszy", text: resultText, url: window.location.href });
+      } else if (navigator.clipboard) {
+        await navigator.clipboard.writeText(`${resultText} ${window.location.href}`);
+      } else {
+        return;
+      }
+      track("demo_result_shared", { product: product.id, price, outcome: state, waited_longer_percent: timingPercent });
+    } catch {
+      // Zamknięcie panelu udostępniania nie jest błędem dla użytkownika.
+    }
+  };
 
   const restart = () => {
     productRef.current = randomProduct(productRef.current.id);
@@ -308,7 +330,13 @@ export function DemoAuction() {
               <h2>Wygrałeś.</h2>
               <strong>{product.name} za {price} zł</strong>
               <span className={styles.winnerNote}>W tej symulacji byłeś szybszy od pozostałych.</span>
-                          </section>
+              <div className={styles.timingResult}>
+                <span>Twój timing</span>
+                <strong>Kliknąłeś przy {price} zł.</strong>
+                <p>{timingPercent}% osób czekało dłużej.</p>
+                <button type="button" onClick={shareResult}>Pokaż swój wynik</button>
+              </div>
+            </section>
           ) : state === "live" ? (
             <button className={styles.buyButton} type="button" onClick={buy}>LICYTUJ! — {price} ZŁ</button>
           ) : state === "countdown" ? (
@@ -322,7 +350,13 @@ export function DemoAuction() {
               <h2>Ktoś był przed Tobą.</h2>
               <strong>{product.name} za {price} zł</strong>
               <span className={styles.winnerNote}>W tej symulacji ktoś kliknął szybciej.</span>
-                            <button className={styles.restartButton} type="button" onClick={restart}>Zagraj jeszcze raz</button>
+              <div className={styles.timingResult}>
+                <span>Twój timing</span>
+                <strong>Dotarłeś do {price} zł.</strong>
+                <p>{timingPercent}% osób czekało dłużej.</p>
+                <button type="button" onClick={shareResult}>Pokaż swój wynik</button>
+              </div>
+              <button className={styles.restartButton} type="button" onClick={restart}>Zagraj jeszcze raz</button>
             </section>
           )}
           {(state === "won" || state === "lost") ? (
