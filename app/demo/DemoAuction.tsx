@@ -212,59 +212,76 @@ export function DemoAuction() {
       if (!context) return resolve(null);
 
       const background = context.createLinearGradient(0, 0, 1080, 1920);
-      background.addColorStop(0, "#08060d");
-      background.addColorStop(.45, "#26104d");
-      background.addColorStop(1, "#08060d");
+      background.addColorStop(0, "#09070e");
+      background.addColorStop(0.58, "#160b2c");
+      background.addColorStop(1, "#09070e");
       context.fillStyle = background;
       context.fillRect(0, 0, canvas.width, canvas.height);
 
-      const glow = context.createRadialGradient(540, 720, 20, 540, 720, 600);
-      glow.addColorStop(0, "rgba(167,122,255,.72)");
-      glow.addColorStop(.5, "rgba(123,44,255,.23)");
-      glow.addColorStop(1, "rgba(123,44,255,0)");
+      const glow = context.createRadialGradient(540, 790, 20, 540, 790, 620);
+      glow.addColorStop(0, "rgba(141,82,255,.74)");
+      glow.addColorStop(0.48, "rgba(104,38,227,.27)");
+      glow.addColorStop(1, "rgba(104,38,227,0)");
       context.fillStyle = glow;
       context.fillRect(0, 0, canvas.width, canvas.height);
 
+      context.fillStyle = "rgba(255,255,255,.10)";
+      context.fillRect(92, 230, 896, 2);
       context.fillStyle = "#ffffff";
-      context.font = "900 110px Arial, sans-serif";
-      context.fillText("Fiszy", 94, 156);
-      context.fillStyle = "#7b2cff";
-      context.fillText(".", 346, 156);
+      context.font = "900 104px Arial, sans-serif";
+      context.fillText("Fiszy", 92, 158);
+      context.fillStyle = "#8d57ff";
+      context.fillText(".", 338, 158);
 
-      context.strokeStyle = "rgba(255,255,255,.24)";
-      context.lineWidth = 3;
-      context.roundRect(94, 280, 892, 1080, 42);
+      context.fillStyle = "#cdbbff";
+      context.font = "800 34px Arial, sans-serif";
+      context.fillText("WYNIK TWOJEJ DECYZJI", 92, 330);
+
+      context.fillStyle = "#ffffff";
+      context.font = "900 122px Arial, sans-serif";
+      context.fillText("Twój timing", 92, 465);
+
+      context.strokeStyle = "rgba(188,147,255,.72)";
+      context.lineWidth = 4;
+      context.beginPath();
+      context.arc(540, 835, 320, 0, Math.PI * 2);
       context.stroke();
 
-      context.fillStyle = "#cdb6ff";
-      context.font = "800 36px Arial, sans-serif";
-      context.fillText("MÓJ TIMING W DEMO", 152, 390);
+      context.fillStyle = "rgba(255,255,255,.08)";
+      context.beginPath();
+      context.arc(540, 835, 278, 0, Math.PI * 2);
+      context.fill();
 
+      context.textAlign = "center";
+      context.fillStyle = "#d7c4ff";
+      context.font = "800 32px Arial, sans-serif";
+      context.fillText("KLIKNIĘCIE PRZY", 540, 720);
       context.fillStyle = "#ffffff";
-      context.font = "700 92px Arial, sans-serif";
-      context.fillText("Kliknąłem przy", 152, 540);
-      context.font = "900 220px Arial, sans-serif";
-      context.fillText(`${price} zł`, 145, 760);
+      context.font = "900 172px Arial, sans-serif";
+      context.fillText(`${price} zł`, 540, 875);
+      context.fillStyle = "#e8e0f8";
+      context.font = "600 42px Arial, sans-serif";
+      context.fillText(product.name, 540, 965);
 
-      context.fillStyle = "#e8ddff";
-      context.font = "700 60px Arial, sans-serif";
-      context.fillText(`${timingPercent}% osób czekało dłużej.`, 152, 925);
-
-      context.fillStyle = "rgba(255,255,255,.12)";
-      context.fillRect(152, 1030, 776, 2);
+      context.textAlign = "left";
+      context.fillStyle = "rgba(255,255,255,.10)";
+      context.roundRect(92, 1240, 896, 236, 34);
+      context.fill();
+      context.fillStyle = "#bfa0ff";
+      context.font = "800 31px Arial, sans-serif";
+      context.fillText("TWÓJ MOMENT", 142, 1320);
       context.fillStyle = "#ffffff";
-      context.font = "700 53px Arial, sans-serif";
-      context.fillText(product.name, 152, 1140);
-      context.fillStyle = "#c7bfce";
-      context.font = "500 42px Arial, sans-serif";
-      context.fillText("Jak dobry masz timing?", 152, 1245);
+      context.font = "800 66px Arial, sans-serif";
+      context.fillText(`${timingPercent}% osób czekało dłużej`, 142, 1420);
 
+      context.fillStyle = "rgba(255,255,255,.24)";
+      context.fillRect(92, 1652, 896, 2);
+      context.fillStyle = "#ffffff";
+      context.font = "800 56px Arial, sans-serif";
+      context.fillText("Jak dobry masz timing?", 92, 1742);
       context.fillStyle = "#b68cff";
-      context.font = "800 38px Arial, sans-serif";
-      context.fillText("fiszy.pl/demo", 94, 1710);
-      context.fillStyle = "#ffffff";
-      context.font = "900 73px Arial, sans-serif";
-      context.fillText("PRZYWRACAMY EMOCJE ZAKUPÓW", 94, 1800);
+      context.font = "800 40px Arial, sans-serif";
+      context.fillText("fiszy.pl/demo", 92, 1827);
 
       canvas.toBlob((blob) => resolve(blob ? new File([blob], "fiszy-moj-timing.png", { type: "image/png" }) : null), "image/png");
     });
