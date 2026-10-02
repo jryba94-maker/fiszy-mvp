@@ -47,3 +47,12 @@
 .resultSignupForm label input { width:16px; height:16px; margin:1px 0 0; accent-color:#7b2cff; }
 .resultSignupForm small { text-align:center; }
 @media (max-width:850px) { .resultSignup { margin-top:12px; } .resultSignupForm { padding-bottom:0; } }
+
+.timingResult { display:grid; width:100%; gap:4px; margin-top:18px; border:1px solid rgba(255,255,255,.27); border-radius:14px; padding:13px 14px; background:rgba(7,5,13,.22); text-align:left; }
+.timingResult > span { color:#dfd4ff; font-size:.65rem; font-weight:900; letter-spacing:.1em; text-transform:uppercase; }
+.timingResult > strong { color:#fff; font-family:var(--font-geist-mono); font-size:.94rem; letter-spacing:-.025em; }
+.timingResult > p { margin:0; color:#f2edff; font-size:.76rem; font-weight:700; letter-spacing:0; text-transform:none; }
+.timingResult button { width:100%; min-height:42px; margin-top:8px; border:1px solid rgba(255,255,255,.2); border-radius:10px; background:#fff; color:#25103e; cursor:pointer; font:inherit; font-size:.72rem; font-weight:900; letter-spacing:.01em; text-transform:uppercase; }
+.timingResult button:hover { background:#efe8ff; }
+.lostCard .timingResult { border-color:rgba(255,255,255,.26); background:rgba(62,8,13,.2); }
+.lostCard .timingResult > span,.lostCard .timingResult > p { color:#ffe3e5; }
