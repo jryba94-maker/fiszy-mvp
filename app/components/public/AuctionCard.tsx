@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { auctionCategoryLabel, type PublicAuction } from "./auction-data";
+import { type PublicAuction } from "./auction-data";
 import { SafeAuctionImage } from "./SafeAuctionImage";
 import { StatusBadge } from "./StatusBadge";
 import { WatchButton } from "./WatchButton";
@@ -40,7 +40,6 @@ export function AuctionCard({ auction, watched = false, watchBusy = false, onWat
         <div className={styles.cardTopline}>
           <div className={styles.cardBadges}>
             <StatusBadge status={auction.status} />
-            <span className={styles.categoryBadge}>{auctionCategoryLabel(auction.category)}</span>
             {auction.postAuctionOffer.enabled ? (
               <span className={styles.offerBadge}>Rabat po aukcji</span>
             ) : null}
