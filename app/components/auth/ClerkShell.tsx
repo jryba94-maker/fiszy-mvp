@@ -4,8 +4,6 @@ import { plPL } from "@clerk/localizations/pl-PL";
 import { clerkAppearance } from "../../../lib/clerk-appearance";
 import { PwaManager } from "../pwa/PwaManager";
 
-const CLERK_JS_URL = "https://cdn.jsdelivr.net/npm/@clerk/clerk-js@6/dist/clerk.browser.js";
-
 const fiszyLocalization = {
   ...plPL,
   signIn: {
@@ -34,11 +32,7 @@ export function ClerkShell({
   pwa?: boolean;
 }) {
   return (
-    <ClerkProvider
-      localization={fiszyLocalization}
-      appearance={clerkAppearance}
-      clerkJSUrl={CLERK_JS_URL}
-    >
+    <ClerkProvider localization={fiszyLocalization} appearance={clerkAppearance}>
       {children}
       {pwa ? <PwaManager /> : null}
     </ClerkProvider>
