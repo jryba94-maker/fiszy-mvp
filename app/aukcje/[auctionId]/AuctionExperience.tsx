@@ -7,7 +7,6 @@ import { getAuctionPriceAt } from "../../../lib/auction";
 import {
   cancelPurchase,
   claimAuction,
-  auctionCategoryLabel,
   fetchAuctionDetail,
   fetchEntryState,
   PublicApiError,
@@ -547,7 +546,7 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
               <StatusBadge status={displayStatus} />
               <div className={styles.toplineActions}>
                 <AuctionWatchControl auctionId={auction.auctionId} />
-                <span className={styles.duration}>{auctionCategoryLabel(auction.category)} · {auction.durationMinutes} min</span>
+                <span className={styles.duration}>{auction.durationMinutes} min</span>
               </div>
             </div>
             <h1 className={styles.title} id="auction-title">{auction.product}</h1>
