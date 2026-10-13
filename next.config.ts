@@ -1,10 +1,12 @@
 import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
 
+// Clerk loads its client and UI from our Frontend API domain. Keep these
+// sources in CSP or account pages remain stuck waiting for Clerk to load.
 const securityHeaders = [
   {
     key: "Content-Security-Policy",
-    value: "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; form-action 'self'; img-src 'self' data: https:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' https://va.vercel-scripts.com; connect-src 'self' https:; frame-src https://checkout.stripe.com https://hooks.stripe.com",
+    value: "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; form-action 'self'; img-src 'self' data: https:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' https://va.vercel-scripts.com https://clerk.fiszy.pl https://challenges.cloudflare.com https://*.protect.clerk.com; connect-src 'self' https: https://*.protect.clerk.com:*; worker-src 'self' blob:; frame-src 'self' https://checkout.stripe.com https://hooks.stripe.com https://challenges.cloudflare.com https://*.protect.clerk.com",
   },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "DENY" },
