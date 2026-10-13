@@ -280,7 +280,7 @@
 }
 
 .price {
-  color: #10120f;
+  color: #fff;
   font-size: clamp(2.1rem, 6vw, 3rem);
   font-weight: 950;
   letter-spacing: -0.075em;
