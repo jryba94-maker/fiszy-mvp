@@ -50,12 +50,12 @@ function priceAt(auction: PublicAuction, status: AuctionStatus, serverNow: numbe
 function formatCountdown(target: string | null, serverNow: number) {
   if (!target) return "—";
   const totalSeconds = Math.max(0, Math.ceil((Date.parse(target) - serverNow) / 1000));
-  const hours = Math.floor(totalSeconds / 3600);
+  const days = Math.floor(totalSeconds / 86_400);
+  const hours = Math.floor((totalSeconds % 86_400) / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
-  return hours > 0
-    ? `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`
-    : `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  const time = `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  return days > 0 ? `${days} dni ${time}` : time;
 }
 
 function startDateLabel(value: string) {
