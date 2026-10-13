@@ -195,15 +195,15 @@
 }
 
 .cardImage {
-  min-height: 250px;
+  min-height: 220px;
 }
 
 .cardBody {
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: 16px;
-  padding: 22px;
+  gap: 12px;
+  padding: 18px;
 }
 
 .cardTopline {
@@ -255,8 +255,8 @@
 
 .cardTitle {
   margin: 0;
-  color: #10120f;
-  font-size: clamp(1.45rem, 4vw, 2rem);
+  color: #f8f7fb;
+  font-size: clamp(1.3rem, 4vw, 1.7rem);
   letter-spacing: -0.05em;
   line-height: 1;
 }
@@ -266,15 +266,15 @@
   align-items: flex-end;
   justify-content: space-between;
   gap: 16px;
-  margin-top: auto;
-  padding-top: 4px;
+  margin-top: 0;
+  padding-top: 0;
 }
 
 .priceLabel {
   display: block;
   margin-bottom: 4px;
-  color: #71736d;
-  font-size: 0.72rem;
+  color: #bcb8c4;
+  font-size: 0.7rem;
   font-weight: 750;
   text-transform: uppercase;
 }
@@ -288,14 +288,14 @@
 }
 
 .regularPrice {
-  color: #71736d;
-  font-size: 0.86rem;
+  color: #ada9b4;
+  font-size: 0.82rem;
   text-decoration: line-through;
 }
 
 .cardMeta {
-  min-height: 20px;
-  color: #565852;
+  min-height: 0;
+  color: #bebac5;
   font-size: 0.84rem;
   line-height: 1.45;
 }
@@ -315,8 +315,8 @@
   justify-content: center;
   border: 1px solid rgba(16, 18, 15, 0.18);
   border-radius: 999px;
-  background: transparent;
-  color: #10120f;
+  background: #202026;
+  color: #f8f7fb;
   cursor: pointer;
   font-size: 0.74rem;
   font-weight: 850;
@@ -405,8 +405,12 @@
     display: none;
   }
 
+  .cardImage {
+    min-height: 210px;
+  }
+
   .cardBody {
-    padding: 19px;
+    padding: 18px;
   }
 }
 
