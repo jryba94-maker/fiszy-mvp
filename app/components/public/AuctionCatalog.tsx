@@ -280,20 +280,9 @@ export function AuctionCatalog() {
         ) : null}
       </section>
 
-      <section className={`${styles.section} ${styles.mechanics}`} id="jak-to-dziala" aria-labelledby="mechanics-title">
-        <div className={styles.sectionHeading}>
-          <h2 id="mechanics-title">Moment decyzji</h2>
-        </div>
-        <article className={styles.mechanicsCard}>
-          <div className={styles.mechanicsLead}>
-            <h3>Cena spada.<br />Ty obserwujesz.</h3>
-          </div>
-          <div className={styles.mechanicsCopy}>
-            <p>Im dłużej czekasz, tym mniej możesz zapłacić.</p>
-            <p><strong>Tylko jednego nie wiesz:</strong><br />kiedy zdecyduje ktoś inny.</p>
-            <p>Gdy cena jest właściwa, klikasz.<br />Pierwsza decyzja kończy aukcję.</p>
-          </div>
-        </article>
+      <section className={styles.decisionStrip} id="jak-to-dziala" aria-labelledby="decision-title">
+        <h2 id="decision-title">Twój moment. Twoja decyzja.</h2>
+        <Link href="#aukcje">Zobacz aukcję <span aria-hidden="true">↑</span></Link>
       </section>
 
       <footer className={styles.footer}>
