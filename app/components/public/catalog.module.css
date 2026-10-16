@@ -643,3 +643,35 @@
     line-height: .9;
   }
 }
+
+/* The first auction takes priority over the catalog introduction. */
+.launchIntro {
+  width: min(1180px, calc(100% - 40px));
+  margin: 16px auto 24px;
+}
+.launchIntro .eyebrow { margin-bottom: 12px; color: #c5a3ff; }
+.launchIntro h1 {
+  max-width: 800px;
+  margin: 0;
+  color: #fff;
+  font-size: clamp(1.6rem, 4vw, 2.7rem);
+  font-weight: 600;
+  letter-spacing: -.05em;
+  line-height: 1.08;
+}
+.launchAuctions {
+  width: min(1180px, calc(100% - 40px));
+  margin: 0 auto;
+  scroll-margin-top: 20px;
+}
+.launchAuctions .auctionGrid,
+.launchAuctions .loadingGrid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+}
+.launchAuctions .auctionGrid > :only-child,
+.launchAuctions .loadingGrid > :only-child { max-width: 760px; width: 100%; justify-self: center; }
+@media (max-width: 680px) {
+  .launchIntro, .launchAuctions { width: calc(100% - 28px); }
+  .launchIntro { margin-top: 8px; margin-bottom: 20px; }
+  .launchIntro .eyebrow { font-size: .7rem; }
+}
