@@ -425,3 +425,60 @@
     transform: none;
   }
 }
+
+/* Focused first-auction presentation. Scoped to avoid affecting account controls. */
+.featureCard {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border: 1px solid #29272f;
+  border-radius: 28px;
+  background: #111114;
+  color: #fff;
+  box-shadow: 0 24px 80px rgba(0,0,0,.22);
+}
+.featureCard:hover { transform: none; box-shadow: 0 24px 80px rgba(0,0,0,.22); }
+.featureCard .cardImage {
+  min-height: 420px;
+  background: radial-gradient(ellipse at 50% 45%, rgba(123,44,255,.16), transparent 65%), #17161c;
+}
+.featureCard .cardBody { padding: 36px; gap: 14px; justify-content: center; }
+.featureStatus { margin: 0; color: #c7a8ff; font-size: .72rem; font-weight: 650; letter-spacing: .08em; text-transform: uppercase; }
+.featureCard .cardTitle { color: #fff; font-size: clamp(1.9rem, 4vw, 2.8rem); font-weight: 650; line-height: 1.08; letter-spacing: -.05em; }
+.featureCard .cardMeta { color: #c3becb; font-size: .9rem; line-height: 1.5; }
+.featureCard .priceRow { padding: 10px 0 8px; align-items: center; }
+.featureCard .priceLabel { color: #a7a1b1; font-size: .66rem; font-weight: 600; letter-spacing: .06em; margin-bottom: 8px; }
+.featureCard .price { color: #fff; font-size: clamp(2.6rem, 6vw, 3.7rem); font-weight: 650; line-height: 1; letter-spacing: -.065em; }
+.featureCard .regularPrice { color: #aaa3b5; }
+.featureCard .cardLink {
+  min-height: 52px;
+  box-sizing: border-box;
+  border: 1px solid #8539ff;
+  border-radius: 14px;
+  padding: 14px 20px;
+  background: #7b2cff;
+  color: #fff;
+  font-size: .95rem;
+  font-weight: 650;
+}
+.featureCard .cardLink:hover { background: #8b43ff; }
+.featureCard .cardTools { justify-content: flex-start; gap: 18px; flex-wrap: wrap; }
+.featureCard .watchButton, .featureCard .calendarLink {
+  min-height: 44px;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #bcb5c8;
+  font-size: .78rem;
+  font-weight: 550;
+}
+.featureCard .watchButtonActive { color: #d1b6ff; }
+@media (max-width: 760px) {
+  .featureCard { grid-template-columns: 1fr; border-radius: 22px; }
+  .featureCard .cardImage { min-height: 0; height: clamp(200px, 62vw, 300px); }
+  .featureCard .cardImage img { padding: 20px; }
+  .featureCard .cardBody { padding: 22px; gap: 10px; }
+  .featureCard .cardTitle { font-size: 1.9rem; }
+  .featureCard .priceRow { padding: 8px 0; }
+  .featureCard .price { font-size: 2.8rem; }
+}
