@@ -7,7 +7,8 @@ permissions:
   contents: write
 jobs:
   cleanup:
-    if: github.event.head_commit.message == 'chore: remove verified merged branches (one-time)'
+    if: >-
+      github.event.head_commit.message == 'chore: remove verified merged branches (one-time)'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
