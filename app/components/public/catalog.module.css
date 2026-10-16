@@ -731,3 +731,20 @@
   .launchIntro { margin: 10px auto 18px; }
   .launchAuctions + .footer { margin-top: 28px; }
 }
+
+@media (max-width: 680px) {
+  .footerLinks {
+    display: flex;
+    width: 100%;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 5px;
+  }
+  .footerLinks a {
+    min-width: 0;
+    padding: 10px 0;
+    font-size: clamp(.65rem, 2.8vw, .78rem);
+    white-space: nowrap;
+  }
+}
