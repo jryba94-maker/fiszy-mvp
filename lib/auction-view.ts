@@ -124,7 +124,7 @@ function toPublicAuction(
     : winner
       ? winner.paymentStatus === "paid"
         ? "sold"
-        : timedState.status
+        : timedState.status === "ended" ? "payment_pending" : timedState.status
       : timedState.status;
 
   return {

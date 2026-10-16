@@ -213,7 +213,7 @@ async function handlePaidEntry(session: StripeCheckoutSession) {
   throw new Error("Unable to validate paid auction entry state.");
 }
 
-async function handlePaidPurchase(session: StripeCheckoutSession) {
+async function handlePaidPurchase(session: StripeCheckoutSession, completedAt?: number) {
   const metadata = auctionMetadata(session, "auction_purchase");
   if (!metadata || session.mode !== "payment" || session.payment_status !== "paid") {
     return false;
@@ -239,7 +239,20 @@ async function handlePaidPurchase(session: StripeCheckoutSession) {
     return false;
   }
 
-  const paidAt = winner.paidAt ?? new Date().toISOString();
+  // Stripe Checkout has a 30-minute minimum session lifetime. Our auction turn
+  // lasts two minutes; a payment completed after that deadline must be refunded,
+  // even if every participant closed the auction page and stopped polling.
+  const deadline = Number(session.metadata?.paymentDeadline);
+  if (winner.paymentStatus !== "paid" && Number.isFinite(deadline) && deadline > 0) {
+    if (!completedAt) throw new Error("Purchase event has no completion timestamp.");
+    if (completedAt >= deadline) {
+      await refundCheckoutSessionPayment(session);
+      const released = await releaseAuctionWinner(metadata.runId, metadata.bidderId, session.id, metadata.auctionId, winner.claimedAt);
+      if (released === 1) await promoteNextAuctionPurchase(metadata.runId, metadata.auctionId);
+      return true;
+    }
+  }
+  const paidAt = winner.paidAt ?? (completedAt ? new Date(completedAt * 1000).toISOString() : new Date().toISOString());
   const shipping = session.collected_information?.shipping_details ?? null;
   const customer = session.customer_details ?? null;
 
@@ -522,7 +535,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ received: true, kind: entryOutcome });
     }
 
-    const purchasePaid = await handlePaidPurchase(event.data.object);
+    const purchasePaid = await handlePaidPurchase(event.data.object, event.created);
     if (purchasePaid) {
       return NextResponse.json({ received: true, kind: "auction_purchase" });
     }

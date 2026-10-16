@@ -87,6 +87,25 @@ export type BuyResponse = {
   checkoutUrl?: string | null;
 };
 
+export type BuyerQueueStatus = {
+  state: "idle" | "queued" | "payment" | "closed" | "expired";
+  position: number | null;
+  price: number | null;
+  paymentExpiresAt: string | null;
+  estimatedTurnAt: string | null;
+  checkoutUrl: string | null;
+  serverTime: string;
+};
+
+export async function fetchBuyerQueue(auctionId: string, runId: string, signal?: AbortSignal): Promise<BuyerQueueStatus> {
+  const response = await fetch(dynamicRunPath(auctionId, runId, "queue"), { cache: "no-store", signal });
+  const data = await checkedJson(response);
+  if (!isRecord(data) || data.outcome !== "ok" || !["idle", "queued", "payment", "closed", "expired"].includes(String(data.state))) {
+    throw new PublicApiError("Nie udało się odczytać kolejki.", 502);
+  }
+  return data as unknown as BuyerQueueStatus;
+}
+
 export type CancelPurchaseResponse = {
   outcome: string;
 };
@@ -352,7 +371,7 @@ export async function startEntryCheckout(
 export async function claimAuction(
   auctionId: string,
   runId: string,
-  expectedPrice: number,
+  expectedPrice: number | undefined,
   ageConfirmed = false,
 ) {
   return (await requestWithLegacyFallback(

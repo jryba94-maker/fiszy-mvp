@@ -41,6 +41,7 @@ export type StripeCheckoutSession = {
 
 type StripeEvent = {
   id: string;
+  created?: number;
   type: string;
   data: {
     object: StripeCheckoutSession;
@@ -149,7 +150,9 @@ export async function createPurchaseCheckoutSession(input: {
   body.set("success_url", `${input.origin}${returnPath}?purchase=success`);
   body.set("cancel_url", `${input.origin}${returnPath}?purchase=cancelled`);
   body.set("payment_method_types[0]", "card");
-  body.set("expires_at", String(input.expiresAt));
+  // Hosted Checkout requires >=30 minutes. The auction's two-minute deadline
+  // is enforced by expiring this session before advancing the buyer queue.
+  body.set("expires_at", String(Math.max(input.expiresAt, Math.floor(Date.now() / 1000) + 30 * 60 + 5)));
   body.set("shipping_address_collection[allowed_countries][0]", "PL");
   body.set("phone_number_collection[enabled]", "true");
   body.set("name_collection[individual][enabled]", "true");
@@ -161,6 +164,7 @@ export async function createPurchaseCheckoutSession(input: {
   );
   body.set("line_items[0][quantity]", "1");
   body.set("metadata[kind]", "auction_purchase");
+  body.set("metadata[paymentDeadline]", String(input.expiresAt));
   body.set("metadata[auctionId]", input.auctionId);
   body.set("metadata[runId]", input.runId);
   body.set("metadata[bidderId]", input.bidderId);

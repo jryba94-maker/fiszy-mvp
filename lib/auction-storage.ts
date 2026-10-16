@@ -1507,10 +1507,15 @@ local ok, config = pcall(cjson.decode, configRaw)
 if not ok or type(config) ~= "table" or config.runId ~= ARGV[1] then return -1 end
 if tonumber(ARGV[3]) < tonumber(ARGV[4]) or tonumber(ARGV[3]) >= tonumber(ARGV[5]) then return -1 end
 if redis.call("EXISTS", KEYS[2]) ~= 1 then return -2 end
-if redis.call("EXISTS", KEYS[5]) == 1 then
-  if redis.call("EXISTS", KEYS[3]) == 1 then return 1 end
-  return 2
+local currentRaw = redis.call("GET", KEYS[3])
+if currentRaw then
+  local current = cjson.decode(currentRaw)
+  if current.paymentStatus ~= "pending" then return 0 end
+  if current.bidderId == ARGV[2] then return 1 end
 end
+if redis.call("ZSCORE", KEYS[6], ARGV[2]) then return 2 end
+if redis.call("EXISTS", KEYS[7]) == 1 then return -4 end
+redis.call("SET", KEYS[7], "1", "EX", 604800)
 redis.call("SET", KEYS[5], ARGV[6], "EX", 604800)
 local sequence = redis.call("INCR", KEYS[4])
 redis.call("EXPIRE", KEYS[4], 604800)
@@ -1522,25 +1527,69 @@ if not popped or not popped[1] then return -3 end
 local winnerRaw = redis.call("GET", ARGV[7] .. popped[1])
 if not winnerRaw then return -3 end
 local winner = cjson.decode(winnerRaw)
-winner.claimedAt = winner.clickedAt
+winner.claimedAt = ARGV[8]
 winner.clickedAt = nil
 winner.paymentStatus = "pending"
 redis.call("SET", KEYS[3], cjson.encode(winner), "EX", 604800)
 redis.call("DEL", ARGV[7] .. popped[1])
-return 1
+if winner.bidderId == ARGV[2] then return 1 end
+return 2
 `;
 
   return redisCommand<number>([
-    "EVAL", script, 6,
+    "EVAL", script, 7,
     auctionConfigKey(auctionId),
     entryKey(runId, bidderId, auctionId),
     winnerKey(runId, auctionId),
     queueSequenceKey(runId, auctionId),
     queueEntryKey(runId, bidderId, auctionId),
     queueKey(runId, auctionId),
+    `${queueEntryKey(runId, bidderId, auctionId)}:attempted`,
     runId, bidderId, nowMs, startsAtMs, endsAtMs, JSON.stringify(entry),
     `${prefix()}:auction:${checkedAuctionId(auctionId)}:run:${checkedRunId(runId)}:purchase-queue:`,
+    new Date(nowMs).toISOString(),
   ]);
+}
+
+export type AuctionQueueStatus = {
+  state: "idle" | "queued" | "payment" | "closed" | "expired";
+  position: number | null;
+  price: number | null;
+  paymentExpiresAt: string | null;
+  estimatedTurnAt: string | null;
+  checkoutUrl: string | null;
+  serverTime: string;
+};
+
+// Read the head, rank and saved price in one Redis snapshot. Never expose other bidders.
+export async function readAuctionQueueStatus(runId: string, bidderId: string, auctionId: string, nowMs = Date.now()): Promise<AuctionQueueStatus> {
+  const raw = await redisCommand<string>(["EVAL", `
+local headRaw = redis.call("GET", KEYS[1])
+local head = headRaw and cjson.decode(headRaw) or nil
+if head and head.paymentStatus ~= "pending" then return cjson.encode({state="closed"}) end
+local rank = redis.call("ZRANK", KEYS[2], ARGV[1])
+local ownRaw = redis.call("GET", KEYS[3])
+local own = ownRaw and cjson.decode(ownRaw) or nil
+if head and head.bidderId == ARGV[1] then
+ return cjson.encode({state="payment",position=1,price=head.price,claimedAt=head.claimedAt,paymentExpiresAt=head.paymentExpiresAt,checkoutUrl=head.paymentCheckoutUrl})
+end
+if rank and own then
+ return cjson.encode({state="queued",position=rank+2,price=own.price,claimedAt=head and head.claimedAt or nil,paymentExpiresAt=head and head.paymentExpiresAt or nil})
+end
+if redis.call("EXISTS", KEYS[4]) == 1 then return cjson.encode({state="expired"}) end
+return cjson.encode({state="idle"})
+`, 4, winnerKey(runId, auctionId), queueKey(runId, auctionId), queueEntryKey(runId, bidderId, auctionId), `${queueEntryKey(runId, bidderId, auctionId)}:attempted`, bidderId]);
+  if (!raw) throw new Error("Queue snapshot unavailable.");
+  const snapshot = JSON.parse(raw) as { state: AuctionQueueStatus["state"]; position?: number; price?: number; claimedAt?: string; paymentExpiresAt?: string; checkoutUrl?: string };
+  const deadline = snapshot.paymentExpiresAt ?? (snapshot.claimedAt ? new Date(Date.parse(snapshot.claimedAt) + 120_000).toISOString() : null);
+  return {
+    state: snapshot.state, position: snapshot.position ?? null, price: snapshot.price ?? null,
+    paymentExpiresAt: deadline,
+    estimatedTurnAt: snapshot.state === "queued" && deadline && snapshot.position
+      ? new Date(Date.parse(deadline) + (snapshot.position - 2) * 120_000).toISOString() : null,
+    checkoutUrl: snapshot.state === "payment" ? snapshot.checkoutUrl ?? null : null,
+    serverTime: new Date(nowMs).toISOString(),
+  };
 }
 
 export async function promoteNextAuctionPurchase(
@@ -1655,6 +1704,7 @@ export async function releaseAuctionWinner(
   paymentSessionId?: string,
   auctionId: string = AUCTION_ID,
   claimedAt?: string,
+  requireNoSession = false,
 ) {
   const script = `
 local raw = redis.call("GET", KEYS[1])
@@ -1664,6 +1714,7 @@ if data.bidderId ~= ARGV[1] then return 0 end
 if data.paymentStatus == "paid" then return 0 end
 if ARGV[2] ~= "" and data.paymentSessionId ~= ARGV[2] then return 0 end
 if ARGV[3] ~= "" and data.claimedAt ~= ARGV[3] then return 0 end
+if ARGV[4] == "1" and data.paymentSessionId then return 0 end
 redis.call("DEL", KEYS[1])
 return 1
 `;
@@ -1676,6 +1727,7 @@ return 1
     bidderId,
     paymentSessionId ?? "",
     claimedAt ?? "",
+    requireNoSession ? "1" : "0",
   ]);
 }
 

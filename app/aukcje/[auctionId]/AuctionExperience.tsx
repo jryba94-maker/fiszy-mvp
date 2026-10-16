@@ -9,6 +9,8 @@ import {
   claimAuction,
   fetchAuctionDetail,
   fetchEntryState,
+  fetchBuyerQueue,
+  type BuyerQueueStatus,
   PublicApiError,
   startEntryCheckout,
   type AuctionStatus,
@@ -81,7 +83,7 @@ function timerAt(
   }
   if (displayStatus === "payment_pending") {
     return {
-      label: "Na płatność zwycięzcy",
+      label: "Płatność pierwszej osoby",
       value: formatCountdown(auction.paymentExpiresAt, serverNow),
     };
   }
@@ -132,6 +134,9 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
   const [entryFeedback, setEntryFeedback] = useState<Feedback>(null);
   const [purchaseFeedback, setPurchaseFeedback] = useState<Feedback>(null);
   const [ageConfirmed, setAgeConfirmed] = useState(false);
+  const [queueData, setQueueData] = useState<{ scope: string; status: BuyerQueueStatus } | null>(null);
+  const [queueError, setQueueError] = useState(false);
+  const checkoutAttemptRef = useRef<string | null>(null);
   const { isLoaded: isAuthLoaded, isSignedIn, userId } = useAuth();
   const cancelAttemptRef = useRef<string | null>(null);
   const pollingDelay = auction?.status === "sold" || auction?.status === "ended" ? 15_000 : 1_000;
@@ -340,6 +345,12 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
   const entryStateReady = Boolean(auction && checkedEntryKey === `${auctionId}:${auction.runId}:${userId}`);
   const checkingEntry = Boolean(auction && isAuthLoaded && isSignedIn && !entryStateReady);
   const hasCurrentEntry = Boolean(auction && entryStateReady && hasEntry && entryRunId === auction.runId);
+  const queueScope = auction ? `${auctionId}:${auction.runId}:${userId}` : "";
+  const storedQueue = queueData?.scope === queueScope ? queueData.status : null;
+  const buyerQueue = storedQueue && displayStatus === "sold" ? { ...storedQueue, state: "closed" as const, checkoutUrl: null } : storedQueue;
+  const isQueued = buyerQueue?.state === "queued";
+  const isPaying = buyerQueue?.state === "payment";
+  const queueExpired = buyerQueue?.state === "expired";
   const startsAtMs = auction ? Date.parse(auction.startsAt) : Number.NaN;
   const entryWindowOpen = Boolean(
     auction &&
@@ -389,8 +400,43 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
       entryWindowOpen,
   );
   const canBuy = Boolean(
-    auction && isAuthLoaded && isSignedIn && auction.storageReady && hasCurrentEntry && displayStatus === "live",
+    auction && isAuthLoaded && isSignedIn && auction.storageReady && hasCurrentEntry && buyerQueue &&
+    !isQueued && !queueExpired && buyerQueue?.state !== "closed" && (displayStatus === "live" || isPaying),
   );
+  useEffect(() => {
+    if (!auction?.runId || !hasCurrentEntry || displayStatus === "waiting" || displayStatus === "sold") return;
+    const runId = auction.runId;
+    const scope = queueScope;
+    const controller = new AbortController();
+    let inFlight = false;
+    const poll = async () => {
+      if (inFlight || document.visibilityState !== "visible") return;
+      inFlight = true;
+      try {
+        const status = await fetchBuyerQueue(auctionId, runId, controller.signal);
+        if (controller.signal.aborted) return;
+        setQueueData({ scope, status });
+        setQueueError(false);
+        const returningFromCheckout = new URLSearchParams(window.location.search).has("purchase");
+        if (!returningFromCheckout && status.state === "payment" && status.paymentExpiresAt && Date.parse(status.paymentExpiresAt) > Date.parse(status.serverTime)) {
+          const attempt = `${scope}:${status.paymentExpiresAt}`;
+          if (checkoutAttemptRef.current !== attempt) {
+            checkoutAttemptRef.current = attempt;
+            const result = await claimAuction(auctionId, runId, status.price ?? undefined, ageConfirmed);
+            if (controller.signal.aborted) return;
+            if (result.outcome === "checkout" && result.checkoutUrl) window.location.assign(result.checkoutUrl);
+            else setPurchaseFeedback({ text: "Twoja kolej. Kliknij przycisk, aby dokończyć płatność.", error: true });
+          }
+        }
+      } catch {
+        if (!controller.signal.aborted) setQueueError(true);
+      } finally { inFlight = false; }
+    };
+    void poll();
+    const timer = window.setInterval(() => void poll(), 1_500);
+    document.addEventListener("visibilitychange", poll);
+    return () => { controller.abort(); window.clearInterval(timer); document.removeEventListener("visibilitychange", poll); };
+  }, [auction?.runId, auctionId, queueScope, hasCurrentEntry, displayStatus, ageConfirmed]);
   const needsSignIn = Boolean(
     auction && isAuthLoaded && !isSignedIn && auction.storageReady &&
       entryWindowOpen,
@@ -404,10 +450,14 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
     else if (isEntering) actionLabel = "PRZECHODZĘ DO PŁATNOŚCI…";
     else if (isBuying) actionLabel = "REZERWUJĘ…";
     else if (canEnter) actionLabel = `OPŁAĆ WEJŚCIE — ${auction.entryFee} ZŁ`;
-    else if (canBuy) actionLabel = `KUP TERAZ — ${visiblePrice} ZŁ`;
+    else if (isPaying) actionLabel = "DOKOŃCZ PŁATNOŚĆ";
+    else if (isQueued) actionLabel = `JESTEŚ ${buyerQueue?.position}. W KOLEJCE`;
+    else if (queueExpired) actionLabel = "TWÓJ CZAS NA PŁATNOŚĆ MINĄŁ";
+    else if (displayStatus === "live" && hasCurrentEntry && !buyerQueue) actionLabel = "SPRAWDZAMY KOLEJKĘ…";
+    else if (canBuy) actionLabel = `LICYTUJ — ${visiblePrice} ZŁ`;
     else if (displayStatus === "waiting" && hasCurrentEntry) actionLabel = "WEJŚCIE OPŁACONE — CZEKAMY";
     else if (displayStatus === "waiting") actionLabel = "WEJŚCIE DOSTĘPNE DO STARTU";
-    else if (displayStatus === "payment_pending") actionLabel = "PRODUKT ZAREZERWOWANY";
+    else if (displayStatus === "payment_pending") actionLabel = "TRWAJĄ PŁATNOŚCI W KOLEJCE";
     else if (displayStatus === "sold") actionLabel = "SPRZEDANE";
     else actionLabel = "AUKCJA ZAKOŃCZONA";
   }
@@ -448,7 +498,7 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
       const data = await claimAuction(
         auction.auctionId,
         auction.runId,
-        visiblePrice,
+        isPaying ? buyerQueue?.price ?? visiblePrice : visiblePrice,
         ageConfirmed,
       );
       if (data.outcome === "checkout" && data.checkoutUrl) {
@@ -460,6 +510,10 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
         return;
       }
       if (data.outcome === "queued") {
+        try {
+          const status = await fetchBuyerQueue(auction.auctionId, auction.runId);
+          setQueueData({ scope: queueScope, status });
+        } catch { setQueueError(true); }
         setPurchaseFeedback({
           text: `Zapisaliśmy Cię w kolejce po cenie ${data.price ?? visiblePrice} zł. Jeśli wcześniejsza płatność nie dojdzie do skutku, dostaniesz swoją kolej.`,
         });
@@ -467,9 +521,7 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
       }
       if (data.outcome === "lost") {
         const winnerPrice = data.winnerPrice ?? visiblePrice;
-        setAuction((current) => current
-          ? { ...current, status: "payment_pending", currentPrice: winnerPrice }
-          : current);
+        // A pending checkout does not stop the public price or other bidders.
         recordAuctionEvent({ ...auction, status: "payment_pending", currentPrice: winnerPrice }, {
           purchaseState: "lost",
         });
@@ -619,6 +671,18 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
             </div>
 
             <p className={styles.message} aria-live="polite">{auctionMessage}</p>
+            {buyerQueue && buyerQueue.state !== "idle" ? (
+              <section className={styles.buyerQueue} aria-label="Twoja kolejka zakupu">
+                <h2>{isPaying ? "Twoja kolej na zakup" : isQueued ? `Jesteś ${buyerQueue.position}. w kolejce` : queueExpired ? "Twój czas na płatność minął" : "Produkt został opłacony"}</h2>
+                {buyerQueue.price !== null ? <p>Twoja zapisana cena: <strong>{buyerQueue.price} zł</strong></p> : null}
+                {isQueued ? <>
+                  <p>Osoba nr 1 ma jeszcze <strong>{formatCountdown(buyerQueue.paymentExpiresAt, serverNow)}</strong> na płatność.</p>
+                  <p>Do Twojej tury orientacyjnie: <strong>{formatCountdown(buyerQueue.estimatedTurnAt, serverNow)}</strong></p>
+                  <small>Możesz przejść do płatności wcześniej, jeśli ktoś zrezygnuje. Jeśli poprzednia osoba zapłaci, aukcja się zakończy.</small>
+                </> : isPaying ? <p>Na płatność pozostało <strong>{formatCountdown(buyerQueue.paymentExpiresAt, serverNow)}</strong>. Przenosimy Cię do płatności.</p> : null}
+                {queueError ? <p role="status">Odświeżamy status kolejki. Pokazane czasy mogą być nieaktualne.</p> : null}
+              </section>
+            ) : null}
             {auction.postAuctionOffer.enabled ? (
               <p className={styles.offerNote}>
                 Nie wygrasz? Twoje {auction.entryFee} zł wraca jako rabat na {auction.product}. Po aukcji znajdziesz go na swoim koncie — masz {auction.postAuctionOffer.validityDays} dni, żeby skorzystać.

@@ -863,6 +863,7 @@ test("webhook orchestration handles refunds, duplicates, order-id upgrades and r
     orderSaveResults = [1, 0];
     const purchaseEvent = {
       id: "evt_route_purchase",
+      created: Math.floor(Date.parse(winner.claimedAt) / 1000) + 119,
       type: "checkout.session.completed",
       data: {
         object: checkoutSession({
@@ -875,6 +876,7 @@ test("webhook orchestration handles refunds, duplicates, order-id upgrades and r
         }),
       },
     };
+    purchaseEvent.data.object.metadata.paymentDeadline = String(purchaseEvent.created + 1);
     for (let replay = 0; replay < 2; replay += 1) {
       const response = await invoke({ ...purchaseEvent, id: `evt_route_purchase_${replay}` });
       assert.equal(response.status, 200);
@@ -884,6 +886,20 @@ test("webhook orchestration handles refunds, duplicates, order-id upgrades and r
     assert.equal(savedOrders.length, 2);
     assert.match(savedOrders[0].orderId, /^FISZY-[A-F0-9]{64}$/);
     assert.equal(savedOrders[1].orderId, savedOrders[0].orderId);
+
+    // Completion timestamp, not webhook arrival, decides the two-minute limit.
+    const expiredPurchaseSession = structuredClone(purchaseEvent.data.object);
+    expiredPurchaseSession.payment_intent = "pi_test_expired_purchase";
+    const expiredPurchase = await invoke({
+      ...purchaseEvent,
+      id: "evt_purchase_after_deadline",
+      created: Number(expiredPurchaseSession.metadata.paymentDeadline),
+      data: { object: expiredPurchaseSession },
+    });
+    assert.equal(expiredPurchase.status, 200);
+    assert.equal(refundCalls.length, 2);
+    assert.equal(winner, null);
+    assert.equal(savedOrders.length, 2, "late payment must never create a winning order");
 
     winner = {
       bidderId: "route-upgrade-replay-bidder",

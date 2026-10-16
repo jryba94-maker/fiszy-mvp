@@ -536,6 +536,11 @@
 .stateLink { border-color: rgba(255,255,255,.24); color: #fff; }
 
 .productDetails { padding-bottom: 0; }
+.buyerQueue { margin: 18px 0; padding: 20px; border: 1px solid #7445ad; border-radius: 18px; background: #20152f; color: #e8dcfa; }
+.buyerQueue h2 { margin: 0 0 12px; font-size: 1.2rem; line-height: 1.2; color: #fff; }
+.buyerQueue p { margin: 8px 0; line-height: 1.5; font-size: .9rem; }
+.buyerQueue strong { font-variant-numeric: tabular-nums; color: #fff; }
+.buyerQueue small { display: block; margin-top: 12px; color: #c3b3d5; line-height: 1.5; }
 .productSummary { display: grid; grid-template-columns: minmax(0,1fr) 32px; gap: 8px 14px; align-items: center; cursor: pointer; list-style: none; }
 .productSummary::-webkit-details-marker { display: none; }
 .productSummary .title { margin: 0; }

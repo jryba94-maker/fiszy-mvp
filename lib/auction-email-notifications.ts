@@ -100,8 +100,8 @@ export async function queueWinnerEmail(input: {
     accountId: recipient.accountId,
     recipient: recipient.email,
     template: "auction_win",
-    title: "Wygrywasz aukcję",
-    text: `${input.product}\nWygrana cena: ${money(input.price)}${input.paymentExpiresAt ? `\nDokończ zakup do ${dateTime(input.paymentExpiresAt)}.` : ""}`,
+    title: "Twoja kolej na zakup",
+    text: `${input.product}\nTwoja zapisana cena: ${money(input.price)}${input.paymentExpiresAt ? `\nDokończ zakup do ${dateTime(input.paymentExpiresAt)}.` : ""}\nOpłacenie zakupu kończy aukcję.`,
     actionLabel: "Dokończ zakup",
     actionUrl: absoluteSiteUrl(`/aukcje/${encodeURIComponent(input.auctionId)}`),
   });
