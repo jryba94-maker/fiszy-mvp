@@ -126,12 +126,13 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
   const [reloadKey, setReloadKey] = useState(0);
   const [hasEntry, setHasEntry] = useState(false);
   const [entryRunId, setEntryRunId] = useState<string | null>(null);
+  const [checkedEntryKey, setCheckedEntryKey] = useState<string | null>(null);
   const [isEntering, setIsEntering] = useState(false);
   const [isBuying, setIsBuying] = useState(false);
   const [entryFeedback, setEntryFeedback] = useState<Feedback>(null);
   const [purchaseFeedback, setPurchaseFeedback] = useState<Feedback>(null);
   const [ageConfirmed, setAgeConfirmed] = useState(false);
-  const { isLoaded: isAuthLoaded, isSignedIn } = useAuth();
+  const { isLoaded: isAuthLoaded, isSignedIn, userId } = useAuth();
   const cancelAttemptRef = useRef<string | null>(null);
   const pollingDelay = auction?.status === "sold" || auction?.status === "ended" ? 15_000 : 1_000;
 
@@ -200,6 +201,7 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
     if (!auction?.runId || !isAuthLoaded || !isSignedIn) {
       setHasEntry(false);
       setEntryRunId(null);
+      setCheckedEntryKey(null);
       return;
     }
 
@@ -211,6 +213,8 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
 
     setHasEntry(false);
     setEntryRunId(runId);
+    setCheckedEntryKey(null);
+    const entryKey = `${auctionId}:${runId}:${userId}`;
 
     if (paymentState === "success") {
       setEntryFeedback({ text: "Płatność zakończona. Czekamy na potwierdzenie Stripe…" });
@@ -222,14 +226,16 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
       setEntryFeedback(null);
     }
 
-    const checkEntry = async (): Promise<boolean> => {
+    const checkEntry = async (): Promise<boolean | null> => {
       try {
         const data = await fetchEntryState(auctionId, runId);
-        if (!active) return false;
+        if (!active) return null;
+        if (data.outcome !== "ok" || data.runId !== runId) throw new Error("entry_unavailable");
 
         const granted = Boolean(data.outcome === "ok" && data.hasEntry && data.runId === runId);
         setHasEntry(granted);
         setEntryRunId(data.runId ?? runId);
+        if (granted || paymentState !== "success") setCheckedEntryKey(entryKey);
         if (granted) {
           recordAuctionEvent(auction, { entryState: "active" });
           if (paymentState === "success") {
@@ -239,13 +245,19 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
         }
         return granted;
       } catch {
-        return false;
+        return null;
       }
     };
 
     const checkWithRetry = async () => {
       const granted = await checkEntry();
-      if (!active || granted || paymentState !== "success") return;
+      if (!active || granted) return;
+      if (granted === null) {
+        setEntryFeedback({ text: "Sprawdzamy Twoje wejście. Nie opłacaj go ponownie — za chwilę spróbujemy jeszcze raz." });
+        retryTimer = window.setTimeout(() => void checkWithRetry(), 3_000);
+        return;
+      }
+      if (paymentState !== "success") { setEntryFeedback(null); return; }
       attempts += 1;
       if (attempts >= 15) {
         recordAuctionEvent(auction, { entryState: "unconfirmed" });
@@ -264,7 +276,7 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
       active = false;
       if (retryTimer) window.clearTimeout(retryTimer);
     };
-  }, [auction?.entryFee, auction?.runId, auctionId, isAuthLoaded, isSignedIn]);
+  }, [auction?.entryFee, auction?.runId, auctionId, isAuthLoaded, isSignedIn, userId]);
 
   useEffect(() => {
     if (!auction?.runId || !isAuthLoaded || !isSignedIn) return;
@@ -325,7 +337,9 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
   const serverNow = clock + serverOffset;
   const displayStatus = auction ? statusAt(auction, serverNow) : "waiting";
   const visiblePrice = auction ? priceAt(auction, displayStatus, serverNow) : 0;
-  const hasCurrentEntry = Boolean(auction && hasEntry && entryRunId === auction.runId);
+  const entryStateReady = Boolean(auction && checkedEntryKey === `${auctionId}:${auction.runId}:${userId}`);
+  const checkingEntry = Boolean(auction && isAuthLoaded && isSignedIn && !entryStateReady);
+  const hasCurrentEntry = Boolean(auction && entryStateReady && hasEntry && entryRunId === auction.runId);
   const startsAtMs = auction ? Date.parse(auction.startsAt) : Number.NaN;
   const entryWindowOpen = Boolean(
     auction &&
@@ -370,6 +384,7 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
       isAuthLoaded &&
       isSignedIn &&
       auction.storageReady &&
+      entryStateReady &&
       !hasCurrentEntry &&
       entryWindowOpen,
   );
@@ -384,6 +399,7 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
   let actionLabel = "ŁADOWANIE…";
   if (auction) {
     if (!isAuthLoaded) actionLabel = "SPRAWDZAMY KONTO…";
+    else if (checkingEntry) actionLabel = "SPRAWDZAMY TWOJE WEJŚCIE…";
     else if (needsSignIn) actionLabel = "ZALOGUJ SIĘ, ABY DOŁĄCZYĆ";
     else if (isEntering) actionLabel = "PRZECHODZĘ DO PŁATNOŚCI…";
     else if (isBuying) actionLabel = "REZERWUJĘ…";
@@ -395,7 +411,7 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
     else if (displayStatus === "sold") actionLabel = "SPRZEDANE";
     else actionLabel = "AUKCJA ZAKOŃCZONA";
   }
-  const actionDisabled = !isAuthLoaded || isEntering || isBuying || (!canEnter && !canBuy && !needsSignIn);
+  const actionDisabled = !isAuthLoaded || checkingEntry || isEntering || isBuying || (!canEnter && !canBuy && !needsSignIn);
 
   const handleEntry = async () => {
     if (!auction || !canEnter || isEntering) return;
@@ -411,6 +427,7 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
       if (data.outcome === "already_granted" && data.runId === auction.runId) {
         setHasEntry(true);
         setEntryRunId(data.runId);
+        setCheckedEntryKey(`${auctionId}:${data.runId}:${userId}`);
         recordAuctionEvent(auction, { entryState: "active" });
         setEntryFeedback({ text: "Masz już opłacone wejście do tej aukcji." });
         return;
@@ -523,7 +540,7 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
     );
   }
 
-  const actionNote = hasCurrentEntry
+  const actionNote = (hasCurrentEntry || checkingEntry)
     ? null
     : `Jednorazowe wejście do tej aukcji: ${auction.entryFee} zł`;
 
