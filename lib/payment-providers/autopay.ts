@@ -28,7 +28,9 @@ export async function createAutopaySession(kind: AutopayIntent["kind"], input: C
   const config = autopayConfiguration();
   if (!config.credentialsConfigured) throw new Error("Autopay is not configured.");
   const customer = await autopayCustomer(input.bidderId, kind !== "auction_entry");
-  const deadline = input.expiresAt ? new Date(input.expiresAt * 1000) : new Date(Date.now() + 15 * 60_000);
+  const requestedDeadline = input.expiresAt ? input.expiresAt * 1000 : Date.now() + 15 * 60_000;
+  // Entry can be sold weeks before start, but its payment link must stay short.
+  const deadline = new Date(kind === "auction_entry" ? Math.min(requestedDeadline, Date.now() + 15 * 60_000) : requestedDeadline);
   const reserved = await reserveAutopayIntent({ ...input, ...customer, kind, expiresAt: deadline.toISOString(), paymentValidUntil: new Date(Math.max(deadline.getTime(), Date.now() + 15 * 60_000)).toISOString() });
   let intent = reserved.intent;
   if (intent.amount !== input.amount) throw new Error("Autopay amount changed for an existing intent.");

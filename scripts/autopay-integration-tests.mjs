@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import { NextRequest } from "next/server.js";
 import { redis } from "./local-redis-test-client.mjs";
+import { autopayDate } from "../lib/payment-providers/autopay-protocol.ts";
 import { createAutopaySession } from "../lib/payment-providers/autopay.ts";
 import { readAutopayIntent, readAutopayRefund, autopayRefundId, reserveAutopayIntent } from "../lib/autopay-storage.ts";
 import { enqueueAuctionPurchase, readAuctionQueueStatus, readAuctionWinner, auctionConfigKey, auctionRecordKey, entryKey, winnerKey } from "../lib/auction-storage.ts";
@@ -29,6 +30,11 @@ globalThis.fetch = async (url, init = {}) => {
     assert.equal(params.get("Hash"), digest([...params].filter(([k])=> k !== "Hash").map(([,v])=>v)));
     assert.equal(params.get("GatewayID"), "999");
     assert.ok(params.get("LinkValidityTime"));
+    if (params.get("Description").includes("dostep")) {
+      const upperBound = autopayDate(new Date(Date.now() + 16 * 60000));
+      assert.ok(params.get("LinkValidityTime") <= upperBound, "entry checkout must not stay valid for weeks until the auction starts");
+      assert.ok(params.get("ValidityTime") <= upperBound);
+    }
     if (ambiguousCreate) throw Error("timeout after provider accepted");
     const fields = ["PENDING", "https://testpay.autopay.eu/payment/continue/fixture", params.get("OrderID"), "remote123"];
     return new Response(`<transaction><status>${fields[0]}</status><redirecturl>${fields[1]}</redirecturl><orderID>${fields[2]}</orderID><remoteID>${fields[3]}</remoteID><hash>${digest(fields)}</hash></transaction>`);
@@ -127,7 +133,7 @@ try {
   assert.equal(new Set(consents.map(x=>x.id)).size,1);
   const consent=await readEntryServiceConsent(consents[0].id);
   assert.match(consent.text,/pełnym wykonaniu/);assert.match(consent.contract,/14 dni/);
-  const entry=await createAutopaySession("auction_entry",{auctionId:entryAuction,runId:run,bidderId:bidders[0],amount:500,entryConsentId:consent.id});
+  const entry=await createAutopaySession("auction_entry",{auctionId:entryAuction,runId:run,bidderId:bidders[0],amount:500,entryConsentId:consent.id,expiresAt:Math.floor(now/1000)+41*86400});
   assert.equal(await redis(["GET",entryKey(run,bidders[0],entryAuction)]),null);
   assert.equal((await notify(itn,paidTx(await readAutopayIntent(entry.reference)))).status,200);
   assert.ok(await redis(["GET",entryKey(run,bidders[0],entryAuction)]));
