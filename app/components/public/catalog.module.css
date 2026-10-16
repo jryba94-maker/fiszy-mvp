@@ -719,3 +719,15 @@
     gap: 4px 16px;
   }
 }
+
+.launchIntro { width: min(1040px, calc(100% - 40px)); margin: 20px auto 22px; }
+.launchIntro h1 { font-size: clamp(1.4rem, 3vw, 2rem); font-weight: 550; letter-spacing: -.045em; }
+.launchIntro h1 span { color: #9155ff; }
+.launchAuctions { width: min(1040px, calc(100% - 40px)); }
+.launchAuctions .auctionGrid > :only-child { max-width: none; }
+.launchAuctions + .footer { margin-top: 44px; }
+@media (max-width: 680px) {
+  .launchIntro, .launchAuctions { width: calc(100% - 32px); }
+  .launchIntro { margin: 10px auto 18px; }
+  .launchAuctions + .footer { margin-top: 28px; }
+}
