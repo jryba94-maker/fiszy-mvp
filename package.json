@@ -12,6 +12,7 @@
     "test:race": "node scripts/race-test.mjs",
     "test:concurrency": "node --no-warnings --loader ./scripts/typescript-loader.mjs scripts/concurrency-claim-test.mjs",
     "test:queue": "node --no-warnings --loader ./scripts/typescript-loader.mjs scripts/queue-integration-tests.mjs",
+    "test:performance:unit": "node --no-warnings --loader ./scripts/typescript-loader.mjs --test scripts/performance-unit-tests.mjs",
     "test:portal": "node scripts/portal-smoke-test.mjs",
     "test:admin:unit": "node --no-warnings --loader ./scripts/typescript-loader.mjs --test --test-concurrency=1 scripts/fulfillment-unit-tests.mjs",
     "test:history:unit": "node --no-warnings --loader ./scripts/typescript-loader.mjs --test --test-concurrency=1 scripts/history-storage-unit-tests.mjs",

@@ -11,7 +11,6 @@ import {
   type PublicAuction,
 } from "./auction-data";
 import { latestPendingReturn } from "./device-history";
-import { announceWatchlistChange } from "../pwa/browser-notifications";
 import { PublicHeader } from "./PublicHeader";
 import styles from "./catalog.module.css";
 
@@ -207,7 +206,6 @@ export function AuctionCatalog() {
         body: JSON.stringify({ auctionId, watched }),
       });
       if (!response.ok) throw new Error("watchlist");
-      announceWatchlistChange();
     } catch {
       setWatchedIds(previous);
       setError("Nie udało się zmienić obserwowanych aukcji.");

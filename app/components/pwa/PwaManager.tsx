@@ -1,50 +1,9 @@
 "use client";
 
-import { useUser } from "@clerk/nextjs";
-import { useCallback, useEffect, useState } from "react";
-import { fetchAuctionDetail, type PublicAuction } from "../public/auction-data";
-import {
-  readBrowserReminderSettings,
-  readSeenReminderIds,
-  rememberReminderId,
-  REMINDER_SETTINGS_EVENT,
-  WATCHLIST_CHANGED_EVENT,
-} from "./browser-notifications";
+import { useEffect, useState } from "react";
 import styles from "./pwa.module.css";
 
-function reminderFor(auction: PublicAuction, now: number, leadMinutes: number) {
-  const startsAt = Date.parse(auction.startsAt);
-  const leadTime = leadMinutes * 60_000;
-  if (auction.status === "live") {
-    return {
-      id: `live:${auction.auctionId}:${auction.runId}`,
-      title: "Aukcja właśnie trwa",
-      body: `${auction.product} — cena już spada.`,
-    };
-  }
-  if (auction.status === "waiting" && startsAt > now && startsAt - now <= leadTime) {
-    return {
-      id: `start:${auction.auctionId}:${auction.runId}:${leadMinutes}`,
-      title: `Aukcja startuje za mniej niż ${leadMinutes} min`,
-      body: auction.product,
-    };
-  }
-  return null;
-}
-
-async function showAuctionReminder(auction: PublicAuction, title: string, body: string, tag: string) {
-  const registration = await navigator.serviceWorker.ready;
-  await registration.showNotification(title, {
-    body,
-    tag,
-    icon: "/icon.svg",
-    badge: "/icon.svg",
-    data: { url: `/aukcje/${encodeURIComponent(auction.auctionId)}` },
-  });
-}
-
 export function PwaManager() {
-  const { isLoaded, isSignedIn } = useUser();
   const [updateReady, setUpdateReady] = useState<ServiceWorker | null>(null);
   const [offline, setOffline] = useState(false);
 
@@ -86,45 +45,6 @@ export function PwaManager() {
       window.removeEventListener("offline", updateConnection);
     };
   }, []);
-
-  const checkReminders = useCallback(async () => {
-    if (!isLoaded || !isSignedIn || !("Notification" in window) || Notification.permission !== "granted") return;
-    const settings = readBrowserReminderSettings();
-    if (!settings.enabled || !navigator.onLine || !("serviceWorker" in navigator)) return;
-    try {
-      const response = await fetch("/api/account/watchlist", { cache: "no-store" });
-      if (!response.ok) return;
-      const data = await response.json() as { auctionIds?: string[] };
-      const details = await Promise.allSettled((data.auctionIds ?? []).slice(0, 20).map((auctionId) => fetchAuctionDetail(auctionId)));
-      const seen = readSeenReminderIds();
-      const now = Date.now();
-      for (const result of details) {
-        if (result.status !== "fulfilled") continue;
-        const reminder = reminderFor(result.value, now, settings.leadMinutes);
-        if (!reminder || seen.has(reminder.id)) continue;
-        await showAuctionReminder(result.value, reminder.title, reminder.body, reminder.id);
-        rememberReminderId(reminder.id);
-      }
-    } catch {
-      // Reminders are best-effort and must never interrupt the auction screen.
-    }
-  }, [isLoaded, isSignedIn]);
-
-  useEffect(() => {
-    if (!isLoaded || !isSignedIn) return;
-    void checkReminders();
-    const timer = window.setInterval(() => void checkReminders(), 30_000);
-    const refresh = () => void checkReminders();
-    window.addEventListener(REMINDER_SETTINGS_EVENT, refresh);
-    window.addEventListener(WATCHLIST_CHANGED_EVENT, refresh);
-    window.addEventListener("focus", refresh);
-    return () => {
-      window.clearInterval(timer);
-      window.removeEventListener(REMINDER_SETTINGS_EVENT, refresh);
-      window.removeEventListener(WATCHLIST_CHANGED_EVENT, refresh);
-      window.removeEventListener("focus", refresh);
-    };
-  }, [checkReminders, isLoaded, isSignedIn]);
 
   const activateUpdate = () => updateReady?.postMessage({ type: "SKIP_WAITING" });
   if (!offline && !updateReady) return null;

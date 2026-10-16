@@ -6,7 +6,6 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { fetchAuctionDetail, type PublicAuction } from "../components/public/auction-data";
 import { PublicHeader } from "../components/public/PublicHeader";
 import { SafeAuctionImage } from "../components/public/SafeAuctionImage";
-import { announceWatchlistChange } from "../components/pwa/browser-notifications";
 import styles from "./page.module.css";
 
 type Preferences = {
@@ -357,7 +356,6 @@ export function DeviceProfile() {
       await accountRequest("/api/account/watchlist", { method: "PATCH", body: JSON.stringify({ auctionId, watched: false }) });
       setWatchedIds((current) => current.filter((id) => id !== auctionId));
       setWatchedAuctions((current) => current.filter((item) => item.auctionId !== auctionId));
-      announceWatchlistChange();
     } catch (watchError) { setError(watchError instanceof Error ? watchError.message : "Nie udało się zmienić listy."); }
     finally { setBusy(""); }
   };

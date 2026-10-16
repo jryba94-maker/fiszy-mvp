@@ -236,6 +236,7 @@ export async function expireCheckoutSession(sessionId: string) {
       },
       body: new URLSearchParams(),
       cache: "no-store",
+      signal: AbortSignal.timeout(8000),
     },
   );
 
@@ -256,6 +257,7 @@ export async function retrieveCheckoutSession(sessionId: string) {
     {
       headers: { Authorization: `Bearer ${stripeSecretKey()}` },
       cache: "no-store",
+      signal: AbortSignal.timeout(8000),
     },
   );
   const data = (await response.json()) as StripeCheckoutSession & {

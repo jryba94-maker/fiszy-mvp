@@ -1562,8 +1562,21 @@ export type AuctionQueueStatus = {
 };
 
 // Read the head, rank and saved price in one Redis snapshot. Never expose other bidders.
-export async function readAuctionQueueStatus(runId: string, bidderId: string, auctionId: string, nowMs = Date.now()): Promise<AuctionQueueStatus> {
+export class AuctionQueueAccessError extends Error {
+  constructor(public outcome: "run_changed" | "entry_required") { super(outcome); }
+}
+
+export async function readAuctionQueueStatus(runId: string, bidderId: string, auctionId: string, nowMs = Date.now(), verifyAccess = false): Promise<AuctionQueueStatus> {
   const raw = await redisCommand<string>(["EVAL", `
+if ARGV[2] == "1" then
+ local configRaw = redis.call("GET", KEYS[5])
+ local recordRaw = redis.call("GET", KEYS[6])
+ if not configRaw or not recordRaw then return cjson.encode({denied="run_changed"}) end
+ local config = cjson.decode(configRaw)
+ local record = cjson.decode(recordRaw)
+ if config.runId ~= ARGV[3] or record.state ~= "published" or record.currentRunId ~= ARGV[3] then return cjson.encode({denied="run_changed"}) end
+ if redis.call("EXISTS", KEYS[7]) ~= 1 then return cjson.encode({denied="entry_required"}) end
+end
 local headRaw = redis.call("GET", KEYS[1])
 local head = headRaw and cjson.decode(headRaw) or nil
 if head and head.paymentStatus ~= "pending" then return cjson.encode({state="closed"}) end
@@ -1578,8 +1591,10 @@ if rank and own then
 end
 if redis.call("EXISTS", KEYS[4]) == 1 then return cjson.encode({state="expired"}) end
 return cjson.encode({state="idle"})
-`, 4, winnerKey(runId, auctionId), queueKey(runId, auctionId), queueEntryKey(runId, bidderId, auctionId), `${queueEntryKey(runId, bidderId, auctionId)}:attempted`, bidderId]);
+`, 7, winnerKey(runId, auctionId), queueKey(runId, auctionId), queueEntryKey(runId, bidderId, auctionId), `${queueEntryKey(runId, bidderId, auctionId)}:attempted`, auctionConfigKey(auctionId), auctionRecordKey(auctionId), entryKey(runId, bidderId, auctionId), bidderId, verifyAccess ? "1" : "0", runId]);
   if (!raw) throw new Error("Queue snapshot unavailable.");
+  const access = JSON.parse(raw) as { denied?: "run_changed" | "entry_required" };
+  if (access.denied) throw new AuctionQueueAccessError(access.denied);
   const snapshot = JSON.parse(raw) as { state: AuctionQueueStatus["state"]; position?: number; price?: number; claimedAt?: string; paymentExpiresAt?: string; checkoutUrl?: string };
   const deadline = snapshot.paymentExpiresAt ?? (snapshot.claimedAt ? new Date(Date.parse(snapshot.claimedAt) + 120_000).toISOString() : null);
   return {

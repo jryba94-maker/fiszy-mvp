@@ -43,6 +43,7 @@ export async function redisCommand<T>(command: Array<string | number>): Promise<
     },
     body: JSON.stringify(command),
     cache: "no-store",
+    signal: AbortSignal.timeout(8000),
   });
 
   if (!response.ok) {

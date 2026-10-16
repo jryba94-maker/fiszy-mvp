@@ -23,6 +23,7 @@ import {
   orderKey,
 } from "./order-storage";
 import { redisCommand } from "./redis";
+import { createCoalescedRead } from "./coalesced-read";
 
 export type AdminAuctionView = {
   record: AuctionRecord;
@@ -39,6 +40,24 @@ type AuctionRuntime = {
   winner: AuctionWinner | null;
   order: AuctionOrder | null;
 };
+
+const pollingSnapshots = createCoalescedRead<{ base: AuctionBase; runtime: AuctionRuntime } | null>(500);
+
+// Only the public polling endpoint uses this short snapshot. Purchase, entry,
+// queue and administration checks always read authoritative storage directly.
+export async function readPublicAuctionForPolling(auctionIdValue: string) {
+  const auctionId = normalizeAuctionId(auctionIdValue);
+  if (!auctionId) return null;
+  const snapshot = await pollingSnapshots(`${process.env.VERCEL_ENV ?? "local"}:${auctionId}`, async () => {
+    const [base] = await readAuctionBases([auctionId]);
+    if (!base?.record || base.record.state !== "published" || !base.config) return null;
+    assertConsistentActiveRun(base);
+    const [runtime] = await readAuctionRuntimes([base]);
+    return { base, runtime };
+  });
+  // Clock, status and price are calculated NOW, never copied from an old response.
+  return snapshot ? toPublicAuction(snapshot.base, snapshot.runtime, Date.now()) : null;
+}
 
 function parseStoredJson<T>(raw: unknown): T | null {
   if (typeof raw !== "string" || !raw) return null;

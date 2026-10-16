@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import {
   LEGACY_AUCTION_ID,
@@ -20,6 +20,7 @@ import {
   readOptionalAuctionConfig,
   releaseAuctionWinner,
   type AuctionWinner,
+  AuctionQueueAccessError,
 } from "../../../../lib/auction-storage";
 import { getCheckoutOrigin } from "../../../../lib/request-origin";
 import { consumeEntryCheckoutRateLimit } from "../../../../lib/public-rate-limit";
@@ -163,18 +164,22 @@ export async function handleEntryGet(
 }
 
 export async function handleQueueGet(request: NextRequest, auctionIdValue: string, expectedRunId: string) {
-  const bidder = await authenticatedBidder();
-  if (!bidder) return NextResponse.json({ outcome: "sign_in_required" }, { status: 401 });
-  if (bidder.blocked !== false) return NextResponse.json({ outcome: "account_unavailable" }, { status: 403 });
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ outcome: "sign_in_required" }, { status: 401 });
+  const auctionId = normalizeAuctionId(auctionIdValue);
+  const runId = normalizeRunId(expectedRunId);
+  if (!auctionId || !runId) return NextResponse.json({ outcome: "invalid_request" }, { status: 400 });
   try {
-    const active = await activeRun(auctionIdValue, expectedRunId);
-    if (!active || !active.runMatches) return NextResponse.json({ outcome: "run_changed" }, { status: 409 });
-    const entry = await readAuctionEntry(active.config.runId, bidder.bidderId, active.auctionId);
-    if (!entry) return NextResponse.json({ outcome: "entry_required" }, { status: 403 });
-    await advanceAuctionQueue(active.auctionId, active.config.runId);
-    const queue = await readAuctionQueueStatus(active.config.runId, bidder.bidderId, active.auctionId);
+    if (await isAccountBlocked(userId)) return NextResponse.json({ outcome: "account_blocked" }, { status: 403 });
+    const bidderId = `clerk:${userId}`;
+    let queue = await readAuctionQueueStatus(runId, bidderId, auctionId, Date.now(), true);
+    if ((queue.state === "queued" || queue.state === "payment") && (!queue.paymentExpiresAt || Date.parse(queue.paymentExpiresAt) <= Date.now())) {
+      await advanceAuctionQueue(auctionId, runId);
+      queue = await readAuctionQueueStatus(runId, bidderId, auctionId, Date.now(), true);
+    }
     return NextResponse.json({ outcome: "ok", ...queue }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
+    if (error instanceof AuctionQueueAccessError) return NextResponse.json({ outcome: error.outcome }, { status: error.outcome === "entry_required" ? 403 : 409 });
     console.error("Unable to read buyer queue.", error);
     return NextResponse.json({ outcome: "storage_error" }, { status: 503 });
   }
@@ -357,27 +362,30 @@ export async function handleBuyPost(
     };
 
     const checkoutResponse = async (claimedWinner: AuctionWinner, checkoutUrl: string) => {
-      try {
-        const claimedAt = Date.parse(claimedWinner.claimedAt);
-        await queueWinnerEmail({
-          participantId: claimedWinner.bidderId,
-          auctionId: active.auctionId,
-          runId: active.config.runId,
-          product: active.config.productName,
-          price: claimedWinner.price,
-          paymentExpiresAt: claimedWinner.paymentExpiresAt ??
-            (Number.isFinite(claimedAt)
-              ? new Date(claimedAt + PURCHASE_CHECKOUT_WINDOW_SECONDS * 1000).toISOString()
-              : null),
-        });
-        await processMessageOutbox({ limit: 10 });
-      } catch (emailError) {
-        logEvent("auction_winner_email_failed", errorDetails(emailError), "warning");
-      }
       if (Date.now() >= purchaseDeadline(claimedWinner)) {
         await advanceAuctionQueue(active.auctionId, active.config.runId);
         return NextResponse.json({ outcome: "payment_expired" }, { status: 409 });
       }
+      // Email delivery must not hold up the customer's payment redirect.
+      after(async () => {
+        try {
+          const claimedAt = Date.parse(claimedWinner.claimedAt);
+          await queueWinnerEmail({
+            participantId: claimedWinner.bidderId,
+            auctionId: active.auctionId,
+            runId: active.config.runId,
+            product: active.config.productName,
+            price: claimedWinner.price,
+            paymentExpiresAt: claimedWinner.paymentExpiresAt ??
+              (Number.isFinite(claimedAt)
+                ? new Date(claimedAt + PURCHASE_CHECKOUT_WINDOW_SECONDS * 1000).toISOString()
+                : null),
+          });
+          await processMessageOutbox({ limit: 10 });
+        } catch (emailError) {
+          logEvent("auction_winner_email_failed", errorDetails(emailError), "warning");
+        }
+      });
       return NextResponse.json({
         outcome: "checkout",
         auctionId: active.auctionId,

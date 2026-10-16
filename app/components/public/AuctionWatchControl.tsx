@@ -2,7 +2,6 @@
 
 import { useUser } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
-import { announceWatchlistChange } from "../pwa/browser-notifications";
 import { WatchButton } from "./WatchButton";
 import styles from "./public.module.css";
 
@@ -38,7 +37,6 @@ export function AuctionWatchControl({ auctionId }: { auctionId: string }) {
         body: JSON.stringify({ auctionId, watched: nextWatched }),
       });
       if (!response.ok) throw new Error("watchlist");
-      announceWatchlistChange();
     } catch {
       setWatched(previous);
       setError("Nie udało się zapisać obserwowanej aukcji.");

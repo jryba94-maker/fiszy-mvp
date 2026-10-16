@@ -153,6 +153,10 @@ export function refreshRecordedAuction(auction: PublicAuction) {
   const key = recordKey(auction.auctionId, auction.runId);
   const existing = records.find((record) => record.key === key);
   if (!existing) return;
+  if (existing.status === auction.status && existing.currentPrice === auction.currentPrice &&
+      existing.product === auction.product && existing.productImageUrl === auction.productImageUrl &&
+      existing.startsAt === auction.startsAt && existing.endsAt === auction.endsAt &&
+      existing.regularPrice === auction.regularPrice && existing.entryFee === auction.entryFee) return;
 
   recordAuctionEvent(auction, {
     entryState: existing.entryState,

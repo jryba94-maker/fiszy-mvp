@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createConnection } from "node:net";
 import { randomUUID } from "node:crypto";
-import { enqueueAuctionPurchase, readAuctionQueueStatus, readAuctionWinner, releaseAuctionWinner, promoteNextAuctionPurchase, attachAuctionWinnerCheckout, auctionConfigKey, entryKey, winnerKey } from "../lib/auction-storage.ts";
+import { enqueueAuctionPurchase, readAuctionQueueStatus, readAuctionWinner, releaseAuctionWinner, promoteNextAuctionPurchase, attachAuctionWinnerCheckout, auctionConfigKey, auctionRecordKey, entryKey, winnerKey } from "../lib/auction-storage.ts";
 import { advanceAuctionQueue } from "../lib/auction-queue.ts";
 
 // Run against an isolated local Redis, executing the actual production Lua.
@@ -45,9 +45,10 @@ Object.assign(process.env, { VERCEL_ENV: "development", STORAGE_KV_REST_API_URL:
 let providerState = "open";
 let expireFails = false;
 let expiryCalls = 0;
+let redisRequests = 0;
 const originalFetch = globalThis.fetch;
 globalThis.fetch = async (url, init = {}) => {
-  if (String(url) === "http://queue-test.invalid") return Response.json({ result: await redis(JSON.parse(init.body)) });
+  if (String(url) === "http://queue-test.invalid") { redisRequests++; return Response.json({ result: await redis(JSON.parse(init.body)) }); }
   assert.ok(String(url).startsWith("https://api.stripe.com/v1/checkout/sessions/"));
   if (String(url).endsWith("/expire")) {
     expiryCalls++;
@@ -59,17 +60,31 @@ globalThis.fetch = async (url, init = {}) => {
 const auction = `queue-test-${randomUUID()}`;
 const run = "run-test";
 const now = Date.now();
-const bidders = Array.from({ length: 32 }, (_, i) => `bidder-${i}`);
+const bidders = Array.from({ length: 150 }, (_, i) => `bidder-${i}`);
 const enqueue = (bidder, price = 95) => enqueueAuctionPurchase(run, bidder, now - 1000, now + 600000, now, { bidderId: bidder, price, clickedAt: new Date(now).toISOString() }, auction);
-const status = (bidder, at = now) => readAuctionQueueStatus(run, bidder, auction, at);
+const status = (bidder, at = now) => readAuctionQueueStatus(run, bidder, auction, at, true);
 try {
   await redis(["SET", auctionConfigKey(auction), JSON.stringify({ runId: run })]);
+  await redis(["SET", auctionRecordKey(auction), JSON.stringify({ currentRunId: run, state: "published" })]);
   await Promise.all(bidders.map(bidder => redis(["SET", entryKey(run, bidder, auction), "{}"])));
-  const results = await Promise.all(bidders.map(bidder => enqueue(bidder)));
+  const clickStarted = performance.now();
+  const clickTimes = [];
+  const results = await Promise.all(bidders.map(async bidder => { const start = performance.now(); const result = await enqueue(bidder); clickTimes.push(performance.now()-start); return result; }));
+  const clickDuration = performance.now()-clickStarted;
   assert.equal(results.filter(x => x === 1).length, 1);
-  assert.equal(results.filter(x => x === 2).length, 31);
+  assert.equal(results.filter(x => x === 2).length, 149);
   const snapshots = await Promise.all(bidders.map(bidder => status(bidder)));
-  assert.deepEqual(snapshots.map(x => x.position).sort((a,b) => a-b), Array.from({ length: 32 }, (_, i) => i+1));
+  assert.deepEqual(snapshots.map(x => x.position).sort((a,b) => a-b), Array.from({ length: 150 }, (_, i) => i+1));
+  await assert.rejects(status("unpaid"), /entry_required/);
+  await assert.rejects(readAuctionQueueStatus("stale-run", bidders[0], auction, now, true), /run_changed/);
+  const pollStarted = performance.now();
+  const pollTimes = [];
+  const beforePollRequests = redisRequests;
+  for (let round = 0; round < 40; round++) {
+    await Promise.all(bidders.map(async bidder => { const start = performance.now(); await status(bidder); pollTimes.push(performance.now()-start); }));
+  }
+  assert.equal(redisRequests-beforePollRequests, 6000, "one Redis HTTP round trip per authorized queue snapshot");
+  const pollDuration = performance.now()-pollStarted;
   const ordered = bidders.toSorted((a,b) => snapshots[bidders.indexOf(a)].position - snapshots[bidders.indexOf(b)].position);
   assert.equal(Date.parse((await status(ordered[1])).estimatedTurnAt) - now, 120000);
   assert.equal(Date.parse((await status(ordered[2])).estimatedTurnAt) - now, 240000);
@@ -93,7 +108,9 @@ try {
   await advanceAuctionQueue(auction, run, now + 120001);
   assert.equal((await readAuctionWinner(run, auction)).bidderId, ordered[0]);
   providerState = "open";
-  await Promise.all(Array.from({ length: 12 }, () => advanceAuctionQueue(auction, run, now + 120002)));
+  const beforeExpiry = expiryCalls;
+  await Promise.all(Array.from({ length: 150 }, () => advanceAuctionQueue(auction, run, now + 120002)));
+  assert.equal(expiryCalls-beforeExpiry, 1, "only one caller may expire the payment session");
   head = await readAuctionWinner(run, auction);
   assert.equal(head.bidderId, ordered[1]);
   assert.equal(head.claimedAt, new Date(now + 120002).toISOString());
@@ -114,7 +131,8 @@ try {
   assert.equal(await enqueue(ordered[3]), 0);
   assert.equal(await promoteNextAuctionPurchase(run, auction), null);
   assert.equal((await status(ordered[2])).state, "closed");
-  console.log("PASS: 32 concurrent clicks, unique positions, 2/4-minute estimates, fixed prices, duplicates, eligibility, private checkout, expiry, provider ambiguity, payment race, stale cancellation, paid-auction closure.");
+  const p95 = values => Math.round(values.sort((a,b) => a-b)[Math.floor(values.length*.95)]*100)/100;
+  console.log(JSON.stringify({ outcome: "PASS", buyers: 150, uniquePositions: 150, concurrentExpiryCalls: 150, providerExpiryCalls: expiryCalls-beforeExpiry, clickBurstMs: Math.round(clickDuration), clickP95Ms: p95(clickTimes), queueSnapshots: 6000, snapshotDurationMs: Math.round(pollDuration), snapshotP95Ms: p95(pollTimes), note: "Isolated local Redis with real production Lua; payment provider and transport are simulated, not a live payment test." }));
 } finally {
   const keys = await redis(["KEYS", `fiszy:development:auction:${auction}:*`]);
   if (keys.length) await redis(["DEL", ...keys]);

@@ -139,7 +139,8 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
   const checkoutAttemptRef = useRef<string | null>(null);
   const { isLoaded: isAuthLoaded, isSignedIn, userId } = useAuth();
   const cancelAttemptRef = useRef<string | null>(null);
-  const pollingDelay = auction?.status === "sold" || auction?.status === "ended" ? 15_000 : 1_000;
+  const pollingDelay = auction?.status === "sold" || auction?.status === "ended" ? 15_000
+    : auction?.status === "waiting" && Date.parse(auction.startsAt) - clock > 30_000 ? 10_000 : 2_000;
 
   useEffect(() => {
     let active = true;
@@ -403,6 +404,8 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
     auction && isAuthLoaded && isSignedIn && auction.storageReady && hasCurrentEntry && buyerQueue &&
     !isQueued && !queueExpired && buyerQueue?.state !== "closed" && (displayStatus === "live" || isPaying),
   );
+  const queuePollingDelay = isQueued || isPaying ? 1500
+    : queueExpired || buyerQueue?.state === "closed" ? 30_000 : 10_000;
   useEffect(() => {
     if (!auction?.runId || !hasCurrentEntry || displayStatus === "waiting" || displayStatus === "sold") return;
     const runId = auction.runId;
@@ -433,10 +436,10 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
       } finally { inFlight = false; }
     };
     void poll();
-    const timer = window.setInterval(() => void poll(), 1_500);
+    const timer = window.setInterval(() => void poll(), queuePollingDelay);
     document.addEventListener("visibilitychange", poll);
     return () => { controller.abort(); window.clearInterval(timer); document.removeEventListener("visibilitychange", poll); };
-  }, [auction?.runId, auctionId, queueScope, hasCurrentEntry, displayStatus, ageConfirmed]);
+  }, [auction?.runId, auctionId, queueScope, hasCurrentEntry, displayStatus, ageConfirmed, queuePollingDelay]);
   const needsSignIn = Boolean(
     auction && isAuthLoaded && !isSignedIn && auction.storageReady &&
       entryWindowOpen,

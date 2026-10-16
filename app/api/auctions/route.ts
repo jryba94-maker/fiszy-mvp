@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(
       { outcome: "ok", ...page },
-      { headers: { "Cache-Control": "no-store" } },
+      { headers: { "Cache-Control": "no-store", "Vercel-CDN-Cache-Control": "public, s-maxage=2" } },
     );
   } catch (error) {
     console.error("Unable to list auctions from Redis.", error);
