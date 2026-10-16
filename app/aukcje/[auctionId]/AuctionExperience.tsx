@@ -524,7 +524,7 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
   }
 
   const actionNote = hasCurrentEntry
-    ? "Wejście opłacone dla tej edycji"
+    ? null
     : `Jednorazowe wejście do tej aukcji: ${auction.entryFee} zł`;
 
   return (
@@ -638,17 +638,17 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
                 type="button"
                 disabled={actionDisabled}
                 aria-busy={isEntering || isBuying}
-                aria-describedby="desktop-action-note"
+                aria-describedby={actionNote ? "desktop-action-note" : undefined}
                 onClick={handleAction}
               >
                 {actionLabel}
               </button>
-              <p
+              {actionNote ? <p
                 className={`${styles.entryNote} ${hasCurrentEntry ? styles.entryActive : ""}`}
                 id="desktop-action-note"
               >
                 {actionNote}
-              </p>
+              </p> : null}
             </div>
           </div>
         </section>
@@ -667,17 +667,19 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
           type="button"
           disabled={actionDisabled}
           aria-busy={isEntering || isBuying}
-          aria-describedby="mobile-action-note"
+          aria-describedby={actionNote ? "mobile-action-note" : undefined}
           onClick={handleAction}
         >
           {actionLabel}
         </button>
+        {actionNote ? (
         <p
           className={`${styles.entryNote} ${hasCurrentEntry ? styles.entryActive : ""}`}
           id="mobile-action-note"
         >
           {actionNote}
         </p>
+        ) : null}
       </div>
     </main>
   );
