@@ -675,3 +675,47 @@
   .launchIntro { margin-top: 8px; margin-bottom: 20px; }
   .launchIntro .eyebrow { font-size: .7rem; }
 }
+
+.decisionStrip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: min(1180px, calc(100% - 40px));
+  margin: 40px auto;
+  padding: 24px 28px;
+  box-sizing: border-box;
+  border: 1px solid rgba(167,122,255,.28);
+  border-radius: 20px;
+  background: linear-gradient(110deg, rgba(123,44,255,.18), #111114);
+}
+.decisionStrip h2 {
+  margin: 0;
+  color: #fff;
+  font-size: clamp(1.2rem, 3vw, 1.8rem);
+  font-weight: 600;
+  letter-spacing: -.04em;
+  line-height: 1.15;
+}
+.decisionStrip a {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+  min-height: 44px;
+  color: #d7c2ff;
+  font-size: .85rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+.decisionStrip a:hover { color: #fff; }
+.decisionStrip a:focus-visible { outline: 3px solid #a77aff; outline-offset: 4px; border-radius: 4px; }
+@media (max-width: 680px) {
+  .decisionStrip {
+    width: calc(100% - 28px);
+    margin: 28px auto;
+    padding: 18px 20px;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+  }
+}
