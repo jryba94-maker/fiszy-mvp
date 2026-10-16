@@ -97,6 +97,14 @@ const defaultPreferences: Preferences = {
   analytics: false,
 };
 
+function discountTimeLeft(expiresAt: string, now: number) {
+  const seconds = Math.max(0, Math.ceil((Date.parse(expiresAt) - now) / 1000));
+  const days = Math.floor(seconds / 86400);
+  const time = [Math.floor(seconds % 86400 / 3600), Math.floor(seconds % 3600 / 60), seconds % 60]
+    .map((value) => String(value).padStart(2, "0")).join(":");
+  return `${days ? `${days} ${days === 1 ? "dzień" : "dni"} ` : ""}${time}`;
+}
+
 function draftFrom(profile: Profile): ProfileDraft {
   return {
     fullName: profile.fullName,
@@ -195,6 +203,14 @@ export function DeviceProfile() {
   const [notice, setNotice] = useState("");
   const [lastRefreshedAt, setLastRefreshedAt] = useState<string | null>(null);
   const [historyFilter, setHistoryFilter] = useState<HistoryFilter>("all");
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    if (!isSignedIn) return;
+    const tick = () => setNow(Date.now());
+    const timer = window.setInterval(tick, 1000);
+    document.addEventListener("visibilitychange", tick);
+    return () => { window.clearInterval(timer); document.removeEventListener("visibilitychange", tick); };
+  }, [isSignedIn]);
   const [ticketDraft, setTicketDraft] = useState({ kind: "support" as Ticket["kind"], subject: "", description: "", orderId: "", expectation: "" });
 
   const loadPortal = useCallback(async () => {
@@ -257,7 +273,7 @@ export function DeviceProfile() {
   const allNotifications = useMemo<PortalNotification[]>(() => [
     ...activity.flatMap((item) => {
       if (item.outcome === "won_payment_pending") return [{ id: `win-${item.runId}`, title: "Masz wygraną do opłacenia", text: item.product, href: `/aukcje/${encodeURIComponent(item.auctionId)}` }];
-      if (item.discount?.state === "available") return [{ id: `discount-${item.discount.discountId}`, title: `Masz rabat ${money(item.discount.discountAmount)}`, text: item.product, href: "#rabaty" }];
+      if (item.discount?.state === "available" && Date.parse(item.discount.expiresAt) > now) return [{ id: `discount-${item.discount.discountId}`, title: `Masz rabat ${money(item.discount.discountAmount)}`, text: item.product, href: "#rabaty" }];
       if (item.order?.fulfillment?.status === "shipped") return [{ id: `ship-${item.order.orderId}`, title: "Przesyłka została nadana", text: item.product, href: "#historia" }];
       if (item.order?.fulfillment?.status === "delivered") return [{ id: `done-${item.order.orderId}`, title: "Zamówienie dostarczone", text: item.product, href: "#historia" }];
       return [];
@@ -272,7 +288,7 @@ export function DeviceProfile() {
       }
       return [];
     }),
-  ], [activity, tickets, watchedAuctions]);
+  ], [activity, tickets, watchedAuctions, now]);
 
   const notifications = useMemo(
     () => allNotifications.filter((item) => !readNotificationIds.has(item.id)),
@@ -284,10 +300,12 @@ export function DeviceProfile() {
     for (const item of activity) {
       if (item.discount) byId.set(item.discount.discountId, item.discount);
     }
-    return [...byId.values()].sort((left, right) =>
+    return [...byId.values()].filter((discount) =>
+      (discount.state === "available" || discount.state === "reserved") && Date.parse(discount.expiresAt) > now,
+    ).sort((left, right) =>
       Date.parse(right.issuedAt) - Date.parse(left.issuedAt),
     );
-  }, [activity]);
+  }, [activity, now]);
 
   const visibleActivity = useMemo(() => activity.filter((item) => {
     if (historyFilter === "active") return item.outcome === "participating" || item.outcome === "won_payment_pending";
@@ -534,6 +552,7 @@ export function DeviceProfile() {
                         <div className={styles.discountPrice}><span><s>{money(discount.regularPrice)}</s></span><strong>{money(discount.finalPrice)}</strong></div>
                         <p>Twój rabat: <strong>{money(discount.discountAmount)}</strong></p>
                         <p className={styles.discountExpiry}>Ważny do {dateLabel(discount.expiresAt)}</p>
+                        <p className={styles.discountCountdown}>Do końca: <strong>{discountTimeLeft(discount.expiresAt, now)}</strong></p>
                         {discount.orderId ? <p className={styles.discountOrder}>Zamówienie {discount.orderId}</p> : null}
                         <button className={styles.primaryButton} type="button" disabled={!canBuy || Boolean(busy)} aria-busy={busy === `discount-${discount.discountId}`} onClick={() => void buyWithDiscount(discount.discountId)}>
                           {busy === `discount-${discount.discountId}` ? "Przechodzę do płatności…" : canBuy ? `Kup za ${money(discount.finalPrice)}` : stateLabel}
