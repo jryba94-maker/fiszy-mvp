@@ -1,7 +1,6 @@
 "use client";
 
 import { useUser } from "@clerk/nextjs";
-import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { fetchAuctionDetail, type PublicAuction } from "../public/auction-data";
 import {
@@ -12,16 +11,6 @@ import {
   WATCHLIST_CHANGED_EVENT,
 } from "./browser-notifications";
 import styles from "./pwa.module.css";
-
-type InstallPromptEvent = Event & {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
-};
-
-function isStandalone() {
-  return window.matchMedia("(display-mode: standalone)").matches ||
-    ("standalone" in window.navigator && (window.navigator as Navigator & { standalone?: boolean }).standalone === true);
-}
 
 function reminderFor(auction: PublicAuction, now: number, leadMinutes: number) {
   const startsAt = Date.parse(auction.startsAt);
@@ -56,11 +45,8 @@ async function showAuctionReminder(auction: PublicAuction, title: string, body: 
 
 export function PwaManager() {
   const { isLoaded, isSignedIn } = useUser();
-  const pathname = usePathname();
-  const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
   const [updateReady, setUpdateReady] = useState<ServiceWorker | null>(null);
   const [offline, setOffline] = useState(false);
-  const [installDismissed, setInstallDismissed] = useState(false);
 
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
@@ -88,20 +74,14 @@ export function PwaManager() {
   }, []);
 
   useEffect(() => {
-    const receivePrompt = (event: Event) => {
-      event.preventDefault();
-      setInstallPrompt(event as InstallPromptEvent);
-    };
-    const markInstalled = () => setInstallPrompt(null);
+    const suppressInstallPrompt = (event: Event) => event.preventDefault();
     const updateConnection = () => setOffline(!navigator.onLine);
     updateConnection();
-    window.addEventListener("beforeinstallprompt", receivePrompt);
-    window.addEventListener("appinstalled", markInstalled);
+    window.addEventListener("beforeinstallprompt", suppressInstallPrompt);
     window.addEventListener("online", updateConnection);
     window.addEventListener("offline", updateConnection);
     return () => {
-      window.removeEventListener("beforeinstallprompt", receivePrompt);
-      window.removeEventListener("appinstalled", markInstalled);
+      window.removeEventListener("beforeinstallprompt", suppressInstallPrompt);
       window.removeEventListener("online", updateConnection);
       window.removeEventListener("offline", updateConnection);
     };
@@ -146,27 +126,16 @@ export function PwaManager() {
     };
   }, [checkReminders, isLoaded, isSignedIn]);
 
-  const install = async () => {
-    if (!installPrompt) return;
-    await installPrompt.prompt();
-    await installPrompt.userChoice;
-    setInstallPrompt(null);
-  };
-
   const activateUpdate = () => updateReady?.postMessage({ type: "SKIP_WAITING" });
-  const isPortalRoute = pathname === "/moje-fiszy" || pathname.startsWith("/aukcje");
-  const showInstall = Boolean(isPortalRoute && installPrompt && !installDismissed && !isStandalone());
-  if (!offline && !updateReady && !showInstall) return null;
+  if (!offline && !updateReady) return null;
 
   return (
     <aside className={styles.toast} aria-live="polite">
       <div>
-        <strong>{offline ? "Jesteś offline" : updateReady ? "Nowa wersja Fiszy jest gotowa" : "Zainstaluj Fiszy"}</strong>
-        <span>{offline ? "Możesz przeglądać otwartą stronę, ale akcje aukcji wymagają internetu." : updateReady ? "Odśwież aplikację, aby korzystać z najnowszych zmian." : "Otwieraj portal z ekranu telefonu jak zwykłą aplikację."}</span>
+        <strong>{offline ? "Jesteś offline" : "Nowa wersja Fiszy jest gotowa"}</strong>
+        <span>{offline ? "Możesz przeglądać otwartą stronę, ale akcje aukcji wymagają internetu." : "Odśwież aplikację, aby korzystać z najnowszych zmian."}</span>
       </div>
       {!offline && updateReady ? <button type="button" onClick={activateUpdate}>Aktualizuj</button> : null}
-      {!offline && !updateReady && showInstall ? <button type="button" onClick={() => void install()}>Zainstaluj</button> : null}
-      {!offline && showInstall ? <button className={styles.dismiss} type="button" aria-label="Zamknij" onClick={() => setInstallDismissed(true)}>×</button> : null}
     </aside>
   );
 }
