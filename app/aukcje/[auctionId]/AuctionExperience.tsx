@@ -598,13 +598,13 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
                 <span className={styles.clockLabel}>{timer.label}</span>
                 <span className={styles.clock} aria-live="off">{timer.value}</span>
               </div>
-              <span className={styles.sync}>Czas zsynchronizowany z serwerem</span>
+              <span className={styles.sync}>Nie musisz odświeżać strony — czas i cena aktualizują się automatycznie.</span>
             </div>
 
             <p className={styles.message} aria-live="polite">{auctionMessage}</p>
             {auction.postAuctionOffer.enabled ? (
               <p className={styles.offerNote}>
-                Jeśli nie wygrasz, po zakończeniu tej edycji otrzymasz na koncie rabat {auction.entryFee} zł na ten sam produkt. Oferta będzie ważna przez {auction.postAuctionOffer.validityDays} dni.
+                Nie wygrasz? Twoje {auction.entryFee} zł wraca jako rabat na {auction.product}. Po aukcji znajdziesz go na swoim koncie — masz {auction.postAuctionOffer.validityDays} dni, żeby skorzystać.
               </p>
             ) : null}
             {!auction.storageReady ? (
