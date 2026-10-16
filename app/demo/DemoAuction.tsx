@@ -5,12 +5,10 @@ import Link from "next/link";
 import { landingAttribution, landingSourceLabel } from "../../lib/landing-attribution";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import styles from "./demo.module.css";
+import { DEMO_TURN_MS, demoAuctionStep, demoPrice, newDemoAuction } from "../../lib/demo-auction";
 
 const COUNTDOWN_SECONDS = 5;
-const MIN_LIVE_SECONDS = 15;
-const MAX_LIVE_SECONDS = 35;
-
-type DemoState = "countdown" | "live" | "won" | "lost";
+type DemoState = "countdown" | "live" | "queued" | "payment" | "won" | "lost";
 
 type DemoProduct = {
   id: string;
@@ -46,10 +44,6 @@ const DEMO_PRODUCTS: DemoProduct[] = [
   },
 ];
 
-function randomLiveSeconds() {
-  return Math.floor(Math.random() * (MAX_LIVE_SECONDS - MIN_LIVE_SECONDS + 1)) + MIN_LIVE_SECONDS;
-}
-
 function randomProduct(exceptId?: string) {
   const options = exceptId
     ? DEMO_PRODUCTS.filter((product) => product.id !== exceptId)
@@ -58,12 +52,8 @@ function randomProduct(exceptId?: string) {
 }
 
 function formatSeconds(value: number) {
-  return `00:${String(Math.max(0, value)).padStart(2, "0")}`;
-}
-
-function waitedLongerPercent(liveElapsed: number, liveSeconds: number) {
-  const timing = Math.min(1, Math.max(0, liveElapsed / liveSeconds));
-  return Math.round(46 - timing * 28);
+  const seconds = Math.max(0, Math.ceil(value));
+  return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
 function demoVisitorId() {
@@ -90,17 +80,18 @@ function demoSessionId() {
 }
 
 export function DemoAuction() {
-  const [state, setState] = useState<DemoState>("countdown");
-  const [elapsed, setElapsed] = useState(0);
+  const [simulation, setSimulation] = useState(() => newDemoAuction(Date.now()));
+  const ownIndex = simulation.buyers.findIndex(buyer => buyer.id === "you");
+  const state: DemoState = simulation.outcome ?? (simulation.now < simulation.startedAt ? "countdown" : ownIndex === 0 ? "payment" : ownIndex > 0 ? "queued" : "live");
+  const elapsed = simulation.now < simulation.startedAt ? Math.max(0, 5 - (simulation.startedAt - simulation.now) / 1000) : Math.max(0, (simulation.now - simulation.startedAt) / 1000);
+  const [blikCode, setBlikCode] = useState("");
+  const [blikError, setBlikError] = useState("");
   const [runId, setRunId] = useState(0);
   const [email, setEmail] = useState("");
   const [consent, setConsent] = useState(false);
   const [signupState, setSignupState] = useState<"idle" | "submitting" | "success" | "error">("idle");
   const [signupMessage, setSignupMessage] = useState("");
-  const productRef = useRef<DemoProduct>(randomProduct());
-  const liveSecondsRef = useRef(randomLiveSeconds());
-  const startRef = useRef(Date.now());
-  const reportedStart = useRef(false);
+  const productRef = useRef<DemoProduct>(DEMO_PRODUCTS[0]);
   const finishedRef = useRef(false);
   const trafficSessionRef = useRef("");
   const trafficSourceRef = useRef("direct");
@@ -159,48 +150,30 @@ export function DemoAuction() {
   }, []);
 
   useEffect(() => {
-    let frame = 0;
-    const tick = () => {
-      if (finishedRef.current) return;
-      const passed = (Date.now() - startRef.current) / 1000;
-      if (passed < COUNTDOWN_SECONDS) {
-        setElapsed(passed);
-        frame = window.requestAnimationFrame(tick);
-        return;
-      }
-
-      const liveElapsed = passed - COUNTDOWN_SECONDS;
-      if (!reportedStart.current) {
-        reportedStart.current = true;
-        track("demo_auction_started", { product: productRef.current.id });
-      }
-      if (liveElapsed >= liveSecondsRef.current) {
-        setElapsed(liveSecondsRef.current);
-        finishedRef.current = true;
-        if (trafficSessionRef.current) void fetch("/api/analytics/landing", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "event", event: "demo_finished", sessionId: trafficSessionRef.current, source: trafficSourceRef.current }), keepalive: true }).catch(() => undefined);
-        if (trafficSessionRef.current) void fetch("/api/analytics/landing", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "event", event: "first_auction_cta", sessionId: trafficSessionRef.current, source: trafficSourceRef.current }), keepalive: true }).catch(() => undefined);
-        setState((current) => current === "won" ? current : "lost");
-        return;
-      }
-
-      setState("live");
-      setElapsed(liveElapsed);
-      frame = window.requestAnimationFrame(tick);
-    };
-
-    frame = window.requestAnimationFrame(tick);
-    return () => window.cancelAnimationFrame(frame);
+    const timer = window.setInterval(() => {
+      setSimulation(current => demoAuctionStep(current, { type: "tick", now: Date.now() }, productRef.current.price));
+    }, 250);
+    return () => window.clearInterval(timer);
   }, [runId]);
 
+  useEffect(() => {
+    if (simulation.outcome && !finishedRef.current) {
+      finishedRef.current = true;
+      track("demo_auction_finished", { outcome: simulation.outcome });
+      if (trafficSessionRef.current) for (const event of ["demo_finished", "first_auction_cta"]) void fetch("/api/analytics/landing", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "event", event, sessionId: trafficSessionRef.current, source: trafficSourceRef.current }), keepalive: true }).catch(() => undefined);
+    }
+  }, [simulation]);
+
   const product = productRef.current;
-  const drop = Math.round(product.price * 0.08);
   const liveElapsed = state === "countdown" ? 0 : elapsed;
-  const price = product.price - Math.floor(liveElapsed / 5) * drop;
+  const ownBuyer = simulation.buyers.find(buyer => buyer.id === "you");
+  const position = simulation.buyers.findIndex(buyer => buyer.id === "you") + 1;
+  const price = simulation.soldPrice ?? ownBuyer?.price ?? demoPrice(product.price, liveElapsed * 1000);
+  const turnRemaining = Math.max(0, ((simulation.buyers[0]?.claimedAt ?? simulation.now) + DEMO_TURN_MS - simulation.now) / 1000);
   const remaining = state === "countdown"
     ? COUNTDOWN_SECONDS - elapsed
-    : Math.max(0, liveSecondsRef.current - liveElapsed);
-  const progress = Math.min(100, (liveElapsed / MAX_LIVE_SECONDS) * 100);
-  const timingPercent = waitedLongerPercent(liveElapsed, liveSecondsRef.current);
+    : 0;
+  const progress = Math.min(100, (liveElapsed / 120) * 100);
 
   const shareResult = async () => {
     const resultText = state === "won"
@@ -303,7 +276,7 @@ export function DemoAuction() {
       } else {
         return;
       }
-      track("demo_result_shared", { product: product.id, price, outcome: state, waited_longer_percent: timingPercent });
+      track("demo_result_shared", { product: product.id, price, outcome: state });
     } catch {
       // Zamknięcie panelu udostępniania nie jest błędem dla użytkownika.
     }
@@ -311,23 +284,22 @@ export function DemoAuction() {
 
   const restart = () => {
     productRef.current = randomProduct(productRef.current.id);
-    liveSecondsRef.current = randomLiveSeconds();
-    startRef.current = Date.now();
-    reportedStart.current = false;
     finishedRef.current = false;
-    setElapsed(0);
-    setState("countdown");
+    setSimulation(newDemoAuction(Date.now()));
+    setBlikCode("");
+    setBlikError("");
     setRunId((current) => current + 1);
     track("demo_auction_restarted", { product: productRef.current.id });
   };
 
   const buy = () => {
-    if (state !== "live") return;
-    finishedRef.current = true;
-    if (trafficSessionRef.current) void fetch("/api/analytics/landing", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "event", event: "demo_finished", sessionId: trafficSessionRef.current, source: trafficSourceRef.current }), keepalive: true }).catch(() => undefined);
-        if (trafficSessionRef.current) void fetch("/api/analytics/landing", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "event", event: "first_auction_cta", sessionId: trafficSessionRef.current, source: trafficSourceRef.current }), keepalive: true }).catch(() => undefined);
-    setState("won");
-    track("demo_auction_won", { product: product.id, price });
+    setSimulation(current => demoAuctionStep(current, { type: "join", now: Date.now() }, product.price));
+  };
+  const pay = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (blikCode !== "123456") { setBlikError("W demo użyj wyłącznie kodu 123456."); return; }
+    setBlikError("");
+    setSimulation(current => demoAuctionStep(current, { type: "pay", now: Date.now(), code: blikCode }, product.price));
   };
 
   const submitSignup = async (event: FormEvent<HTMLFormElement>) => {
@@ -362,7 +334,7 @@ export function DemoAuction() {
     ? "DEMO ZA CHWILĘ"
     : state === "live"
       ? "AUKCJA TRWA"
-      : "DEMO ZAKOŃCZONE";
+      : state === "queued" ? "CZEKASZ W KOLEJCE" : state === "payment" ? "TWOJA KOLEJ" : "DEMO ZAKOŃCZONE";
   const message = state === "countdown"
     ? "Za chwilę cena zacznie spadać. Gdy ruszy — decyzja będzie należeć do Ciebie."
     : state === "live"
@@ -394,12 +366,12 @@ export function DemoAuction() {
           <h1 id="demo-title">{product.name}</h1>
 
           <div className={styles.priceBlock}>
-            <span>Aktualna cena</span>
+            <span>{ownBuyer ? "Twoja zapisana cena" : "Aktualna cena"}</span>
             <strong aria-live="polite">{price} zł</strong>
             <div className={styles.progress} aria-hidden="true"><i style={{ width: `${progress}%` }} /></div>
           </div>
 
-          {state !== "live" ? (
+          {state === "countdown" ? (
             <div className={styles.clockBox}>
               <div>
                 <span>{state === "countdown" ? "Start aukcji za" : "Czas aukcji"}</span>
@@ -411,20 +383,42 @@ export function DemoAuction() {
 
           {state === "countdown" || state === "live" ? <p className={styles.message} aria-live="polite">{message}</p> : null}
 
+          {(state === "queued" || state === "payment") && (
+            <section className={styles.checkout} aria-label="Symulacja kolejki i płatności">
+              <span className={styles.demoBadge}>DEMO · bez prawdziwych płatności</span>
+              {state === "queued" ? <>
+                <h2>Jesteś {position}. w kolejce</h2>
+                <p>Twoja cena: <b>{price} zł</b>. Własne 2 minuty otrzymasz dopiero, gdy przyjdzie Twoja kolej.</p>
+                <div className={styles.turnClock}><span>Obecny kupujący ma jeszcze</span><strong>{formatSeconds(turnRemaining)}</strong></div>
+                <button className={styles.demoSecondary} type="button" onClick={() => setSimulation(current => demoAuctionStep(current, { type: "skip", now: Date.now() }, product.price))}>Symuluj brak wpłaty osoby przed Tobą →</button>
+              </> : <>
+                <h2>Twoja kolej. Zapłać w demo.</h2>
+                <div className={styles.turnClock}><span>Twój czas na płatność</span><strong role="timer">{formatSeconds(turnRemaining)}</strong></div>
+                <form onSubmit={pay}>
+                  <label htmlFor="demo-blik">Fikcyjny kod BLIK</label>
+                  <p>Wpisz <b>123456</b>. Nie używaj kodu z banku.</p>
+                  <input id="demo-blik" inputMode="numeric" autoComplete="off" pattern="[0-9]{6}" maxLength={6} value={blikCode} onChange={event => setBlikCode(event.target.value.replace(/\D/g, ""))} placeholder="123456" required aria-describedby="demo-blik-error" />
+                  <p id="demo-blik-error" role="status">{blikError}</p>
+                  <button className={styles.demoPay} type="submit">Symuluj płatność · {price} zł</button>
+                </form>
+              </>}
+              <p>Cena aukcji nadal spada: <b>{demoPrice(product.price, liveElapsed * 1000)} zł</b>. Aukcję kończy dopiero skuteczna płatność.</p>
+            </section>
+          )}
           {state === "won" ? (
             <section className={styles.winnerCard} aria-live="assertive" aria-label={`Wygrałeś ${product.name} za ${price} zł`}>
               <span className={`${styles.confetti} ${styles.confettiOne}`} aria-hidden="true">✦</span>
               <span className={`${styles.confetti} ${styles.confettiTwo}`} aria-hidden="true">✦</span>
               <span className={`${styles.confetti} ${styles.confettiThree}`} aria-hidden="true">●</span>
               <span className={styles.winnerSpark} aria-hidden="true">✦</span>
-              <p>Twoja decyzja przyszła pierwsza</p>
+              <p>Płatność w demo potwierdzona</p>
               <h2>Wygrałeś.</h2>
               <strong>{product.name} za {price} zł</strong>
-              <span className={styles.winnerNote}>W tej symulacji byłeś szybszy od pozostałych.</span>
+              <span className={styles.winnerNote}>Twoja symulowana płatność zakończyła aukcję.</span>
               <div className={styles.timingResult}>
                 <span>Twój timing</span>
                 <strong>Kliknąłeś przy {price} zł.</strong>
-                <p>{timingPercent}% osób czekało dłużej.</p>
+                <p>To wynik symulacji, bez rzeczywistego zakupu.</p>
                 <button type="button" onClick={shareResult}>Udostępnij kartę w Stories</button>
               </div>
             </section>
@@ -432,24 +426,24 @@ export function DemoAuction() {
             <button className={styles.buyButton} type="button" onClick={buy}>LICYTUJ! — {price} ZŁ</button>
           ) : state === "countdown" ? (
             <button className={styles.buyButton} type="button" disabled>ZA CHWILĘ START</button>
-          ) : (
+          ) : state === "lost" ? (
             <section className={`${styles.winnerCard} ${styles.lostCard}`} aria-live="assertive" aria-label={`Ktoś był przed Tobą i kupił ${product.name} za ${price} zł`}>
               <span className={`${styles.confetti} ${styles.confettiOne}`} aria-hidden="true">✕</span>
               <span className={`${styles.confetti} ${styles.confettiTwo}`} aria-hidden="true">✕</span>
               <span className={styles.winnerSpark} aria-hidden="true">!</span>
-              <p>Ktoś podjął decyzję wcześniej</p>
-              <h2>Ktoś był przed Tobą.</h2>
+              <p>Czas na płatność minął</p>
+              <h2>Twoja tura minęła.</h2>
               <strong>{product.name} za {price} zł</strong>
-              <span className={styles.winnerNote}>W tej symulacji ktoś kliknął szybciej.</span>
+              <span className={styles.winnerNote}>Nie opłaciłeś zakupu w ciągu swoich 2 minut. Kolejka przechodzi dalej.</span>
               <div className={styles.timingResult}>
                 <span>Twój timing</span>
                 <strong>Dotarłeś do {price} zł.</strong>
-                <p>{timingPercent}% osób czekało dłużej.</p>
+                <p>To wynik symulacji, bez rzeczywistego zakupu.</p>
                 <button type="button" onClick={shareResult}>Udostępnij kartę w Stories</button>
               </div>
               <button className={styles.restartButton} type="button" onClick={restart}>Zagraj jeszcze raz</button>
             </section>
-          )}
+          ) : null}
           {(state === "won" || state === "lost") ? (
             <section className={`${styles.resultSignup} ${state === "lost" ? styles.resultSignupLost : ""}`} aria-label="Zapis na pierwszą aukcję">
               <p>{state === "won" ? "Chcesz sprawdzić to naprawdę?" : "Następnym razem decyzja będzie należeć do Ciebie."}</p>
@@ -461,6 +455,7 @@ export function DemoAuction() {
               </form>
             </section>
           ) : null}
+          {state === "won" && <button className={styles.restartButton} type="button" onClick={restart}>Spróbuj ponownie</button>}
           <p className={styles.note}>To symulacja. Niczego tutaj nie kupujesz ani nie płacisz.</p>
         </div>
       </section>
