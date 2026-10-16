@@ -535,7 +535,7 @@
 .stateButton { border-color: #7b2cff; background: #7b2cff; }
 .stateLink { border-color: rgba(255,255,255,.24); color: #fff; }
 
-.productDetails { border-bottom: 1px solid rgba(255,255,255,.12); padding-bottom: 16px; }
+.productDetails { padding-bottom: 0; }
 .productSummary { display: grid; grid-template-columns: minmax(0,1fr) 32px; gap: 8px 14px; align-items: center; cursor: pointer; list-style: none; }
 .productSummary::-webkit-details-marker { display: none; }
 .productSummary .title { margin: 0; }
