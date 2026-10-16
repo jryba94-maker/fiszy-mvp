@@ -23,6 +23,32 @@ export async function GET(
     const auction = await readPublicAuction(auctionId);
     if (!auction) return NextResponse.json({ outcome: "not_found" }, { status: 404 });
     const origin = new URL(request.url).origin;
+    const provider = new URL(request.url).searchParams.get("provider");
+    const auctionUrl = `https://fiszy.pl/aukcje/${encodeURIComponent(auction.auctionId)}`;
+    const title = `Fiszy: ${auction.product}`;
+    const description = `Aukcja z malejącą ceną. Dołącz przed startem.\n${auctionUrl}`;
+    if (provider !== "ics") {
+      const destination = provider === "outlook"
+        ? new URL("https://outlook.live.com/calendar/0/deeplink/compose")
+        : new URL("https://calendar.google.com/calendar/render");
+      if (provider === "outlook") {
+        destination.search = new URLSearchParams({
+          path: "/calendar/action/compose", rru: "addevent",
+          subject: title, startdt: new Date(auction.startsAt).toISOString(),
+          enddt: new Date(auction.endsAt).toISOString(),
+          body: description, location: auctionUrl,
+        }).toString();
+      } else {
+        destination.search = new URLSearchParams({
+          action: "TEMPLATE", text: title,
+          dates: `${icsDate(auction.startsAt)}/${icsDate(auction.endsAt)}`,
+          details: description, location: auctionUrl, ctz: "Europe/Warsaw",
+        }).toString();
+      }
+      const response = NextResponse.redirect(destination, 302);
+      response.headers.set("Cache-Control", "no-store");
+      return response;
+    }
     const body = [
       "BEGIN:VCALENDAR",
       "VERSION:2.0",
