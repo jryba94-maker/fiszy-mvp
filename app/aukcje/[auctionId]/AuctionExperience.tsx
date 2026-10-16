@@ -592,8 +592,8 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
 
             <div className={styles.priceArea}>
               <div className={styles.priceTopline}>
-                <span className={styles.priceLabel}>{displayStatus === "waiting" ? "Cena startowa" : "Aktualna cena"}</span>
-                <span className={styles.regularPrice}>cena regularna {auction.regularPrice} zł</span>
+                <span className={styles.priceLabel}>{displayStatus === "waiting" ? "Ta cena zacznie spadać" : "Aktualna cena"}</span>
+                <span className={styles.regularPrice}><span>Cena regularna</span><span className={styles.regularAmount}>{auction.regularPrice} zł</span></span>
               </div>
               <span className={styles.currentPrice} aria-live="off" aria-label={`Aktualna cena ${visiblePrice} zł`}>
                 {visiblePrice} zł
