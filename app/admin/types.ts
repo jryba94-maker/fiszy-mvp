@@ -28,6 +28,7 @@ export type AdminAuction = {
   postAuctionOffer: PostAuctionOfferInput;
   entryFee: number;
   regularPrice: number;
+  lowestPrice30DaysBeforeAuction?: number | null;
   startPrice: number;
   floorPrice: number;
   durationMinutes: number;
@@ -48,6 +49,7 @@ export type AuctionDefinitionInput = {
   postAuctionOffer: PostAuctionOfferInput;
   entryFee: number;
   regularPrice: number;
+  lowestPrice30DaysBeforeAuction?: number | null;
   startPrice: number;
   floorPrice: number;
   durationMinutes: number;

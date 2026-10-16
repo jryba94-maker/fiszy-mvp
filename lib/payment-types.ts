@@ -1,4 +1,4 @@
-export const PAYMENT_PROVIDERS = ["stripe", "przelewy24", "test"] as const;
+export const PAYMENT_PROVIDERS = ["stripe", "autopay", "przelewy24", "test"] as const;
 
 export type PaymentProviderName = (typeof PAYMENT_PROVIDERS)[number];
 

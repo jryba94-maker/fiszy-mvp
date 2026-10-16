@@ -42,5 +42,7 @@ jobs:
         run: npm run test:portal:unit
       - name: Run deterministic operations tests
         run: npm run test:operations:unit
+      - name: Run deterministic Autopay protocol tests
+        run: npm run test:autopay:unit
       - name: Build application
         run: npm run build

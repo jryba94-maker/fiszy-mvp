@@ -12,10 +12,13 @@ import type {
   PaymentReference,
 } from "./payment-types";
 import { przelewy24AdapterReady, przelewy24Configuration } from "./payment-providers/przelewy24";
+import { autopayConfiguration } from "./payment-providers/autopay-protocol";
+import { sellerReady } from "./seller";
+import { createAutopaySession, expireAutopaySession, retrieveAutopaySession, refundAutopayPayment } from "./payment-providers/autopay";
 
 export type { PaymentProviderName, PaymentReference } from "./payment-types";
 
-export type PaymentSessionState = "open" | "paid" | "expired" | "unknown";
+export type PaymentSessionState = "open" | "processing" | "paid" | "expired" | "unknown";
 export type PaymentSession = {
   provider: PaymentProviderName;
   reference: string;
@@ -24,7 +27,8 @@ export type PaymentSession = {
 };
 
 function stripeSessionState(session: StripeCheckoutSession): PaymentSessionState {
-  if (session.payment_status === "paid" || session.status === "complete") return "paid";
+  if (session.payment_status === "paid") return "paid";
+  if (session.status === "complete") return "processing";
   if (session.status === "open") return "open";
   if (session.status === "expired") return "expired";
   return "unknown";
@@ -35,17 +39,28 @@ function fromStripeSession(session: StripeCheckoutSession): PaymentSession {
 }
 
 export function configuredPaymentProvider(): PaymentProviderName {
+  if (process.env.FISZY_PAYMENT_PROVIDER?.trim().toLowerCase() === "autopay") return "autopay";
   return process.env.FISZY_PAYMENT_PROVIDER?.trim().toLowerCase() === "przelewy24"
     ? "przelewy24"
     : "stripe";
 }
 
 export function isPaymentProviderConfigured() {
+  if (configuredPaymentProvider() === "autopay") {
+    const config = autopayConfiguration();
+    return config.credentialsConfigured && config.orderReuseBlocked && (config.sandbox || (config.verified && sellerReady()));
+  }
   return configuredPaymentProvider() === "stripe" && Boolean(process.env.STRIPE_SECRET_KEY);
 }
 
 export function paymentProviderHealth(environment = process.env.VERCEL_ENV ?? "local") {
   const provider = configuredPaymentProvider();
+  if (provider === "autopay") {
+    const config = autopayConfiguration();
+    return { provider, configured: isPaymentProviderConfigured(), credentialsConfigured: config.credentialsConfigured,
+      adapterReady: true, testMode: config.sandbox, liveMode: !config.sandbox, webhookConfigured: config.verified,
+      modeMatchesEnvironment: isPaymentProviderConfigured() && (environment === "production" ? !config.sandbox : config.sandbox) };
+  }
   const secretKey = process.env.STRIPE_SECRET_KEY;
   const p24 = przelewy24Configuration();
   const configured = provider === "stripe" ? Boolean(secretKey) : p24.credentialsConfigured && przelewy24AdapterReady;
@@ -70,33 +85,40 @@ export function paymentProviderHealth(environment = process.env.VERCEL_ENV ?? "l
   } as const;
 }
 
-// Current adapter delegates to Stripe without changing checkout or webhook behavior.
-// Przelewy24 can implement this same boundary when payment work resumes.
+// Keep provider-specific creation behind this boundary. Legacy references continue
+// to dispatch to their original provider after an operator switch.
 function requireStripeAdapter() {
   if (configuredPaymentProvider() !== "stripe") throw new Error("Selected payment provider adapter is not active.");
 }
 
 export async function createEntryPaymentSession(input: Parameters<typeof createEntryCheckoutSession>[0]) {
+  if (configuredPaymentProvider() === "autopay") return createAutopaySession("auction_entry", input);
   requireStripeAdapter();
   return fromStripeSession(await createEntryCheckoutSession(input));
 }
 export async function createPurchasePaymentSession(input: Parameters<typeof createPurchaseCheckoutSession>[0]) {
+  if (configuredPaymentProvider() === "autopay") return createAutopaySession("auction_purchase", input);
   requireStripeAdapter();
   return fromStripeSession(await createPurchaseCheckoutSession(input));
 }
 export async function createDiscountPurchasePaymentSession(input: Parameters<typeof createDiscountPurchaseCheckoutSession>[0]) {
+  if (configuredPaymentProvider() === "autopay") return createAutopaySession("post_auction_purchase", input);
   requireStripeAdapter();
   return fromStripeSession(await createDiscountPurchaseCheckoutSession(input));
 }
 export async function expirePaymentSession(reference: string) {
-  requireStripeAdapter();
+  if (reference.startsWith("ap_")) return expireAutopaySession(reference);
   return fromStripeSession(await expireCheckoutSession(reference));
 }
 export async function retrievePaymentSession(reference: string) {
-  requireStripeAdapter();
+  if (reference.startsWith("ap_")) return retrieveAutopaySession(reference);
   return fromStripeSession(await retrieveCheckoutSession(reference));
 }
-export const refundPaymentSession = refundCheckoutSessionPayment;
+export async function refundPaymentSession(session: StripeCheckoutSession) {
+  if (session.id.startsWith("ap_")) return refundAutopayPayment(session.id);
+  await refundCheckoutSessionPayment(session);
+  return { state: "completed" as const };
+}
 
 export function stripePaymentReference(reference: string): PaymentReference {
   return { provider: "stripe", reference };

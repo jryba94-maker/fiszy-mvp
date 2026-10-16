@@ -6,7 +6,7 @@ import { InfoPage } from "../components/public/InfoPage";
 export const metadata: Metadata = {
   title: "Jak działa Fiszy — aukcja holenderska",
   description:
-    "Cena w Fiszy zaczyna wysoko i spada w czasie. Obserwujesz ją i kupujesz wtedy, gdy aktualna cena Ci odpowiada. Pierwsza decyzja kończy aukcję.",
+    "Cena w Fiszy zaczyna wysoko i spada w czasie. Obserwujesz ją i kupujesz wtedy, gdy aktualna cena Ci odpowiada. Kliknięcie zapisuje miejsce w kolejce. Aukcję kończy potwierdzona płatność.",
   alternates: { canonical: "/jak-to-dziala" },
 };
 
@@ -16,13 +16,13 @@ export default function HowItWorksPage() {
     "@type": "HowTo",
     name: "Jak działa aukcja holenderska w Fiszy",
     description:
-      "Cena produktu spada w czasie, a pierwsza osoba, która zdecyduje się kupić po aktualnej cenie, wygrywa aukcję.",
+      "Cena produktu spada w czasie. Kliknięcie zapisuje cenę i pozycję w kolejce; produkt kupuje osoba, której płatność zostanie potwierdzona zgodnie z kolejnością.",
     url: absoluteSiteUrl("/jak-to-dziala"),
     step: [
       "Aukcja startuje od ceny początkowej.",
       "Uczestnicy obserwują malejącą cenę.",
       "Uczestnik wybiera moment zakupu.",
-      "Pierwsza poprawnie zapisana decyzja kończy aukcję.",
+      "Kliknięcie zapisuje kolejność i cenę; potwierdzona płatność kończy aukcję.",
     ].map((text, index) => ({
       "@type": "HowToStep",
       position: index + 1,
@@ -60,9 +60,9 @@ export default function HowItWorksPage() {
           ],
         },
         {
-          title: "4. Pierwsza decyzja kończy aukcję",
+          title: "4. Potwierdzona płatność kończy aukcję",
           paragraphs: [
-            "Pierwsza poprawnie zapisana decyzja zakupu wygrywa. Cena widoczna w chwili zwycięskiego kliknięcia staje się ceną zakupu.",
+            "Pierwsza osoba ma 2 minuty na rozpoczęcie płatności. Gdy operator ją przetwarza, rezerwacja trwa do ostatecznego wyniku. W razie potwierdzonego niepowodzenia do płatności przechodzi następna osoba. Każda osoba zachowuje cenę zapisaną przy swoim kliknięciu.",
           ],
         },
         ]}

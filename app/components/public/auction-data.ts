@@ -57,6 +57,7 @@ export type PublicAuction = {
   category: AuctionCategory;
   postAuctionOffer: PostAuctionOffer;
   regularPrice: number;
+  lowestPrice30DaysBeforeAuction?: number | null;
   startPrice: number;
   floorPrice: number;
   currentPrice: number;
@@ -75,6 +76,7 @@ export type EntryResponse = {
   outcome: string;
   runId?: string;
   hasEntry?: boolean;
+  paymentPending?: boolean;
   entryFee?: number;
   checkoutUrl?: string | null;
 };
@@ -88,7 +90,7 @@ export type BuyResponse = {
 };
 
 export type BuyerQueueStatus = {
-  state: "idle" | "queued" | "payment" | "closed" | "expired";
+  state: "idle" | "queued" | "payment" | "payment_processing" | "closed" | "expired";
   position: number | null;
   price: number | null;
   paymentExpiresAt: string | null;
@@ -100,7 +102,7 @@ export type BuyerQueueStatus = {
 export async function fetchBuyerQueue(auctionId: string, runId: string, signal?: AbortSignal): Promise<BuyerQueueStatus> {
   const response = await fetch(dynamicRunPath(auctionId, runId, "queue"), { cache: "no-store", signal });
   const data = await checkedJson(response);
-  if (!isRecord(data) || data.outcome !== "ok" || !["idle", "queued", "payment", "closed", "expired"].includes(String(data.state))) {
+  if (!isRecord(data) || data.outcome !== "ok" || !["idle", "queued", "payment", "payment_processing", "closed", "expired"].includes(String(data.state))) {
     throw new PublicApiError("Nie udało się odczytać kolejki.", 502);
   }
   return data as unknown as BuyerQueueStatus;
@@ -222,6 +224,7 @@ export function normalizeAuction(
     floorPrice,
     currentPrice,
     entryFee: finiteNumber(value.entryFee) ?? 5,
+    lowestPrice30DaysBeforeAuction: typeof value.lowestPrice30DaysBeforeAuction === "number" && value.lowestPrice30DaysBeforeAuction > 0 ? value.lowestPrice30DaysBeforeAuction : null,
     durationMinutes: explicitDuration ?? inferredDuration,
     status,
     startsAt,
@@ -359,12 +362,13 @@ export async function startEntryCheckout(
   auctionId: string,
   runId: string,
   ageConfirmed = false,
+  entryServiceAccepted = false,
 ) {
   return (await requestWithLegacyFallback(
     auctionId,
     dynamicRunPath(auctionId, runId, "entry"),
     "/api/auction/entry",
-    { ...JSON_POST, body: JSON.stringify({ ageConfirmed }) },
+    { ...JSON_POST, body: JSON.stringify({ ageConfirmed, entryServiceAccepted }) },
   )) as EntryResponse;
 }
 

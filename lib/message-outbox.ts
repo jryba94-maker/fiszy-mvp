@@ -99,7 +99,7 @@ function parseOutboxMessage(raw: unknown): OutboxMessage | null {
       !EMAIL_PATTERN.test(value.recipient) ||
       !["waitlist_confirmation", "entry_confirmation", "auction_reminder", "auction_start", "auction_win", "discount_available", "order_confirmation", "order_update", "service_case_update"].includes(String(value.template)) ||
       !cleanText(value.title, 160) ||
-      !cleanText(value.text, 4000) ||
+      !cleanText(value.text, 12000) ||
       (value.actionLabel !== null && !cleanText(value.actionLabel, 80)) ||
       (value.actionUrl !== null && (
         typeof value.actionUrl !== "string" ||
@@ -148,7 +148,7 @@ export async function enqueueTransactionalMessage(input: {
 }) {
   const recipient = input.recipient.trim().toLowerCase();
   const title = cleanText(input.title, 160);
-  const text = cleanText(input.text, 4000);
+  const text = cleanText(input.text, 12000);
   if (
     !DEDUPE_PATTERN.test(input.dedupeKey) ||
     recipient.length > 254 ||

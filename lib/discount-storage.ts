@@ -359,9 +359,19 @@ if not ok or type(discount) ~= "table" or discount.accountId ~= ARGV[1] then ret
 if discount.state == "redeemed" or discount.state == "revoked" then return {-1} end
 local expiresAt = tonumber(ARGV[2])
 if not expiresAt or expiresAt <= tonumber(ARGV[3]) then return {-2} end
-redis.call("ZREMRANGEBYSCORE", KEYS[2], "-inf", ARGV[3])
+local expiredReservations = redis.call("ZRANGEBYSCORE", KEYS[2], "-inf", ARGV[3])
+for _, id in ipairs(expiredReservations) do
+  local rawReservation = redis.call("GET", string.sub(KEYS[1], 1, string.len(KEYS[1]) - string.len(discount.discountId)) .. id)
+  local pending = false
+  if rawReservation then
+    local okReservation, reservation = pcall(cjson.decode, rawReservation)
+    pending = okReservation and reservation.paymentProvider == "autopay" and reservation.paymentReference and reservation.state == "reserved"
+  end
+  if not pending then redis.call("ZREM", KEYS[2], id) end
+end
 if discount.state == "reserved" then
   local reservationExpiry = tonumber(discount.reservationExpiresAtMs or 0)
+  if discount.paymentProvider == "autopay" and discount.paymentReference then return {2, raw} end
   if reservationExpiry > tonumber(ARGV[3]) then return {2, raw} end
   redis.call("ZREM", KEYS[2], discount.discountId)
 end

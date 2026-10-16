@@ -458,7 +458,7 @@ export function DeviceProfile() {
 
             {discounts.length ? (
               <section className={styles.section} id="rabaty" aria-labelledby="discount-title">
-                <div className={styles.sectionHeading}><div><p className={styles.eyebrow}>Dla uczestników</p><h2 id="discount-title">Oferty po aukcji</h2></div><p>Po przegranej odzyskujesz wartość wejścia jako jednorazowy rabat na ten sam produkt.</p></div>
+                <div className={styles.sectionHeading}><div><p className={styles.eyebrow}>Dla uczestników</p><h2 id="discount-title">Oferty po aukcji</h2></div><p>Nie kupisz w aukcji? Otrzymasz jednorazowy rabat na ten sam produkt, równy opłacie za wejście.</p></div>
                 <div className={styles.discountGrid}>
                   {discounts.map((discount) => {
                     const canBuy = discount.state === "available" || discount.state === "reserved";
@@ -476,7 +476,7 @@ export function DeviceProfile() {
                       <div className={styles.discountBody}>
                         <span className={styles.discountState}>{stateLabel}</span>
                         <h3>{discount.product}</h3>
-                        <div className={styles.discountPrice}><span><s>{money(discount.regularPrice)}</s></span><strong>{money(discount.finalPrice)}</strong></div>
+                        <div className={styles.discountPrice}><span>Cena bez rabatu: {money(discount.regularPrice)}</span><strong>{money(discount.finalPrice)}</strong></div>
                         <p>Twój rabat: <strong>{money(discount.discountAmount)}</strong></p>
                         <p className={styles.discountExpiry}>Ważny do {dateLabel(discount.expiresAt)}</p>
                         <p className={styles.discountCountdown}>Do końca: <strong>{discountTimeLeft(discount.expiresAt, now)}</strong></p>

@@ -30,6 +30,7 @@ export type AuctionWinner = {
   paymentSessionId?: string;
   paymentCheckoutUrl?: string;
   paymentExpiresAt?: string;
+  paymentProcessingAt?: string;
   paidAt?: string;
 };
 
@@ -432,6 +433,7 @@ function normalizeAuctionWinner(value: unknown): AuctionWinner | null {
     "paymentSessionId",
     "paymentCheckoutUrl",
     "paymentExpiresAt",
+    "paymentProcessingAt",
     "paidAt",
   ] as const;
   if (
@@ -439,6 +441,7 @@ function normalizeAuctionWinner(value: unknown): AuctionWinner | null {
       (key) =>
         candidate[key] !== undefined && typeof candidate[key] !== "string",
     ) ||
+    (candidate.paymentProcessingAt !== undefined && !Number.isFinite(new Date(candidate.paymentProcessingAt).getTime())) ||
     (candidate.paymentExpiresAt !== undefined &&
       !Number.isFinite(new Date(candidate.paymentExpiresAt).getTime())) ||
     (candidate.paidAt !== undefined &&
@@ -465,6 +468,7 @@ function normalizeAuctionWinner(value: unknown): AuctionWinner | null {
     ...(candidate.paymentExpiresAt !== undefined
       ? { paymentExpiresAt: candidate.paymentExpiresAt }
       : {}),
+    ...(candidate.paymentProcessingAt !== undefined ? { paymentProcessingAt: candidate.paymentProcessingAt } : {}),
     ...(candidate.paidAt !== undefined ? { paidAt: candidate.paidAt } : {}),
   };
 }
@@ -1552,7 +1556,7 @@ return 2
 }
 
 export type AuctionQueueStatus = {
-  state: "idle" | "queued" | "payment" | "closed" | "expired";
+  state: "idle" | "queued" | "payment" | "payment_processing" | "closed" | "expired";
   position: number | null;
   price: number | null;
   paymentExpiresAt: string | null;
@@ -1584,10 +1588,10 @@ local rank = redis.call("ZRANK", KEYS[2], ARGV[1])
 local ownRaw = redis.call("GET", KEYS[3])
 local own = ownRaw and cjson.decode(ownRaw) or nil
 if head and head.bidderId == ARGV[1] then
- return cjson.encode({state="payment",position=1,price=head.price,claimedAt=head.claimedAt,paymentExpiresAt=head.paymentExpiresAt,checkoutUrl=head.paymentCheckoutUrl})
+ return cjson.encode({state=head.paymentProcessingAt and "payment_processing" or "payment",position=1,price=head.price,claimedAt=head.claimedAt,paymentExpiresAt=head.paymentExpiresAt,checkoutUrl=head.paymentCheckoutUrl})
 end
 if rank and own then
- return cjson.encode({state="queued",position=rank+2,price=own.price,claimedAt=head and head.claimedAt or nil,paymentExpiresAt=head and head.paymentExpiresAt or nil})
+ return cjson.encode({state="queued",position=rank+2,price=own.price,claimedAt=head and head.claimedAt or nil,paymentExpiresAt=head and head.paymentExpiresAt or nil,processing=head and head.paymentProcessingAt and true or false})
 end
 if redis.call("EXISTS", KEYS[4]) == 1 then return cjson.encode({state="expired"}) end
 return cjson.encode({state="idle"})
@@ -1595,12 +1599,12 @@ return cjson.encode({state="idle"})
   if (!raw) throw new Error("Queue snapshot unavailable.");
   const access = JSON.parse(raw) as { denied?: "run_changed" | "entry_required" };
   if (access.denied) throw new AuctionQueueAccessError(access.denied);
-  const snapshot = JSON.parse(raw) as { state: AuctionQueueStatus["state"]; position?: number; price?: number; claimedAt?: string; paymentExpiresAt?: string; checkoutUrl?: string };
+  const snapshot = JSON.parse(raw) as { state: AuctionQueueStatus["state"]; position?: number; price?: number; claimedAt?: string; paymentExpiresAt?: string; checkoutUrl?: string; processing?: boolean };
   const deadline = snapshot.paymentExpiresAt ?? (snapshot.claimedAt ? new Date(Date.parse(snapshot.claimedAt) + 120_000).toISOString() : null);
   return {
     state: snapshot.state, position: snapshot.position ?? null, price: snapshot.price ?? null,
     paymentExpiresAt: deadline,
-    estimatedTurnAt: snapshot.state === "queued" && deadline && snapshot.position
+    estimatedTurnAt: snapshot.state === "queued" && !snapshot.processing && deadline && snapshot.position
       ? new Date(Date.parse(deadline) + (snapshot.position - 2) * 120_000).toISOString() : null,
     checkoutUrl: snapshot.state === "payment" ? snapshot.checkoutUrl ?? null : null,
     serverTime: new Date(nowMs).toISOString(),
@@ -1640,6 +1644,24 @@ return ""
   return parseStoredAuctionWinner(raw);
 }
 
+// Reserve the provider reference BEFORE an external create request. A timeout
+// after provider acceptance must never leave a releasable session-less head.
+export async function reserveAuctionWinnerPaymentReference(runId: string, auctionId: string, bidderId: string, claimedAt: string, reference: string) {
+  return redisCommand<number>(["EVAL", `
+local raw = redis.call("GET", KEYS[1])
+if not raw then return 0 end
+local head = cjson.decode(raw)
+if head.bidderId ~= ARGV[1] or head.claimedAt ~= ARGV[2] or head.paymentStatus ~= "pending" then return 0 end
+if head.paymentSessionId and head.paymentSessionId ~= ARGV[3] then return 0 end
+head.paymentSessionId = ARGV[3]
+head.paymentReference = ARGV[3]
+head.paymentProvider = "autopay"
+head.paymentProcessingAt = ARGV[4]
+redis.call("SET", KEYS[1], cjson.encode(head), "EX", 604800)
+return 1
+`, 1, winnerKey(runId, auctionId), bidderId, claimedAt, reference, new Date().toISOString()]);
+}
+
 export async function attachAuctionWinnerCheckout(
   runId: string,
   bidderId: string,
@@ -1659,6 +1681,7 @@ local data = cjson.decode(raw)
 if data.bidderId ~= ARGV[1] then return 0 end
 if data.paymentStatus ~= "pending" then return 0 end
 if ARGV[5] ~= "" and data.claimedAt ~= ARGV[5] then return -1 end
+if data.paymentSessionId and data.paymentSessionId ~= ARGV[2] then return -1 end
 data.paymentSessionId = ARGV[2]
 data.paymentProvider = ARGV[6]
 data.paymentReference = ARGV[2]

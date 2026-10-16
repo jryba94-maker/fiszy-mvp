@@ -37,10 +37,13 @@ import { queueWinnerEmail } from "../../../../lib/auction-email-notifications";
 import { processMessageOutbox } from "../../../../lib/message-outbox";
 import { errorDetails, logEvent } from "../../../../lib/observability";
 import { advanceAuctionQueue, purchaseDeadline } from "../../../../lib/auction-queue";
+import { readAutopayEntryIntent } from "../../../../lib/autopay-storage";
+import { recordEntryServiceConsent } from "../../../../lib/entry-service-consent";
+import { AutopayCustomerError, autopayCustomer } from "../../../../lib/payment-providers/autopay";
 
 const PURCHASE_CHECKOUT_WINDOW_SECONDS = 2 * 60;
 
-type BidderRequest = { expectedPrice?: unknown; ageConfirmed?: unknown };
+type BidderRequest = { expectedPrice?: unknown; ageConfirmed?: unknown; entryServiceAccepted?: unknown };
 
 async function authenticatedBidder() {
   const { userId } = await auth();
@@ -106,6 +109,7 @@ async function parseBidderBody(request: NextRequest) {
     return {
       expectedPrice: body.expectedPrice as number | undefined,
       ageConfirmed: body.ageConfirmed === true,
+      entryServiceAccepted: body.entryServiceAccepted === true,
     };
   } catch {
     return null;
@@ -154,6 +158,7 @@ export async function handleEntryGet(
       auctionId: active.auctionId,
       runId: active.config.runId,
       hasEntry: Boolean(entry),
+      paymentPending: !entry && configuredPaymentProvider() === "autopay" ? await readAutopayEntryIntent(active.auctionId, active.config.runId, bidderId).then(intent => Boolean(intent && intent.status !== "failed")) : false,
       entryFee: active.config.entryFee,
       grantedAt: entry?.grantedAt ?? null,
     });
@@ -173,7 +178,7 @@ export async function handleQueueGet(request: NextRequest, auctionIdValue: strin
     if (await isAccountBlocked(userId)) return NextResponse.json({ outcome: "account_blocked" }, { status: 403 });
     const bidderId = `clerk:${userId}`;
     let queue = await readAuctionQueueStatus(runId, bidderId, auctionId, Date.now(), true);
-    if ((queue.state === "queued" || queue.state === "payment") && (!queue.paymentExpiresAt || Date.parse(queue.paymentExpiresAt) <= Date.now())) {
+    if (((queue.state === "queued" && queue.estimatedTurnAt !== null) || queue.state === "payment") && (!queue.paymentExpiresAt || Date.parse(queue.paymentExpiresAt) <= Date.now())) {
       await advanceAuctionQueue(auctionId, runId);
       queue = await readAuctionQueueStatus(runId, bidderId, auctionId, Date.now(), true);
     }
@@ -275,6 +280,8 @@ export async function handleEntryPost(
       );
     }
 
+    if (!bidderRequest.entryServiceAccepted) return NextResponse.json({ outcome: "entry_service_consent_required" }, { status: 400 });
+    const consent = await recordEntryServiceConsent({ accountId: bidderId.replace(/^clerk:/, ""), auctionId: active.auctionId, runId: active.config.runId, fee: active.config.entryFee });
     const session = await createEntryPaymentSession({
       origin: getCheckoutOrigin(request),
       auctionId: active.auctionId,
@@ -282,6 +289,8 @@ export async function handleEntryPost(
       bidderId,
       amount: active.config.entryFee * 100,
       productName: active.config.productName,
+      entryConsentId: consent.id,
+      expiresAt: Math.floor(Date.parse(active.config.startsAt) / 1000),
     });
     await recordBusinessEventSafely({ event: "entry_checkout_started" });
     return NextResponse.json({
@@ -292,6 +301,7 @@ export async function handleEntryPost(
       entryFee: active.config.entryFee,
     });
   } catch (error) {
+    if (error instanceof AutopayCustomerError) return NextResponse.json({ outcome: "customer_details_required" }, { status: 400 });
     console.error("Unable to create entry Checkout Session.", error);
     return NextResponse.json({ outcome: "payment_error" }, { status: 503 });
   }
@@ -363,6 +373,8 @@ export async function handleBuyPost(
 
     const checkoutResponse = async (claimedWinner: AuctionWinner, checkoutUrl: string) => {
       if (Date.now() >= purchaseDeadline(claimedWinner)) {
+        const latest = await readAuctionWinner(active.config.runId, active.auctionId);
+        if (latest?.bidderId === bidderId && latest.paymentProcessingAt) return NextResponse.json({ outcome: "payment_processing" });
         await advanceAuctionQueue(active.auctionId, active.config.runId);
         return NextResponse.json({ outcome: "payment_expired" }, { status: 409 });
       }
@@ -491,6 +503,7 @@ export async function handleBuyPost(
       } catch (error) {
         try {
           const recovered = await waitForAttachedCheckout(claimedWinner);
+          if (recovered?.bidderId === claimedWinner.bidderId && recovered.claimedAt === claimedWinner.claimedAt && recovered.paymentProcessingAt && !recovered.paymentCheckoutUrl) return NextResponse.json({ outcome: "payment_processing" });
           if (
             recovered?.bidderId === claimedWinner.bidderId &&
             recovered.claimedAt === claimedWinner.claimedAt &&
@@ -542,6 +555,7 @@ export async function handleBuyPost(
       currentWinner?.bidderId === bidderId &&
       currentWinner.paymentStatus === "pending"
     ) {
+      if (currentWinner.paymentProcessingAt && Date.now() >= purchaseDeadline(currentWinner)) return NextResponse.json({ outcome: "payment_processing" });
       if (Date.now() >= purchaseDeadline(currentWinner)) {
         return NextResponse.json({ outcome: "payment_expired" }, { status: 409 });
       }
@@ -556,6 +570,7 @@ export async function handleBuyPost(
     if (timedState.status !== "live") {
       return NextResponse.json({ outcome: "not_live", status: timedState.status, currentPrice: timedState.currentPrice }, { status: 409 });
     }
+    if (configuredPaymentProvider() === "autopay") await autopayCustomer(bidderId, true);
     if (expectedPrice !== undefined && (expectedPrice < timedState.currentPrice || !isAuctionPricePoint(expectedPrice, active.config))) {
       return NextResponse.json({ outcome: "price_changed", currentPrice: timedState.currentPrice }, { status: 409 });
     }
@@ -668,6 +683,7 @@ export async function handleBuyPost(
       { status: 409 },
     );
   } catch (error) {
+    if (error instanceof AutopayCustomerError) return NextResponse.json({ outcome: "customer_details_required" }, { status: 400 });
     console.error("Unable to claim auction in Redis.", error);
     return NextResponse.json({ outcome: "storage_error" }, { status: 503 });
   }
@@ -743,7 +759,8 @@ export async function handleCancelPost(
     }
 
     try {
-      await expirePaymentSession(winner.paymentSessionId);
+      const cancelled = await expirePaymentSession(winner.paymentSessionId);
+      if (cancelled.state !== "expired") return NextResponse.json({ outcome: "cannot_cancel" }, { status: 409 });
     } catch (error) {
       console.error("Unable to expire cancelled Checkout Session.", error);
       return NextResponse.json({ outcome: "cannot_cancel" }, { status: 409 });

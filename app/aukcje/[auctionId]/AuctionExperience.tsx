@@ -1,5 +1,6 @@
 "use client";
 
+import { ENTRY_SERVICE_CONSENT_TEXT } from "../../../lib/entry-service-terms";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
@@ -94,6 +95,9 @@ function timerAt(
 }
 
 function outcomeMessage(outcome: string, action: "entry" | "buy") {
+  if (outcome === "customer_details_required") return "Uzupełnij imię i nazwisko, telefon oraz adres dostawy w Moje Fiszy przed zakupem.";
+  if (outcome === "entry_service_consent_required") return "Zaznacz żądanie rozpoczęcia usługi dostępu przed płatnością.";
+  if (outcome === "payment_processing") return "Operator przetwarza Twoją płatność. Produkt jest zarezerwowany — nie płać ponownie.";
   if (outcome === "age_confirmation_required") {
     return "Aby korzystać z aukcji, zaznacz potwierdzenie ukończenia 18 lat.";
   }
@@ -134,6 +138,8 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
   const [entryFeedback, setEntryFeedback] = useState<Feedback>(null);
   const [purchaseFeedback, setPurchaseFeedback] = useState<Feedback>(null);
   const [ageConfirmed, setAgeConfirmed] = useState(false);
+  const [entryPaymentPending, setEntryPaymentPending] = useState(false);
+  const [entryServiceAccepted, setEntryServiceAccepted] = useState(false);
   const [queueData, setQueueData] = useState<{ scope: string; status: BuyerQueueStatus } | null>(null);
   const [queueError, setQueueError] = useState(false);
   const checkoutAttemptRef = useRef<string | null>(null);
@@ -214,16 +220,19 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
     let active = true;
     let retryTimer: number | undefined;
     let attempts = 0;
+    let pendingPayment = false;
     const runId = auction.runId;
     const paymentState = new URLSearchParams(window.location.search).get("payment");
 
     setHasEntry(false);
     setEntryRunId(runId);
+    setEntryPaymentPending(false);
+    setEntryServiceAccepted(false);
     setCheckedEntryKey(null);
     const entryKey = `${auctionId}:${runId}:${userId}`;
 
     if (paymentState === "success") {
-      setEntryFeedback({ text: "Płatność zakończona. Czekamy na potwierdzenie Stripe…" });
+      setEntryFeedback({ text: "Płatność zakończona. Czekamy na potwierdzenie operatora…" });
     } else if (paymentState === "cancelled") {
       setEntryFeedback({ text: "Płatność została anulowana. Wejście nie zostało aktywowane." });
       recordAuctionEvent(auction, { entryState: "cancelled" });
@@ -240,6 +249,9 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
 
         const granted = Boolean(data.outcome === "ok" && data.hasEntry && data.runId === runId);
         setHasEntry(granted);
+        pendingPayment = Boolean(data.paymentPending);
+        setEntryPaymentPending(pendingPayment);
+        if (data.paymentPending) setEntryFeedback({ text: "Operator przetwarza opłatę za wejście. Nie opłacaj go ponownie. Dostęp przyznamy po potwierdzeniu płatności przed startem aukcji." });
         setEntryRunId(data.runId ?? runId);
         if (granted || paymentState !== "success") setCheckedEntryKey(entryKey);
         if (granted) {
@@ -263,7 +275,8 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
         retryTimer = window.setTimeout(() => void checkWithRetry(), 3_000);
         return;
       }
-      if (paymentState !== "success") { setEntryFeedback(null); return; }
+      if (pendingPayment) { retryTimer = window.setTimeout(() => void checkWithRetry(), 3000); return; }
+      if (paymentState !== "success") return;
       attempts += 1;
       if (attempts >= 15) {
         recordAuctionEvent(auction, { entryState: "unconfirmed" });
@@ -295,7 +308,7 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
         recordAuctionEvent(auction, { purchaseState: "paid" });
         clearQueryParam("purchase");
       } else {
-        setPurchaseFeedback({ text: "Płatność zakończona. Czekamy na potwierdzenie Stripe…" });
+        setPurchaseFeedback({ text: "Czekamy na ostateczne potwierdzenie płatności przez operatora…" });
       }
       return;
     }
@@ -351,6 +364,7 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
   const buyerQueue = storedQueue && displayStatus === "sold" ? { ...storedQueue, state: "closed" as const, checkoutUrl: null } : storedQueue;
   const isQueued = buyerQueue?.state === "queued";
   const isPaying = buyerQueue?.state === "payment";
+  const isProcessing = buyerQueue?.state === "payment_processing";
   const queueExpired = buyerQueue?.state === "expired";
   const startsAtMs = auction ? Date.parse(auction.startsAt) : Number.NaN;
   const entryWindowOpen = Boolean(
@@ -397,12 +411,12 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
       isSignedIn &&
       auction.storageReady &&
       entryStateReady &&
-      !hasCurrentEntry &&
+      !hasCurrentEntry && !entryPaymentPending &&
       entryWindowOpen,
   );
   const canBuy = Boolean(
     auction && isAuthLoaded && isSignedIn && auction.storageReady && hasCurrentEntry && buyerQueue &&
-    !isQueued && !queueExpired && buyerQueue?.state !== "closed" && (displayStatus === "live" || isPaying),
+    !isQueued && !isProcessing && !queueExpired && buyerQueue?.state !== "closed" && (displayStatus === "live" || isPaying),
   );
   const queuePollingDelay = isQueued || isPaying ? 1500
     : queueExpired || buyerQueue?.state === "closed" ? 30_000 : 10_000;
@@ -452,9 +466,11 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
     else if (needsSignIn) actionLabel = "ZALOGUJ SIĘ, ABY DOŁĄCZYĆ";
     else if (isEntering) actionLabel = "PRZECHODZĘ DO PŁATNOŚCI…";
     else if (isBuying) actionLabel = "REZERWUJĘ…";
+    else if (entryPaymentPending) actionLabel = "POTWIERDZAMY OPŁATĘ ZA WEJŚCIE";
     else if (canEnter) actionLabel = `OPŁAĆ WEJŚCIE — ${auction.entryFee} ZŁ`;
     else if (isPaying) actionLabel = "DOKOŃCZ PŁATNOŚĆ";
     else if (isQueued) actionLabel = `JESTEŚ ${buyerQueue?.position}. W KOLEJCE`;
+    else if (isProcessing) actionLabel = "POTWIERDZAMY PŁATNOŚĆ";
     else if (queueExpired) actionLabel = "TWÓJ CZAS NA PŁATNOŚĆ MINĄŁ";
     else if (displayStatus === "live" && hasCurrentEntry && !buyerQueue) actionLabel = "SPRAWDZAMY KOLEJKĘ…";
     else if (canBuy) actionLabel = `LICYTUJ — ${visiblePrice} ZŁ`;
@@ -464,14 +480,14 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
     else if (displayStatus === "sold") actionLabel = "SPRZEDANE";
     else actionLabel = "AUKCJA ZAKOŃCZONA";
   }
-  const actionDisabled = !isAuthLoaded || checkingEntry || isEntering || isBuying || (!canEnter && !canBuy && !needsSignIn);
+  const actionDisabled = !isAuthLoaded || checkingEntry || isEntering || isBuying || (canEnter && !entryServiceAccepted) || (!canEnter && !canBuy && !needsSignIn);
 
   const handleEntry = async () => {
     if (!auction || !canEnter || isEntering) return;
     setIsEntering(true);
     setEntryFeedback(null);
     try {
-      const data = await startEntryCheckout(auction.auctionId, auction.runId, ageConfirmed);
+      const data = await startEntryCheckout(auction.auctionId, auction.runId, ageConfirmed, entryServiceAccepted);
       if (data.outcome === "checkout" && data.checkoutUrl) {
         recordAuctionEvent(auction, { entryState: "checkout" });
         window.location.assign(data.checkoutUrl);
@@ -597,7 +613,7 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
 
   const actionNote = (hasCurrentEntry || checkingEntry)
     ? null
-    : `Jednorazowe wejście do tej aukcji: ${auction.entryFee} zł`;
+     : canEnter && !entryServiceAccepted ? "Przed płatnością zaznacz oświadczenie o rozpoczęciu usługi powyżej." : `Jednorazowe wejście do tej aukcji: ${auction.entryFee} zł`;
 
   return (
     <main className={styles.page}>
@@ -648,7 +664,7 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
             <div className={styles.priceArea}>
               <div className={styles.priceTopline}>
                 <span className={styles.priceLabel}>{displayStatus === "waiting" ? "Ta cena zacznie spadać" : "Aktualna cena"}</span>
-                <span className={styles.regularPrice}><span>Cena regularna</span><span className={styles.regularAmount}>{auction.regularPrice} zł</span></span>
+                <span><span>Cena regularna: {auction.regularPrice} zł</span>{auction.lowestPrice30DaysBeforeAuction != null ? <small style={{ display: "block" }}>Najniższa cena z 30 dni przed aukcją: {auction.lowestPrice30DaysBeforeAuction} zł</small> : null}</span>
               </div>
               <span className={styles.currentPrice} aria-live="off" aria-label={`Aktualna cena ${visiblePrice} zł`}>
                 {visiblePrice} zł
@@ -676,19 +692,19 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
             <p className={styles.message} aria-live="polite">{auctionMessage}</p>
             {buyerQueue && buyerQueue.state !== "idle" ? (
               <section className={styles.buyerQueue} aria-label="Twoja kolejka zakupu">
-                <h2>{isPaying ? "Twoja kolej na zakup" : isQueued ? `Jesteś ${buyerQueue.position}. w kolejce` : queueExpired ? "Twój czas na płatność minął" : "Produkt został opłacony"}</h2>
+                <h2>{isProcessing ? "Operator potwierdza płatność" : isPaying ? "Twoja kolej na zakup" : isQueued ? `Jesteś ${buyerQueue.position}. w kolejce` : queueExpired ? "Twój czas na płatność minął" : "Produkt został opłacony"}</h2>
                 {buyerQueue.price !== null ? <p>Twoja zapisana cena: <strong>{buyerQueue.price} zł</strong></p> : null}
                 {isQueued ? <>
-                  <p>Osoba nr 1 ma jeszcze <strong>{formatCountdown(buyerQueue.paymentExpiresAt, serverNow)}</strong> na płatność.</p>
-                  <p>Do Twojej tury orientacyjnie: <strong>{formatCountdown(buyerQueue.estimatedTurnAt, serverNow)}</strong></p>
+                  {buyerQueue.estimatedTurnAt ? <><p>Osoba nr 1 ma jeszcze <strong>{formatCountdown(buyerQueue.paymentExpiresAt, serverNow)}</strong> na rozpoczęcie płatności.</p><p>Do Twojej tury orientacyjnie: <strong>{formatCountdown(buyerQueue.estimatedTurnAt, serverNow)}</strong></p></> : <p>Operator sprawdza płatność osoby przed Tobą. Twoje miejsce i cena pozostają zapisane. Czas oczekiwania zależy teraz od operatora.</p>}
                   <small>Możesz przejść do płatności wcześniej, jeśli ktoś zrezygnuje. Jeśli poprzednia osoba zapłaci, aukcja się zakończy.</small>
-                </> : isPaying ? <p>Na płatność pozostało <strong>{formatCountdown(buyerQueue.paymentExpiresAt, serverNow)}</strong>. Przenosimy Cię do płatności.</p> : null}
+                </> : isProcessing ? <p>Produkt jest zarezerwowany do otrzymania ostatecznego wyniku. Nie rozpoczynaj kolejnej płatności. Status aktualizuje się automatycznie.</p> : isPaying ? <p>Na rozpoczęcie płatności pozostało <strong>{formatCountdown(buyerQueue.paymentExpiresAt, serverNow)}</strong>. Przenosimy Cię do płatności.</p> : null}
+                {isProcessing && buyerQueue.checkoutUrl && buyerQueue.paymentExpiresAt && Date.parse(buyerQueue.paymentExpiresAt) > serverNow ? <a className={styles.paymentResume} href={buyerQueue.checkoutUrl}>Wróć do rozpoczętej płatności</a> : null}
                 {queueError ? <p role="status">Odświeżamy status kolejki. Pokazane czasy mogą być nieaktualne.</p> : null}
               </section>
             ) : null}
             {auction.postAuctionOffer.enabled ? (
               <p className={styles.offerNote}>
-                Nie wygrasz? Twoje {auction.entryFee} zł wraca jako rabat na {auction.product}. Po aukcji znajdziesz go na swoim koncie — masz {auction.postAuctionOffer.validityDays} dni, żeby skorzystać.
+                Nie kupisz w aukcji? Otrzymasz {auction.entryFee} zł rabatu na {auction.product}. Po aukcji znajdziesz go na swoim koncie — masz {auction.postAuctionOffer.validityDays} dni, żeby skorzystać.
               </p>
             ) : null}
             {!auction.storageReady ? (
@@ -715,7 +731,9 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
               ) : null}
             </div>
 
+            <div id="entry-service-consent">{canEnter ? <label className={styles.ageConfirmation}><input type="checkbox" checked={entryServiceAccepted} onChange={(event) => setEntryServiceAccepted(event.target.checked)} /><span>{ENTRY_SERVICE_CONSENT_TEXT}</span></label> : null}</div>
             <div className={`${styles.actionArea} ${styles.desktopAction}`}>
+
               {(canEnter || canBuy) ? <label className={styles.ageConfirmation}><input type="checkbox" checked={ageConfirmed} onChange={(event) => setAgeConfirmed(event.target.checked)} /><span>Potwierdzam, że mam ukończone 18 lat i akceptuję <Link href="/regulamin">Regulamin</Link>.</span></label> : null}
               <button
                 className={styles.primaryButton}
@@ -745,7 +763,8 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
       </div>
 
       <div className={styles.mobileAction}>
-        {(canEnter || canBuy) ? <label className={styles.ageConfirmation}><input type="checkbox" checked={ageConfirmed} onChange={(event) => setAgeConfirmed(event.target.checked)} /><span>Potwierdzam, że mam ukończone 18 lat i akceptuję <Link href="/regulamin">Regulamin</Link>.</span></label> : null}
+
+              {(canEnter || canBuy) ? <label className={styles.ageConfirmation}><input type="checkbox" checked={ageConfirmed} onChange={(event) => setAgeConfirmed(event.target.checked)} /><span>Potwierdzam, że mam ukończone 18 lat i akceptuję <Link href="/regulamin">Regulamin</Link>.</span></label> : null}
         <button
           className={styles.primaryButton}
           type="button"

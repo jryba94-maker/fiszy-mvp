@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { autopayOperationalIssues } from "../../../../lib/autopay-storage";
+import { autopayConfiguration } from "../../../../lib/payment-providers/autopay-protocol";
 import { reconcileAuctionLifecycleBatch } from "../../../../lib/auction-lifecycle";
 import { processMessageOutbox } from "../../../../lib/message-outbox";
 import { errorDetails, logEvent } from "../../../../lib/observability";
@@ -44,6 +46,11 @@ export async function GET(request: Request) {
       ...(messages.dead > 0 ? [`email.dead_messages:${messages.dead}`] : []),
       ...(messages.errors > 0 ? [`email.processing_errors:${messages.errors}`] : []),
     ];
+    if (autopayConfiguration().credentialsConfigured) {
+      const payments = await autopayOperationalIssues();
+      if (payments.stalePayments.length) issues.push(`autopay.stale_payments:${payments.stalePayments.length}`);
+      if (payments.refundsRequiringAttention.length) issues.push(`autopay.refunds_requiring_attention:${payments.refundsRequiringAttention.length}`);
+    }
     let alertSent = false;
     if (issues.length && systemAlertsConfigured()) {
       await sendSystemAlert(issues, new Date().toISOString());

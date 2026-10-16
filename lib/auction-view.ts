@@ -154,6 +154,7 @@ function toPublicAuction(
     category: config.category,
     postAuctionOffer: config.postAuctionOffer,
     regularPrice: config.regularPrice,
+    lowestPrice30DaysBeforeAuction: config.lowestPrice30DaysBeforeAuction ?? null,
     startPrice: config.startPrice,
     floorPrice: config.floorPrice,
     durationMinutes: config.durationMinutes,

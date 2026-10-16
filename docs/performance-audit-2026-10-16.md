@@ -51,7 +51,7 @@ isolated local Redis (`QUEUE_TEST_REDIS_PORT`), and
 
 ## Branch inventory
 
-Eighteen non-main branches are ancestors of main and are candidates for deletion:
+Eighteen non-main branches verified as ancestors of main were deleted:
 `codex/check-repository-status-and-finish-publish`, `codex/traffic-observability`,
 `feat/admin-auction-launcher`, `feat/auction-screen`, `feat/falling-price-demo`,
 `feat/first-click-wins`, `feat/order-history`, `feat/order-records`,
@@ -65,9 +65,10 @@ Six branches have commits not reachable from main and were preserved:
 `codex/marketing-agents`, `revert-6-vercel/react-server-components-cve-vu-k9sfh0`,
 `seo/llm-discovery`.
 
-Remote branches were not deleted: the connected GitHub interface exposes no
-branch deletion operation and terminal Git has no write credential. Branch
-cleanup affects repository maintenance, not production execution speed.
+Remote cleanup completed successfully in GitHub Actions run 38972026880.
+A subsequent branch inventory confirms main plus the six unmerged branches remain.
+The one-time workflow was removed after completion. Branch cleanup affects
+repository maintenance, not production execution speed.
 
 ## Remaining verification before launch
 

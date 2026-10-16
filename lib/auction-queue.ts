@@ -26,7 +26,7 @@ export async function advanceAuctionQueue(auctionId: string, runId: string, nowM
     if (!current || current.bidderId !== winner.bidderId || current.claimedAt !== winner.claimedAt || current.paymentStatus !== "pending") return;
     if (winner.paymentSessionId) {
       let session = await retrievePaymentSession(winner.paymentSessionId);
-      if (session.state === "paid" || session.state === "unknown") return;
+      if (session.state === "paid" || session.state === "processing" || session.state === "unknown") return;
       if (session.state === "open") {
         try {
           session = await expirePaymentSession(winner.paymentSessionId);

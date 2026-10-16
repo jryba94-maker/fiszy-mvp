@@ -45,7 +45,7 @@ export function AuctionCard({ auction, watched = false, watchBusy = false, onWat
             <span className={styles.priceLabel}>{displayedPriceLabel}</span>
             <span className={styles.price}>{auction.currentPrice} zł</span>
           </div>
-          {auction.regularPrice > auction.currentPrice ? <span className={styles.regularPrice}>{auction.regularPrice} zł</span> : null}
+          {auction.lowestPrice30DaysBeforeAuction != null ? <small>Najniższa cena z 30 dni przed aukcją: {auction.lowestPrice30DaysBeforeAuction} zł</small> : null}
         </div>
         <Link
           className={styles.cardLink}

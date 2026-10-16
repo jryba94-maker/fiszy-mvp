@@ -96,7 +96,8 @@ export async function sendTransactionalMessage(input: {
   const from = configuredSender();
   const to = validRecipient(input.to);
   const title = input.title.trim().slice(0, 160);
-  const message = input.text.trim().slice(0, 4000);
+  const message = input.text.trim();
+  if (message.length > 12000) throw new Error("Transactional message is too long; refusing to truncate contract terms.");
   const actionLabel = input.actionLabel?.trim().slice(0, 80) || null;
   let actionUrl: string | null = null;
   if (input.actionUrl) {

@@ -14,6 +14,7 @@ type Draft = {
   offerValidityDays: string;
   entryFee: string;
   regularPrice: string;
+  lowestPrice30DaysBeforeAuction: string;
   durationMinutes: string;
   startsAt: string;
 };
@@ -26,6 +27,7 @@ const EMPTY_DRAFT: Draft = {
   offerValidityDays: "7",
   entryFee: "5",
   regularPrice: "999",
+  lowestPrice30DaysBeforeAuction: "",
   durationMinutes: "10",
   startsAt: "",
 };
@@ -49,6 +51,7 @@ function draftFromAuction(auction: AdminAuction): Draft {
     offerValidityDays: String(auction.postAuctionOffer.validityDays),
     entryFee: String(auction.entryFee),
     regularPrice: String(auction.regularPrice),
+    lowestPrice30DaysBeforeAuction: auction.lowestPrice30DaysBeforeAuction == null ? "" : String(auction.lowestPrice30DaysBeforeAuction),
     durationMinutes: String(auction.durationMinutes),
     startsAt: "",
   };
@@ -186,6 +189,7 @@ export function AuctionEditor({
         },
         entryFee,
         regularPrice,
+        lowestPrice30DaysBeforeAuction: draft.lowestPrice30DaysBeforeAuction ? Number(draft.lowestPrice30DaysBeforeAuction) : null,
         startPrice: regularPrice,
         floorPrice: 1,
         durationMinutes,
@@ -325,6 +329,7 @@ export function AuctionEditor({
               <small>To również cena startowa aukcji. Cena minimalna zawsze wynosi 1 zł.</small>
             </label>
 
+            <label className={styles.field} htmlFor="lowest-price"><span>Najniższa cena z 30 dni przed aukcją (zł)</span><input id="lowest-price" className={styles.input} type="number" min="1" max="100000" step="1" value={draft.lowestPrice30DaysBeforeAuction} onChange={(event) => update("lowestPrice30DaysBeforeAuction", event.target.value)} /><small>Wpisz udokumentowaną cenę. Nie zastępuj jej ceną regularną bez historii. Wartość zostanie zapisana na całą aukcję.</small></label>
             <label className={styles.field} htmlFor="entry-fee">
               <span>Opłata za wejście</span>
               <div className={styles.suffixedInput}>

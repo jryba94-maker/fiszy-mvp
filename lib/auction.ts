@@ -24,6 +24,7 @@ export type AuctionDefinition = {
   postAuctionOffer: PostAuctionOfferDefinition;
   entryFee: number;
   regularPrice: number;
+  lowestPrice30DaysBeforeAuction?: number | null;
   startPrice: number;
   floorPrice: number;
   durationMinutes: number;
@@ -31,6 +32,7 @@ export type AuctionDefinition = {
 
 export function auctionPublishIssues(definition: AuctionDefinition) {
   const issues: string[] = [];
+  if (definition.lowestPrice30DaysBeforeAuction == null) issues.push("lowest_price_history_missing");
   if (!definition.productImageUrl) issues.push("product_image_missing");
   if (definition.regularPrice !== definition.startPrice) issues.push("start_price_must_equal_regular_price");
   if (definition.floorPrice !== 1) issues.push("floor_price_must_equal_one");
@@ -101,6 +103,7 @@ export type PublicAuction = {
   category: AuctionCategory;
   postAuctionOffer: PostAuctionOfferDefinition;
   regularPrice: number;
+  lowestPrice30DaysBeforeAuction?: number | null;
   startPrice: number;
   floorPrice: number;
   durationMinutes: number;
@@ -155,6 +158,7 @@ export function auctionDefinitionFromConfig(
     postAuctionOffer: config.postAuctionOffer,
     entryFee: config.entryFee,
     regularPrice: config.regularPrice,
+    lowestPrice30DaysBeforeAuction: config.lowestPrice30DaysBeforeAuction ?? null,
     startPrice: config.startPrice,
     floorPrice: config.floorPrice,
     durationMinutes: config.durationMinutes,
@@ -300,6 +304,7 @@ export function parseAuctionDefinition(value: unknown): AuctionDefinition | null
     !postAuctionOffer ||
     !isInteger(entryFee) ||
     !isInteger(regularPrice) ||
+    (candidate.lowestPrice30DaysBeforeAuction != null && (!isInteger(candidate.lowestPrice30DaysBeforeAuction) || candidate.lowestPrice30DaysBeforeAuction < 1 || candidate.lowestPrice30DaysBeforeAuction > 100_000)) ||
     !isInteger(durationMinutes) ||
     entryFee < 1 ||
     entryFee >= regularPrice ||
@@ -318,6 +323,7 @@ export function parseAuctionDefinition(value: unknown): AuctionDefinition | null
     postAuctionOffer,
     entryFee,
     regularPrice,
+    ...(candidate.lowestPrice30DaysBeforeAuction !== undefined ? { lowestPrice30DaysBeforeAuction: candidate.lowestPrice30DaysBeforeAuction } : {}),
     startPrice: regularPrice,
     floorPrice: FLOOR_PRICE,
     durationMinutes,
@@ -386,6 +392,7 @@ export function parseStoredAuctionDefinition(
     !postAuctionOffer ||
     !isInteger(entryFee) ||
     !isInteger(regularPrice) ||
+    (candidate.lowestPrice30DaysBeforeAuction != null && (!isInteger(candidate.lowestPrice30DaysBeforeAuction) || candidate.lowestPrice30DaysBeforeAuction < 1 || candidate.lowestPrice30DaysBeforeAuction > 100_000)) ||
     !isInteger(startPrice) ||
     !isInteger(floorPrice) ||
     !isInteger(durationMinutes) ||
@@ -409,6 +416,7 @@ export function parseStoredAuctionDefinition(
     postAuctionOffer,
     entryFee,
     regularPrice,
+    ...(candidate.lowestPrice30DaysBeforeAuction !== undefined ? { lowestPrice30DaysBeforeAuction: candidate.lowestPrice30DaysBeforeAuction } : {}),
     startPrice,
     floorPrice,
     durationMinutes,

@@ -4,14 +4,14 @@ import { InfoPage } from "../components/public/InfoPage";
 
 export const metadata: Metadata = {
   title: "FAQ — jak działa Fiszy",
-  description: "Najczęstsze pytania o Fiszy, aukcje holenderskie, spadającą cenę, zwycięstwo i płatności.",
+  description: "Najczęstsze pytania o Fiszy, aukcje holenderskie, spadającą cenę, kolejkę i płatności.",
   alternates: { canonical: "/faq" },
 };
 
 const faq = [
   {
     question: "Czym jest Fiszy?",
-    answer: "Fiszy to platforma zakupowa oparta na aukcjach holenderskich. Cena produktu spada w czasie, a pierwsza osoba, która zdecyduje się kupić po aktualnej cenie, wygrywa aukcję.",
+    answer: "Fiszy to platforma zakupowa oparta na aukcjach holenderskich. Cena produktu spada w czasie. Kliknięcie zapisuje cenę i pozycję w kolejce; produkt kupuje osoba, której płatność zostanie potwierdzona zgodnie z kolejnością.",
   },
   {
     question: "Co to jest aukcja holenderska?",
@@ -22,8 +22,8 @@ const faq = [
     answer: "Mechanika aukcji Fiszy obniża cenę w czasie zgodnie z zasadami konkretnej rundy. Im dłużej czekasz, tym mniej możesz zapłacić, ale ktoś inny może zdecydować się wcześniej.",
   },
   {
-    question: "Kto wygrywa aukcję?",
-    answer: "Pierwsza poprawna operacja zakupu zapisana przez serwer po aktualnej cenie. Pierwsza decyzja kończy aukcję.",
+    question: "Kiedy zakup jest potwierdzony?",
+    answer: "Kliknięcie zapisuje cenę i miejsce w kolejce. Pierwsza osoba ma 2 minuty na rozpoczęcie płatności. Po jej przyjęciu przez operatora produkt pozostaje zarezerwowany do ostatecznego wyniku. Potwierdzona płatność kończy aukcję; po potwierdzonym niepowodzeniu płaci kolejna osoba.",
   },
   {
     question: "Czy muszę licytować?",
@@ -39,7 +39,7 @@ const faq = [
   },
   {
     question: "Jak obserwować aukcję?",
-    answer: "Zaloguj się i użyj przycisku Obserwuj na karcie aukcji. Możesz też pobrać wydarzenie do kalendarza.",
+    answer: "Zaloguj się i użyj przycisku Obserwuj na karcie aukcji. Możesz też dodać wydarzenie do kalendarza.",
   },
 ];
 

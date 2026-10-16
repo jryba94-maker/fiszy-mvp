@@ -1,10 +1,35 @@
 import type { Metadata } from "next";
 import { LegalPage } from "../components/legal/LegalPage";
-export const metadata: Metadata = { title: "Zasady aukcji", description: "Jak działają aukcje Fiszy." };
-export default function Page() { return <LegalPage eyebrow="Mechanika" title="Zasady aukcji" lead="Przejrzyste zasady wejścia, spadającej ceny, kolejki zakupu i finalizacji zamówienia." sections={[
-  { title: "Przed startem", bullets: ["Udział jest dostępny wyłącznie dla osób, które ukończyły 18 lat.", "Każda runda pokazuje własny czas startu, cenę początkową, cenę minimalną, wysokość obniżki, interwał i opłatę za wejście.", "Wejście można opłacić do chwili rozpoczęcia rundy; dotyczy ono jednej konkretnej edycji i nie przechodzi na następną."] },
-  { title: "Gdy cena spada", paragraphs: ["Cena początkowa odpowiada rynkowej wartości produktu, a minimalna wynosi 1 zł. Cena obniża się zgodnie z parametrami pokazanymi przy danej aukcji. Rozstrzygający jest zapis po stronie serwera, nie zegar urządzenia użytkownika."] },
-  { title: "Kliknięcie i kolejka", paragraphs: ["Po kliknięciu serwer zapisuje cenę widoczną w tej chwili oraz kolejność zgłoszenia. Pierwsza osoba w kolejce otrzymuje możliwość płatności; późniejsze poprawne kliknięcia zachowują miejsce i swoją cenę. Aukcja oraz spadek ceny trwają dalej."], bullets: ["Nie można przeskoczyć kolejki odświeżaniem strony ani ponownym klikaniem.", "Nieaktualna cena jest odrzucana, aby każdy uczestnik wiedział, za jaką kwotę podejmuje decyzję."] },
-  { title: "Płatność", paragraphs: ["Osoba, której kolej przypada, ma 2 minuty na ukończenie płatności. Jeśli płatność nie zostanie zakończona lub zostanie anulowana, szansa przechodzi do następnej osoby w kolejce. Aktualnie płatności obsługuje Stripe."] },
-  { title: "Unieważnienie i zwrot", paragraphs: ["Jeżeli aukcja zostanie unieważniona z przyczyn niezależnych od uczestnika, opłata za wejście zostanie zwrócona w ciągu 7 dni. W przypadku osoby, która nie dołączyła do aukcji, opłata za wejście nie jest pobierana."] },
-]} />; }
+import { sellerDetails, sellerIdentification } from "../../lib/seller";
+import { QUEUE_RULE, paymentOperatorText, LEGAL_VERSION } from "../../lib/legal-content";
+export const metadata: Metadata = { title: "Zasady aukcji" };
+export default function Page() { const seller = sellerDetails(); const sections = [
+  {
+    "title": "Dostęp do jednej aukcji",
+    "paragraphs": [
+      "Przed opłatą pokazujemy produkt, start, cenę początkową i minimalną, parametry spadku oraz cenę usługi dostępu. Wejście jest dostępne przed startem dla pełnoletnich posiadaczy konta. Nie przechodzi na inną aukcję. Potwierdzenie płatności musi dotrzeć przed rozpoczęciem; spóźniona opłata nie przyznaje wejścia i podlega zwrotowi. Usługa dostępu jest oddzielna od zakupu produktu; zasady odstąpienia i reklamacji opisuje Regulamin."
+    ]
+  },
+  {
+    "title": "Cena i kolejność",
+    "paragraphs": [
+      "Cena obniża się zgodnie z harmonogramem konkretnej aukcji do wskazanego minimum. Zegar urządzenia i odświeżanie strony nie wpływają na cenę ani kolejność. Serwer odrzuca nieaktualne żądanie ceny. Każdy poprawny zapis w kolejce zachowuje własną cenę; późniejszy spadek jej nie zmienia. Mechanika nie zawiera losowania."
+    ]
+  },
+  {
+    "title": "Rezerwacja i potwierdzenie",
+    "paragraphs": [
+      "QUEUE",
+      "OPERATOR",
+      "Osoby oczekujące widzą pozycję i, gdy można ją oszacować, czas do swojej tury. Nie gwarantujemy czasu rozpatrzenia płatności przez bank. Po potwierdzeniu zakupu pozostałe osoby nie przechodzą do płatności za ten produkt. Samo kliknięcie lub ekran powrotu z banku nie kończy aukcji."
+    ]
+  },
+  {
+    "title": "Zwroty i rabat",
+    "paragraphs": [
+      "Jeśli nie możemy przyznać dostępu albo unieważnimy aukcję z przyczyn niezależnych od uczestnika, zlecamy zwrot wejścia do 7 dni. Należne zwroty nie są zastępowane rabatem. Uczestnicy spełniający warunki oferty po aukcji otrzymują osobny, jednorazowy rabat na ten sam produkt; kwota i termin widoczne są przed wejściem i na koncie. Dostępność produktu może być ograniczona."
+    ]
+  }
+];
+sections[2].paragraphs[0] = QUEUE_RULE; sections[2].paragraphs[1] = paymentOperatorText();
+return <LegalPage eyebrow={`Dokumenty · wersja ${LEGAL_VERSION}`} title="Zasady aukcji" lead="Cena i kolejność są zapisywane przez serwer. O zakupie rozstrzyga potwierdzona płatność." sections={sections} />; }

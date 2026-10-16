@@ -177,6 +177,8 @@ function apiErrorMessage(status: number, payload: JsonRecord) {
       return "Status zamówienia zmienił się w innym oknie. Odśwież dane.";
     case "invalid_transition":
       return "Ta zmiana statusu realizacji nie jest dozwolona.";
+    case "auction_not_ready":
+      return "Przed publikacją uzupełnij zdjęcie, parametry aukcji i udokumentowaną najniższą cenę z 30 dni.";
     case "pending_payment":
       return "Zwycięzca nadal finalizuje zakup.";
     case "storage_error":
@@ -304,6 +306,7 @@ function normalizeAuction(value: unknown, index: number): AdminAuction {
         record.entryFee,
         definition.entryFee,
       ) ?? 5,
+    lowestPrice30DaysBeforeAuction: firstNumber(root.lowestPrice30DaysBeforeAuction, publicAuction.lowestPrice30DaysBeforeAuction, record.lowestPrice30DaysBeforeAuction, definition.lowestPrice30DaysBeforeAuction),
     regularPrice:
       firstNumber(
         root.regularPrice,
@@ -425,6 +428,7 @@ function definitionBody(input: AuctionDefinitionInput) {
     postAuctionOffer: input.postAuctionOffer,
     entryFee: input.entryFee,
     regularPrice: input.regularPrice,
+    lowestPrice30DaysBeforeAuction: input.lowestPrice30DaysBeforeAuction ?? null,
     startPrice: input.startPrice,
     floorPrice: input.floorPrice,
     durationMinutes: input.durationMinutes,

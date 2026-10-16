@@ -104,6 +104,8 @@ export async function createEntryCheckoutSession(input: {
   bidderId: string;
   amount: number;
   productName: string;
+  entryConsentId?: string;
+  expiresAt?: number;
 }) {
   const body = new URLSearchParams();
   const returnPath = auctionReturnPath(input.auctionId);
@@ -119,6 +121,7 @@ export async function createEntryCheckoutSession(input: {
   );
   body.set("line_items[0][quantity]", "1");
   body.set("metadata[kind]", "auction_entry");
+  if (input.entryConsentId) body.set("metadata[entryConsentId]", input.entryConsentId);
   body.set("metadata[auctionId]", input.auctionId);
   body.set("metadata[runId]", input.runId);
   body.set("metadata[bidderId]", input.bidderId);

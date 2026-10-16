@@ -11,6 +11,7 @@ import { enqueueTransactionalMessage } from "./message-outbox";
 import type { AuctionOrder } from "./order-storage";
 import { readAccountProfile } from "./portal-storage";
 import { absoluteSiteUrl } from "./site";
+import type { EntryServiceConsent } from "./entry-service-consent";
 
 function money(value: number) {
   return new Intl.NumberFormat("pl-PL", {
@@ -43,6 +44,7 @@ export async function queueEntryAndReminderEmails(input: {
   participantId: string;
   recipient?: string | null;
   config: AuctionConfig;
+  consent?: EntryServiceConsent | null;
 }) {
   const recipient = await recipientForParticipant(input.participantId, input.recipient);
   if (!recipient) return { queued: 0 };
@@ -54,7 +56,7 @@ export async function queueEntryAndReminderEmails(input: {
     recipient: recipient.email,
     template: "entry_confirmation",
     title: "Masz wejście na aukcję",
-    text: `${input.config.productName}\nOpłata za wejście: ${money(input.config.entryFee)}\nStart: ${dateTime(input.config.startsAt)}`,
+    text: `${input.config.productName}\nAukcja: ${input.auctionId}, ${input.config.runId}\nOpłata za wejście: ${money(input.config.entryFee)}\nStart: ${dateTime(input.config.startsAt)}${input.consent ? `\n\nWarunki usługi w chwili zakupu:\n${input.consent.contract}\n\nTwoje oświadczenie (${input.consent.acceptedAt}, ${input.consent.version}):\n${input.consent.text}` : ""}`,
     actionLabel: "Zobacz aukcję",
     actionUrl: auctionUrl,
   });

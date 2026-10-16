@@ -98,10 +98,9 @@ export async function POST(
         productName: discount.product,
       });
     } catch (error) {
-      await releasePostAuctionDiscount({
-        discountId: discount.discountId,
-        accountId: discount.accountId,
-        reservationToken: discount.reservationToken,
+      const current = await readPostAuctionDiscount(discount.discountId);
+      if (!current?.paymentReference) await releasePostAuctionDiscount({
+        discountId: discount.discountId, accountId: discount.accountId, reservationToken: discount.reservationToken,
       });
       throw error;
     }
@@ -115,9 +114,8 @@ export async function POST(
       checkoutUrl: session.checkoutUrl as string,
     });
     if (attached !== 1) {
-      try {
-        await expirePaymentSession(session.reference);
-      } finally {
+      const final = await expirePaymentSession(session.reference);
+      if (final.state === "expired") {
         await releasePostAuctionDiscount({
           discountId: discount.discountId,
           accountId: discount.accountId,
