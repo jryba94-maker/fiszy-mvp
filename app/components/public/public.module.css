@@ -482,3 +482,41 @@
   .featureCard .priceRow { padding: 8px 0; }
   .featureCard .price { font-size: 2.8rem; }
 }
+
+.featureCard .cardTools {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 2px;
+}
+.featureCard .watchButton,
+.featureCard .calendarLink,
+.featureCard .watchPlaceholder {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 46px;
+  border: 1px solid #38333f;
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: #1c1922;
+  color: #eee9f5;
+  gap: 7px;
+  font-size: .8rem;
+  font-weight: 600;
+  line-height: 1.2;
+  transition: background 160ms ease, border-color 160ms ease;
+}
+.featureCard .watchButton:hover,
+.featureCard .calendarLink:hover { border-color: #8d60c6; background: #26202f; }
+.featureCard .watchButtonActive {
+  border-color: #8953d4;
+  background: #2b1d40;
+  color: #dcc5ff;
+}
+.featureCard .watchButtonActive:hover { background: #36234f; }
+.featureCard .watchButton > span { color: #bc93f4; font-size: 1.1rem; }
+.featureCard .watchButton:focus-visible,
+.featureCard .calendarLink:focus-visible { outline: 3px solid #a77aff; outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) {
+  .featureCard .watchButton, .featureCard .calendarLink { transition: none; }
+}
