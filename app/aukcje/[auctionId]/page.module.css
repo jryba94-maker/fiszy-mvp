@@ -551,3 +551,14 @@
 .productDescription strong { color: #f5f0fb; }
 .productDescription .productFinePrint { color: #aaa2b5; font-size: .75rem; }
 .productDescription a { display: inline-block; padding: 8px 0; color: #d4b3ff; text-underline-offset: 4px; }
+
+@media (max-width: 680px) {
+  .productSummary { gap: 8px 10px; }
+  .productSummary .title {
+    min-width: 0;
+    font-size: clamp(1.35rem, 6.4vw, 2.5rem);
+    letter-spacing: -.055em;
+    line-height: 1.12;
+    white-space: nowrap;
+  }
+}
