@@ -81,21 +81,11 @@ function redirectStripeReturn() {
   return true;
 }
 
-function resultCountLabel(count: number) {
-  if (count === 1) return "1 wynik";
-  const lastTwoDigits = count % 100;
-  const lastDigit = count % 10;
-  return `${count} ${lastDigit >= 2 && lastDigit <= 4 && (lastTwoDigits < 12 || lastTwoDigits > 14) ? "wyniki" : "wyników"}`;
-}
-
 export function AuctionCatalog() {
   const { isLoaded: authLoaded, isSignedIn } = useUser();
   const [catalog, setCatalog] = useState<CatalogState | null>(null);
   const [error, setError] = useState("");
   const [loadingMore, setLoadingMore] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [categoryFilter, setCategoryFilter] = useState("all");
   const [watchedIds, setWatchedIds] = useState<Set<string>>(() => new Set());
   const [watchBusyId, setWatchBusyId] = useState<string | null>(null);
   const firstPageRequestRef = useRef(0);
@@ -226,79 +216,18 @@ export function AuctionCatalog() {
     }
   };
 
-  const filteredAuctions = (catalog?.auctions ?? []).filter((auction) => {
-    const query = searchQuery.trim().toLocaleLowerCase("pl-PL");
-    const matchesSearch = !query || auction.product.toLocaleLowerCase("pl-PL").includes(query);
-    const matchesStatus = statusFilter === "all" ||
-      (statusFilter === "available" && (auction.status === "waiting" || auction.status === "live")) ||
-      (statusFilter === "upcoming" && auction.status === "waiting") ||
-      (statusFilter === "live" && auction.status === "live");
-    const matchesCategory = categoryFilter === "all" || auction.category === categoryFilter;
-    return matchesSearch && matchesStatus && matchesCategory;
-  });
-  const filtersActive = Boolean(searchQuery.trim() || statusFilter !== "all" || categoryFilter !== "all");
-
-  const resetFilters = () => {
-    setSearchQuery("");
-    setStatusFilter("all");
-    setCategoryFilter("all");
-  };
+  const auctions = catalog?.auctions ?? [];
 
   return (
     <main className={styles.page}>
       <PublicHeader />
 
-      <section className={styles.hero} aria-labelledby="hero-title">
-        <div className={styles.heroInner}>
-          <div>
-            <p className={styles.eyebrow}>Aukcje z malejącą ceną</p>
-            <h1 id="hero-title"><span className={styles.heroPrimary}>Cena spada.</span><span>Ty wybierasz moment.</span></h1>
-          </div>
-          <div className={styles.heroAside}>
-            <p>Każda decyzja ma swoją cenę.</p>
-            <div className={styles.heroActions}>
-              <Link className={styles.heroAction} href="#aukcje">Zobacz aukcje</Link>
-              <Link className={styles.heroActionGhost} href="/moje-fiszy">Moja historia</Link>
-            </div>
-          </div>
-        </div>
+      <section className={styles.launchIntro} aria-labelledby="hero-title">
+        <p className={styles.eyebrow}>Pierwsza aukcja Fiszy</p>
+        <h1 id="hero-title">Cena spada. Ty wybierasz moment.</h1>
       </section>
 
-      <section className={styles.section} id="aukcje" aria-labelledby="auctions-title">
-        <div className={styles.sectionHeading}>
-          <h2 id="auctions-title">Aktualne aukcje</h2>
-          <p>Każda aukcja ma własny czas, cenę i jeden moment, który ją kończy.</p>
-        </div>
-
-        <div className={styles.catalogTools} role="search" aria-label="Wyszukiwanie i filtrowanie aukcji">
-          <label className={styles.searchField}>
-            <span className={styles.srOnly}>Szukaj produktu</span>
-            <input type="search" value={searchQuery} placeholder="Szukaj produktu…" onChange={(event) => setSearchQuery(event.target.value)} />
-          </label>
-          <label>
-            <span className={styles.srOnly}>Status aukcji</span>
-            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
-              <option value="all">Wszystkie statusy</option>
-              <option value="available">Dostępne</option>
-              <option value="upcoming">Nadchodzące</option>
-              <option value="live">Trwają teraz</option>
-            </select>
-          </label>
-          <label>
-            <span className={styles.srOnly}>Kategoria produktu</span>
-            <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
-              <option value="all">Wszystkie kategorie</option>
-              <option value="electronics">Elektronika</option>
-              <option value="home">Dom</option>
-              <option value="sport">Sport</option>
-              <option value="beauty">Uroda</option>
-              <option value="gaming">Gaming</option>
-              <option value="other">Pozostałe</option>
-            </select>
-          </label>
-          <span className={styles.resultsCount} aria-live="polite">{resultCountLabel(filteredAuctions.length)}</span>
-        </div>
-
+      <section className={styles.launchAuctions} id="aukcje" aria-label="Pierwsza aukcja Fiszy">
         {catalog?.fallback ? (
           <p className={styles.notice} role="status">
             Katalog jest jeszcze podłączany. Pokazujemy dostępną aukcję testową — jej mechanika działa normalnie.
@@ -309,12 +238,10 @@ export function AuctionCatalog() {
           <div className={styles.loadingGrid} role="status" aria-label="Ładowanie aukcji" aria-busy="true">
             <span className={styles.srOnly}>Pobieram aktualne aukcje…</span>
             <div className={styles.skeleton} aria-hidden="true" />
-            <div className={styles.skeleton} aria-hidden="true" />
-            <div className={styles.skeleton} aria-hidden="true" />
           </div>
         ) : (
           <div className={styles.auctionGrid}>
-            {filteredAuctions.map((auction) => (
+            {auctions.map((auction) => (
               <AuctionCard
                 key={`${auction.auctionId}:${auction.runId}`}
                 auction={auction}
@@ -323,12 +250,10 @@ export function AuctionCatalog() {
                 onWatchToggle={toggleWatch}
               />
             ))}
-            {!filteredAuctions.length && !error ? (
+            {!auctions.length && !error ? (
               <div className={styles.emptyBox}>
-                <p>{filtersActive ? "Nie znaleźliśmy aukcji spełniających wybrane kryteria." : "Nie ma teraz aktywnych aukcji."}</p>
-                {filtersActive ? (
-                  <button className={styles.resetButton} type="button" onClick={resetFilters}>Wyczyść filtry</button>
-                ) : <span>Kolejne pojawią się wkrótce.</span>}
+                <p>Nie ma teraz aktywnej aukcji.</p>
+                <span>Szczegóły pierwszej aukcji pojawią się tutaj.</span>
               </div>
             ) : null}
             {error ? (
