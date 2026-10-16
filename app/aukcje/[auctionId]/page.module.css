@@ -534,3 +534,20 @@
 .mobileAction { border-color: rgba(255,255,255,.14); background: rgba(10,10,12,.95); }
 .stateButton { border-color: #7b2cff; background: #7b2cff; }
 .stateLink { border-color: rgba(255,255,255,.24); color: #fff; }
+
+.productDetails { border-bottom: 1px solid rgba(255,255,255,.12); padding-bottom: 16px; }
+.productSummary { display: grid; grid-template-columns: minmax(0,1fr) 32px; gap: 8px 14px; align-items: center; cursor: pointer; list-style: none; }
+.productSummary::-webkit-details-marker { display: none; }
+.productSummary .title { margin: 0; }
+.productToggle { display: grid; place-items: center; width: 32px; height: 32px; border: 1px solid #514363; border-radius: 50%; color: #d7bbff; font-size: 1.4rem; }
+.productDetails[open] .productToggle { transform: rotate(45deg); }
+.productHint { grid-column: 1 / -1; color: #c9a6ff; font-size: .78rem; font-weight: 550; }
+.productSummary:focus-visible { outline: 3px solid #a77aff; outline-offset: 5px; border-radius: 6px; }
+.productDescription { padding-top: 18px; color: #c8c2d0; font-size: .88rem; line-height: 1.65; }
+.productDescription p { margin: 0 0 14px; }
+.productDescription .originalProduct { display: inline-block; padding: 6px 12px; border: 1px solid #5c427b; border-radius: 8px; background: #251932; color: #ebddff; font-weight: 650; }
+.productDescription ul { padding-left: 20px; margin: 0 0 16px; }
+.productDescription li + li { margin-top: 10px; }
+.productDescription strong { color: #f5f0fb; }
+.productDescription .productFinePrint { color: #aaa2b5; font-size: .75rem; }
+.productDescription a { display: inline-block; padding: 8px 0; color: #d4b3ff; text-underline-offset: 4px; }
