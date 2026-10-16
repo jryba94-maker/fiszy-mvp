@@ -297,7 +297,7 @@ export function DemoAuction() {
   };
   const pay = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (blikCode !== "123456") { setBlikError("W demo użyj wyłącznie kodu 123456."); return; }
+    if (!/^[0-9]{6}$/.test(blikCode)) { setBlikError("Wpisz dowolne 6 cyfr."); return; }
     setBlikError("");
     setSimulation(current => demoAuctionStep(current, { type: "pay", now: Date.now(), code: blikCode }, product.price));
   };
@@ -385,24 +385,26 @@ export function DemoAuction() {
 
           {(state === "queued" || state === "payment") && (
             <section className={styles.checkout} aria-label="Symulacja kolejki i płatności">
-              <span className={styles.demoBadge}>DEMO · bez prawdziwych płatności</span>
+              <div className={styles.checkoutHeader}><span className={styles.checkoutBadge}>Tryb demo</span><span>Bez opłat</span></div>
               {state === "queued" ? <>
                 <h2>Jesteś {position}. w kolejce</h2>
-                <p>Twoja cena: <b>{price} zł</b>. Własne 2 minuty otrzymasz dopiero, gdy przyjdzie Twoja kolej.</p>
-                <div className={styles.turnClock}><span>Obecny kupujący ma jeszcze</span><strong>{formatSeconds(turnRemaining)}</strong></div>
-                <button className={styles.demoSecondary} type="button" onClick={() => setSimulation(current => demoAuctionStep(current, { type: "skip", now: Date.now() }, product.price))}>Symuluj brak wpłaty osoby przed Tobą →</button>
+                <p>Cena <b>{price} zł</b> jest Twoja. Gdy osoby przed Tobą nie zapłacą, dostaniesz własne 2 minuty.</p>
+                <div className={styles.turnClock}><span>Czas osoby przed Tobą</span><strong>{formatSeconds(turnRemaining)}</strong></div>
+                <button className={styles.demoSecondary} type="button" onClick={() => setSimulation(current => demoAuctionStep(current, { type: "skip", now: Date.now() }, product.price))}>Pomiń oczekiwanie w demo →</button>
               </> : <>
-                <h2>Twoja kolej. Zapłać w demo.</h2>
-                <div className={styles.turnClock}><span>Twój czas na płatność</span><strong role="timer">{formatSeconds(turnRemaining)}</strong></div>
+                <h2>Teraz Twój ruch.</h2>
+                <p>Twoja cena jest zarezerwowana. Potwierdź zakup, zanim skończy się czas.</p>
+                <div className={styles.turnClock}><span>Czas na płatność</span><strong role="timer">{formatSeconds(turnRemaining)}</strong></div>
+                <div className={styles.turnProgress} aria-hidden="true"><i style={{width: `${turnRemaining / 120 * 100}%`}} /></div>
                 <form onSubmit={pay}>
-                  <label htmlFor="demo-blik">Fikcyjny kod BLIK</label>
-                  <p>Wpisz <b>123456</b>. Nie używaj kodu z banku.</p>
-                  <input id="demo-blik" inputMode="numeric" autoComplete="off" pattern="[0-9]{6}" maxLength={6} value={blikCode} onChange={event => setBlikCode(event.target.value.replace(/\D/g, ""))} placeholder="123456" required aria-describedby="demo-blik-error" />
-                  <p id="demo-blik-error" role="status">{blikError}</p>
-                  <button className={styles.demoPay} type="submit">Symuluj płatność · {price} zł</button>
+                  <label htmlFor="demo-blik" className={styles.blikLabel}><span>Kod BLIK</span><span>6 cyfr</span></label>
+                  <input id="demo-blik" inputMode="numeric" autoComplete="off" pattern="[0-9]{6}" maxLength={6} value={blikCode} onChange={event => setBlikCode(event.target.value.replace(/\D/g, ""))} placeholder="••• •••" required aria-describedby="demo-blik-hint demo-blik-error" aria-invalid={Boolean(blikError)} />
+                  <small id="demo-blik-hint" className={styles.fieldHint}>Wpisz dowolne 6 cyfr — to tylko demo. Nie używaj kodu z banku.</small>
+                  {blikError && <p id="demo-blik-error" role="status">{blikError}</p>}
+                  <button className={styles.demoPay} type="submit">Potwierdź w demo · {price} zł</button>
                 </form>
               </>}
-              <p>Cena aukcji nadal spada: <b>{demoPrice(product.price, liveElapsed * 1000)} zł</b>. Aukcję kończy dopiero skuteczna płatność.</p>
+              <div className={styles.auctionContinues}><span className={styles.liveDot} aria-hidden="true"/><p>Aukcja trwa · <b>{demoPrice(product.price, liveElapsed * 1000)} zł</b><small>Kończy ją dopiero potwierdzona płatność. Twoja cena pozostaje bez zmian.</small></p></div>
             </section>
           )}
           {state === "won" ? (

@@ -30,7 +30,7 @@ export function demoAuctionStep(state: DemoAuctionState, action: DemoAction, sta
     next.buyers.shift();
     if (next.buyers[0]) next.buyers[0].claimedAt = action.now;
   }
-  if (action.type === "pay" && action.code === "123456" && next.buyers[0]?.id === "you") {
+  if (action.type === "pay" && /^[0-9]{6}$/.test(action.code) && next.buyers[0]?.id === "you") {
     return { ...next, outcome: "won", soldPrice: next.buyers[0].price };
   }
   return next;
