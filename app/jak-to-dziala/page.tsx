@@ -62,7 +62,7 @@ export default function HowItWorksPage() {
         {
           title: "4. Potwierdzona płatność kończy aukcję",
           paragraphs: [
-            "Pierwsza osoba ma 2 minuty na rozpoczęcie płatności. Gdy operator ją przetwarza, rezerwacja trwa do ostatecznego wyniku. W razie potwierdzonego niepowodzenia do płatności przechodzi następna osoba. Każda osoba zachowuje cenę zapisaną przy swoim kliknięciu.",
+            "Pierwsza osoba ma 2 minuty na opłacenie produktu. Po upływie czasu zamykamy transakcję u operatora. Rezerwacja trwa do potwierdzenia zamknięcia lub skutecznej płatności. W razie potwierdzonego niepowodzenia do płatności przechodzi następna osoba. Każda osoba zachowuje cenę zapisaną przy swoim kliknięciu.",
           ],
         },
         ]}

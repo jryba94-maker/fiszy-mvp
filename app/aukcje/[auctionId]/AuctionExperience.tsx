@@ -365,6 +365,7 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
   const isQueued = buyerQueue?.state === "queued";
   const isPaying = buyerQueue?.state === "payment";
   const isProcessing = buyerQueue?.state === "payment_processing";
+  const paymentClosing = Boolean(buyerQueue?.paymentExpiresAt && Date.parse(buyerQueue.paymentExpiresAt) <= serverNow);
   const queueExpired = buyerQueue?.state === "expired";
   const startsAtMs = auction ? Date.parse(auction.startsAt) : Number.NaN;
   const entryWindowOpen = Boolean(
@@ -418,7 +419,7 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
     auction && isAuthLoaded && isSignedIn && auction.storageReady && hasCurrentEntry && buyerQueue &&
     !isQueued && !isProcessing && !queueExpired && buyerQueue?.state !== "closed" && (displayStatus === "live" || isPaying),
   );
-  const queuePollingDelay = isQueued || isPaying ? 1500
+  const queuePollingDelay = isQueued || isPaying || isProcessing ? 1500
     : queueExpired || buyerQueue?.state === "closed" ? 30_000 : 10_000;
   useEffect(() => {
     if (!auction?.runId || !hasCurrentEntry || displayStatus === "waiting" || displayStatus === "sold") return;
@@ -470,7 +471,7 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
     else if (canEnter) actionLabel = `OPŁAĆ WEJŚCIE — ${auction.entryFee} ZŁ`;
     else if (isPaying) actionLabel = "DOKOŃCZ PŁATNOŚĆ";
     else if (isQueued) actionLabel = `JESTEŚ ${buyerQueue?.position}. W KOLEJCE`;
-    else if (isProcessing) actionLabel = "POTWIERDZAMY PŁATNOŚĆ";
+    else if (isProcessing) actionLabel = paymentClosing ? "ZAMYKAMY PŁATNOŚĆ" : "TRWA TWOJA TURA";
     else if (queueExpired) actionLabel = "TWÓJ CZAS NA PŁATNOŚĆ MINĄŁ";
     else if (displayStatus === "live" && hasCurrentEntry && !buyerQueue) actionLabel = "SPRAWDZAMY KOLEJKĘ…";
     else if (canBuy) actionLabel = `LICYTUJ — ${visiblePrice} ZŁ`;
@@ -692,12 +693,12 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
             <p className={styles.message} aria-live="polite">{auctionMessage}</p>
             {buyerQueue && buyerQueue.state !== "idle" ? (
               <section className={styles.buyerQueue} aria-label="Twoja kolejka zakupu">
-                <h2>{isProcessing ? "Operator potwierdza płatność" : isPaying ? "Twoja kolej na zakup" : isQueued ? `Jesteś ${buyerQueue.position}. w kolejce` : queueExpired ? "Twój czas na płatność minął" : "Produkt został opłacony"}</h2>
+                <h2>{isProcessing ? (paymentClosing ? "Potwierdzamy zamknięcie płatności" : "Twoja kolej na zakup") : isPaying ? "Twoja kolej na zakup" : isQueued ? `Jesteś ${buyerQueue.position}. w kolejce` : queueExpired ? "Twój czas na płatność minął" : "Produkt został opłacony"}</h2>
                 {buyerQueue.price !== null ? <p>Twoja zapisana cena: <strong>{buyerQueue.price} zł</strong></p> : null}
                 {isQueued ? <>
-                  {buyerQueue.estimatedTurnAt ? <><p>Osoba nr 1 ma jeszcze <strong>{formatCountdown(buyerQueue.paymentExpiresAt, serverNow)}</strong> na rozpoczęcie płatności.</p><p>Do Twojej tury orientacyjnie: <strong>{formatCountdown(buyerQueue.estimatedTurnAt, serverNow)}</strong></p></> : <p>Operator sprawdza płatność osoby przed Tobą. Twoje miejsce i cena pozostają zapisane. Czas oczekiwania zależy teraz od operatora.</p>}
-                  <small>Możesz przejść do płatności wcześniej, jeśli ktoś zrezygnuje. Jeśli poprzednia osoba zapłaci, aukcja się zakończy.</small>
-                </> : isProcessing ? <p>Produkt jest zarezerwowany do otrzymania ostatecznego wyniku. Nie rozpoczynaj kolejnej płatności. Status aktualizuje się automatycznie.</p> : isPaying ? <p>Na rozpoczęcie płatności pozostało <strong>{formatCountdown(buyerQueue.paymentExpiresAt, serverNow)}</strong>. Przenosimy Cię do płatności.</p> : null}
+                  <p>Jeśli przyjdzie Twoja kolej, otrzymasz własne 2 minuty na płatność. Twoje miejsce i cena pozostają zapisane.</p>
+                  <small>{paymentClosing ? "Potwierdzamy zamknięcie płatności osoby przed Tobą. Jeśli zapłaciła, aukcja się zakończy." : "Czekasz na zakończenie tury osoby przed Tobą. Twój czas na płatność jeszcze się nie rozpoczął."}</small>
+                </> : isProcessing ? (paymentClosing ? <p>Twój czas minął. Zamykamy transakcję u operatora i sprawdzamy jej wynik. Nie opłacaj jej ponownie.</p> : <p>Twoja kolej. Masz <strong>{formatCountdown(buyerQueue.paymentExpiresAt, serverNow)}</strong> na płatność {buyerQueue.price} zł.</p>) : isPaying ? <p>Twoja kolej. Masz <strong>{formatCountdown(buyerQueue.paymentExpiresAt, serverNow)}</strong> na płatność {buyerQueue.price} zł. Przenosimy Cię do płatności.</p> : null}
                 {isProcessing && buyerQueue.checkoutUrl && buyerQueue.paymentExpiresAt && Date.parse(buyerQueue.paymentExpiresAt) > serverNow ? <a className={styles.paymentResume} href={buyerQueue.checkoutUrl}>Wróć do rozpoczętej płatności</a> : null}
                 {queueError ? <p role="status">Odświeżamy status kolejki. Pokazane czasy mogą być nieaktualne.</p> : null}
               </section>

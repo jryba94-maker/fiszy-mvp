@@ -1606,7 +1606,7 @@ return cjson.encode({state="idle"})
     paymentExpiresAt: deadline,
     estimatedTurnAt: snapshot.state === "queued" && !snapshot.processing && deadline && snapshot.position
       ? new Date(Date.parse(deadline) + (snapshot.position - 2) * 120_000).toISOString() : null,
-    checkoutUrl: snapshot.state === "payment" ? snapshot.checkoutUrl ?? null : null,
+    checkoutUrl: snapshot.state === "payment" || snapshot.state === "payment_processing" ? snapshot.checkoutUrl ?? null : null,
     serverTime: new Date(nowMs).toISOString(),
   };
 }

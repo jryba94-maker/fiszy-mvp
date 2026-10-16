@@ -8,10 +8,24 @@ not payment-provider acceptance or a legal compliance certificate.
 - Provider dispatch preserves existing Stripe references after migration.
 - Autopay persists an intent and binds the exact buyer claim before outbound
   creation. Ambiguous timeouts hold the claim; retries reuse its OrderID.
-- A two-minute hosted link limits initiation. An accepted PENDING transaction
-  holds the product until a final signed notification. Its transaction validity
-  is at least 15 minutes, distinct from link validity. Abandonment after provider
-  acceptance can therefore block a turn for longer than two minutes.
+- For auction purchases both LinkValidityTime and ValidityTime equal the original
+  buyer-turn deadline (T+120s); retries never renew this deadline. The selected
+  channel must be available hosted BLIK and its gatewayList minimum validity
+  must fit the remaining turn. Incompatible channels fail closed before creation.
+  Entry/discount checkouts retain their separate longer windows.
+- After the deadline, active queue reconciliation attempts transactionCancel
+  even for PENDING. Only signed CANCELED_FULLY followed by a signed status list
+  containing exclusively FAILURE releases the turn without waiting for ITN.
+  Signed terminal FAILURE with merchant-enforced OrderID reuse protection is
+  also definitive closure. Partial/unconfirmed/ambiguous cancellation, empty
+  status or SUCCESS/PENDING after cancellation keeps the product reserved.
+  Link/transaction expiry is enforced by Autopay independently of browsers.
+  Active clients reconcile on 1.5s polling; an ITN also reconciles terminal state.
+  A deduplicated Next after() task also waits until the active turn's deadline
+  and reconciles without an open browser; buy endpoints allow 180s execution.
+  This bounded task is not a durable queue: restart/termination can interrupt it.
+  The independent operator deadline, ITN, polling and maintenance remain safety
+  and recovery paths. No millisecond-precise scheduling guarantee is claimed.
 - ITN is the binding settlement event; neither return URLs, prerequest responses
   nor status queries grant entry or create paid orders. Pending payments cannot
   be released by local timeouts, unknown status, partial cancellation or a
@@ -103,3 +117,13 @@ https://prawakonsumenta.uokik.gov.pl/prawo-odstapienia-od-umowy/wylaczenia-prawa
 - TypeScript, optimized Next.js 15.5.28 build and production dependency audit
   passed; audit reported zero vulnerabilities. Sharp override is 0.35.5.
 - Real Autopay sandbox/live transactions and merchant approval remain outstanding.
+
+### Two-minute cutoff update
+
+The timer starts from claimedAt assigned on promotion, never clickedAt. A slow
+operator cancellation cannot consume the next buyer's window: promotion gets a
+fresh server timestamp after cancellation and the final status check complete.
+Waiting buyers see position, locked price and a statement that their own two
+minutes have not started; no personal payment countdown or remote transaction.
+The API now permits active owners to resume their existing hosted payment link
+while that turn remains valid, without creating a second transaction.

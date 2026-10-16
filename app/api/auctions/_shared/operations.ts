@@ -1,3 +1,4 @@
+import { reconcileAuctionTurnDeadline } from "../../../../lib/auction-turn-deadline";
 import { after, NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import {
@@ -178,7 +179,7 @@ export async function handleQueueGet(request: NextRequest, auctionIdValue: strin
     if (await isAccountBlocked(userId)) return NextResponse.json({ outcome: "account_blocked" }, { status: 403 });
     const bidderId = `clerk:${userId}`;
     let queue = await readAuctionQueueStatus(runId, bidderId, auctionId, Date.now(), true);
-    if (((queue.state === "queued" && queue.estimatedTurnAt !== null) || queue.state === "payment") && (!queue.paymentExpiresAt || Date.parse(queue.paymentExpiresAt) <= Date.now())) {
+    if ((queue.state === "queued" || queue.state === "payment" || queue.state === "payment_processing") && (!queue.paymentExpiresAt || Date.parse(queue.paymentExpiresAt) <= Date.now())) {
       await advanceAuctionQueue(auctionId, runId);
       queue = await readAuctionQueueStatus(runId, bidderId, auctionId, Date.now(), true);
     }
@@ -489,6 +490,9 @@ export async function handleBuyPost(
         Math.floor(claimedAtMs / 1000) + PURCHASE_CHECKOUT_WINDOW_SECONDS;
       let session;
 
+      if (configuredPaymentProvider() === "autopay") {
+        after(() => reconcileAuctionTurnDeadline(active.auctionId, active.config.runId, claimedWinner));
+      }
       try {
         session = await createPurchasePaymentSession({
           origin: getCheckoutOrigin(request),

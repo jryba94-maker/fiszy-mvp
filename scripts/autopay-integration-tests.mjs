@@ -3,9 +3,10 @@ import { createHash, randomUUID } from "node:crypto";
 import { NextRequest } from "next/server.js";
 import { redis } from "./local-redis-test-client.mjs";
 import { autopayDate } from "../lib/payment-providers/autopay-protocol.ts";
-import { createAutopaySession } from "../lib/payment-providers/autopay.ts";
+import { createAutopaySession, expireAutopaySession } from "../lib/payment-providers/autopay.ts";
 import { readAutopayIntent, readAutopayRefund, autopayRefundId, reserveAutopayIntent } from "../lib/autopay-storage.ts";
 import { enqueueAuctionPurchase, readAuctionQueueStatus, readAuctionWinner, auctionConfigKey, auctionRecordKey, entryKey, winnerKey } from "../lib/auction-storage.ts";
+import { reconcileAuctionTurnDeadline } from "../lib/auction-turn-deadline.ts";
 import { advanceAuctionQueue } from "../lib/auction-queue.ts";
 import { POST as itn } from "../app/api/payments/autopay/itn/route.ts";
 import { POST as istn } from "../app/api/payments/autopay/istn/route.ts";
@@ -17,12 +18,30 @@ const xml = item => `<transactionList><serviceID>12345</serviceID><transactions>
 const paidTx = (intent, status = "SUCCESS", remote = intent.remoteId) => ({ orderID: intent.orderId, remoteID: remote, amount: (intent.amount/100).toFixed(2), currency: "PLN", gatewayID: "999", paymentStatus: status });
 const notify = (handler, item) => handler(new NextRequest("https://fiszy.pl/api/payments/autopay/itn", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ transactions: Buffer.from(xml(item)).toString("base64") }) }));
 let starts = 0, refunds = 0, status = "PENDING", ambiguousCreate = false;
+let cancels = 0, cancelMode = "partial", channelMinimum = null, channelGroup = "BLIK";
+let afterCancelStatus = "FAILURE", cancelClock = null;
 const previousFetch = globalThis.fetch;
 const originalNow = Date.now;
 globalThis.fetch = async (url, init = {}) => {
   const target = String(url);
   if (target === "http://autopay-redis.invalid") return Response.json({ result: await redis(JSON.parse(init.body)) });
   if (target.startsWith("https://api.clerk.com/v1/users/")) return Response.json({ primary_email_address_id: "email", email_addresses: [{ id: "email", email_address: "fixture@example.com" }] });
+  if (target.endsWith("/gatewayList/v3")) {
+    const fields = JSON.parse(init.body);
+    assert.equal(fields.Hash, digest([fields.ServiceID, fields.MessageID, fields.Currencies, fields.Language]));
+    return Response.json({ result: "OK", serviceID: fields.ServiceID, messageID: fields.MessageID, gatewayList: [{ gatewayID: Number(process.env.AUTOPAY_FAST_GATEWAY_ID), groupType: channelGroup, state: "OK", minValidityTime: channelMinimum, currencies: [{ currency: "PLN", minAmount: 0.01, maxAmount: 100000 }] }] });
+  }
+  if (target.endsWith("/webapi/transactionCancel")) {
+    cancels++;
+    const fields = new URLSearchParams(init.body);
+    assert.equal(fields.get("Hash"), digest([fields.get("ServiceID"), fields.get("MessageID"), fields.get("OrderID")]));
+    if (cancelMode === "timeout") throw Error("ambiguous cancel timeout");
+    const confirmation = cancelMode === "unconfirmed" ? "NOTCONFIRMED" : "CONFIRMED";
+    const reason = cancelMode === "full" || cancelMode === "bad-signature" ? "CANCELED_FULLY" : cancelMode === "unconfirmed" ? "TRANSACTION_NOT_FOUND" : "CANCELED_PARTIALLY";
+    if (cancelMode === "full") { status = afterCancelStatus; if (cancelClock !== null) { const completedAt = cancelClock; Date.now = () => completedAt; } }
+    const values = ["12345", fields.get("MessageID"), confirmation, reason];
+    return new Response(`<transaction><serviceID>${values[0]}</serviceID><messageID>${values[1]}</messageID><confirmation>${confirmation}</confirmation><reason>${reason}</reason><hash>${cancelMode === "bad-signature" ? "0".repeat(64) : digest(values)}</hash></transaction>`);
+  }
   if (target === "https://testpay.autopay.eu/payment-fixture") {
     starts++;
     const params = new URLSearchParams(init.body);
@@ -35,6 +54,7 @@ globalThis.fetch = async (url, init = {}) => {
       assert.ok(params.get("LinkValidityTime") <= upperBound, "entry checkout must not stay valid for weeks until the auction starts");
       assert.ok(params.get("ValidityTime") <= upperBound);
     }
+    if (!params.get("Description").includes("dostep")) assert.equal(params.get("ValidityTime"), params.get("LinkValidityTime"));
     if (ambiguousCreate) throw Error("timeout after provider accepted");
     const fields = ["PENDING", "https://testpay.autopay.eu/payment/continue/fixture", params.get("OrderID"), "remote123"];
     return new Response(`<transaction><status>${fields[0]}</status><redirecturl>${fields[1]}</redirecturl><orderID>${fields[2]}</orderID><remoteID>${fields[3]}</remoteID><hash>${digest(fields)}</hash></transaction>`);
@@ -70,7 +90,7 @@ async function seed(name, future = false) {
   if (!future) {
     for (const bidder of bidders) {
       await redis(["SET", entryKey(run, bidder, auction), "{}"]);
-      assert.ok([1,2].includes(await enqueueAuctionPurchase(run, bidder, now - 1000, now + 600000, now, { bidderId: bidder, price: 95, clickedAt: new Date(now).toISOString() }, auction)));
+      assert.ok([1,2].includes(await enqueueAuctionPurchase(run, bidder, now - 1000, now + 600000, now, { bidderId: bidder, price: 95 - bidders.indexOf(bidder) * 5, clickedAt: new Date(now).toISOString() }, auction)));
     }
   }
   return auction;
@@ -84,7 +104,10 @@ try {
   const intent = await readAutopayIntent(payment.reference);
   assert.equal((await readAuctionQueueStatus(run,bidders[0],auction)).state,"payment_processing");
   assert.equal((await readAuctionQueueStatus(run,bidders[1],auction)).estimatedTurnAt,null);
-  await Promise.all(Array.from({length:150},()=>advanceAuctionQueue(auction,run,now+121000)));
+  Date.now = () => now + 121000;
+  const cancelBefore = cancels;
+  await Promise.all(Array.from({length:150},()=>advanceAuctionQueue(auction,run)));
+  assert.equal(cancels - cancelBefore, 1, "one cancellation for 150 simultaneous polls even when pending");
   assert.equal((await readAuctionWinner(run,auction)).bidderId,bidders[0]);
   assert.equal(await readAuctionOrder(run,auction),null);
   Date.now = ()=>now+130000;
@@ -127,6 +150,72 @@ try {
   await advanceAuctionQueue(unknownAuction,run,now+121000);
   assert.equal((await readAuctionWinner(run,unknownAuction)).bidderId,bidders[0]);
   ambiguousCreate=false;
+  // Every unresolved cancellation variant retains the head. Full cancellation
+  // also needs a terminal status, and promotion uses completion time, not the
+  // time a slow cancellation request began.
+  const cutoffAuction = await seed("cutoff");
+  const cutoffHead = await readAuctionWinner(run, cutoffAuction);
+  const cutoff = await createAutopaySession("auction_purchase", { ...input, auctionId: cutoffAuction, claimToken: cutoffHead.claimedAt });
+  const cutoffIntent = await readAutopayIntent(cutoff.reference);
+  assert.equal(cutoffIntent.paymentValidUntil, cutoffIntent.expiresAt);
+  assert.equal(Date.parse(cutoffIntent.expiresAt), input.expiresAt * 1000);
+  const startsWhileQueued = starts;
+  await assert.rejects(createAutopaySession("auction_purchase", { ...input, auctionId: cutoffAuction, bidderId: bidders[1], amount: 9000 }), /Purchase claim is no longer current/);
+  assert.equal(starts, startsWhileQueued, "queued buyer must have no remote checkout");
+  Date.now = () => now + 600000; // buyer #2 has already waited ten minutes
+  for (const mode of ["partial", "unconfirmed", "timeout", "bad-signature"]) {
+    cancelMode = mode; status = "PENDING";
+    try { await advanceAuctionQueue(cutoffAuction, run); } catch (error) { assert.ok(["timeout", "bad-signature"].includes(mode)); }
+    assert.equal((await readAuctionWinner(run, cutoffAuction)).bidderId, bidders[0]);
+    await redis(["DEL", `${winnerKey(run, cutoffAuction)}:advancing`]); // simulate retry delay
+  }
+  cancelMode = "full"; afterCancelStatus = "SUCCESS"; status = "PENDING";
+  await advanceAuctionQueue(cutoffAuction, run);
+  assert.equal((await readAuctionWinner(run, cutoffAuction)).bidderId, bidders[0], "SUCCESS racing cancellation must keep the original claim");
+  await redis(["DEL", `${winnerKey(run, cutoffAuction)}:advancing`]);
+  afterCancelStatus = "PENDING"; status = "PENDING";
+  await advanceAuctionQueue(cutoffAuction, run);
+  assert.equal((await readAuctionWinner(run, cutoffAuction)).bidderId, bidders[0], "remaining pending blocks promotion even after full cancel ack");
+  await redis(["DEL", `${winnerKey(run, cutoffAuction)}:advancing`]);
+  afterCancelStatus = "FAILURE"; status = "PENDING"; cancelClock = now + 605000;
+  await advanceAuctionQueue(cutoffAuction, run);
+  const promoted = await readAuctionWinner(run, cutoffAuction);
+  assert.equal(promoted.bidderId, bidders[1]);
+  assert.equal(promoted.price, 90);
+  assert.equal(promoted.claimedAt, new Date(now + 605000).toISOString(), "cancellation delay must not shorten next turn");
+  assert.equal(promoted.paymentSessionId, undefined, "promotion alone does not create an operator transaction");
+  assert.equal(starts, startsWhileQueued);
+  status = "PENDING"; cancelClock = null;
+  const secondExpiry = Math.floor(Date.parse(promoted.claimedAt) / 1000) + 120;
+  const secondPayment = await createAutopaySession("auction_purchase", { ...input, auctionId: cutoffAuction, bidderId: bidders[1], amount: 9000, claimToken: promoted.claimedAt, expiresAt: secondExpiry });
+  const secondIntent = await readAutopayIntent(secondPayment.reference);
+  assert.equal(secondIntent.amount, 9000);
+  assert.notEqual(secondIntent.orderId, cutoffIntent.orderId);
+  assert.equal(secondIntent.paymentValidUntil, new Date(secondExpiry * 1000).toISOString());
+  assert.ok(Date.parse(secondIntent.expiresAt) - Date.now() > 119000);
+  // A server-side deadline trigger works without a browser and does not restart
+  // the queued buyer's timer from their original click. Wait is virtual in tests.
+  const secondHead = await readAuctionWinner(run, cutoffAuction);
+  let waits = 0;
+  await Promise.all(Array.from({length:150}, () => reconcileAuctionTurnDeadline(cutoffAuction, run, secondHead, async milliseconds => {
+    waits++;
+    assert.ok(milliseconds > 119000 && milliseconds <= 120000);
+    const atDeadline = Date.now() + milliseconds;
+    Date.now = () => atDeadline;
+  })));
+  assert.equal(waits, 1, "one server timer per turn despite duplicate requests");
+  assert.equal((await readAuctionWinner(run, cutoffAuction)).bidderId, bidders[2]);
+  assert.equal((await readAuctionWinner(run, cutoffAuction)).price, 85);
+  // Refuse a slow or BNPL channel, never silently extend the auction deadline.
+  Date.now = originalNow;
+  process.env.AUTOPAY_FAST_GATEWAY_ID = "998"; channelMinimum = 60;
+  const beforeSlowChannel = starts;
+  await assert.rejects(createAutopaySession("auction_purchase", input), /cannot support/);
+  assert.equal(starts, beforeSlowChannel);
+  process.env.AUTOPAY_FAST_GATEWAY_ID = "997"; channelMinimum = null; channelGroup = "BNPL";
+  await assert.rejects(createAutopaySession("auction_purchase", input), /cannot support/);
+  assert.equal(starts, beforeSlowChannel);
+  process.env.AUTOPAY_FAST_GATEWAY_ID = "999"; channelGroup = "BLIK";
   const entryAuction=await seed("entry",true);
   const consentInput={accountId:accounts[0],auctionId:entryAuction,runId:run,fee:5};
   const consents=await Promise.all(Array.from({length:150},()=>recordEntryServiceConsent(consentInput)));
@@ -147,7 +236,7 @@ try {
     if(value?.includes(consent.version) && value.includes("Warunki usługi")) foundReceipt=true;
   }
   assert.equal(foundReceipt,true);
-  console.log(JSON.stringify({outcome:"passed",concurrentAdvanceRequests:150,consentRetries:150,duplicatePaidNotifications:10,lateSuccess:"one order",ambiguousCreate:"held",failure:"next buyer",refund:"only bank CONFIRMED completes",entry:"only ITN grants; immutable receipt persisted",note:"Real isolated Redis/Lua; provider HTTP responses simulated. No live Autopay certification."}));
+  console.log(JSON.stringify({outcome:"passed",concurrentAdvanceRequests:150,consentRetries:150,duplicatePaidNotifications:10,lateSuccess:"one order",ambiguousCreate:"held",failure:"next buyer",cutoff:"pending cancel + signed full close and status required",queuedWindow:"fresh 120 seconds at promotion after 10 minutes wait",slowChannels:"rejected",refund:"only bank CONFIRMED completes",entry:"only ITN grants; immutable receipt persisted",note:"Real isolated Redis/Lua; provider HTTP responses simulated. No live Autopay certification."}));
 } finally {
   Date.now=originalNow;globalThis.fetch=previousFetch;
   const keys = await redis(["KEYS", `${namespace}:*`]);

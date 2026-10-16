@@ -23,7 +23,7 @@ const faq = [
   },
   {
     question: "Kiedy zakup jest potwierdzony?",
-    answer: "Kliknięcie zapisuje cenę i miejsce w kolejce. Pierwsza osoba ma 2 minuty na rozpoczęcie płatności. Po jej przyjęciu przez operatora produkt pozostaje zarezerwowany do ostatecznego wyniku. Potwierdzona płatność kończy aukcję; po potwierdzonym niepowodzeniu płaci kolejna osoba.",
+    answer: "Kliknięcie zapisuje cenę i miejsce w kolejce. Pierwsza osoba ma 2 minuty na opłacenie produktu. Po upływie terminu płatność jest zamykana u operatora. Kolejka rusza dalej dopiero po potwierdzeniu zamknięcia poprzedniej płatności. Potwierdzona płatność kończy aukcję; po potwierdzonym niepowodzeniu płaci kolejna osoba.",
   },
   {
     question: "Czy muszę licytować?",

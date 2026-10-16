@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { handleBuyPost } from "../../../../_shared/operations";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 180;
 
 export async function POST(
   request: NextRequest,

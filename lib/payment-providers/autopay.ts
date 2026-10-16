@@ -1,3 +1,4 @@
+import { requireAutopayAuctionGateway } from "./autopay-gateway";
 import { createHash } from "node:crypto";
 import { accountIdFromParticipantId, readClerkAccountEmail } from "../account-email";
 import { readAccountProfile } from "../portal-storage";
@@ -31,7 +32,12 @@ export async function createAutopaySession(kind: AutopayIntent["kind"], input: C
   const requestedDeadline = input.expiresAt ? input.expiresAt * 1000 : Date.now() + 15 * 60_000;
   // Entry can be sold weeks before start, but its payment link must stay short.
   const deadline = new Date(kind === "auction_entry" ? Math.min(requestedDeadline, Date.now() + 15 * 60_000) : requestedDeadline);
-  const reserved = await reserveAutopayIntent({ ...input, ...customer, kind, expiresAt: deadline.toISOString(), paymentValidUntil: new Date(Math.max(deadline.getTime(), Date.now() + 15 * 60_000)).toISOString() });
+  if (kind === "auction_purchase") {
+    if (!input.expiresAt || !input.claimToken || deadline.getTime() > Date.parse(input.claimToken) + 120000) throw Error("Invalid auction payment deadline.");
+    await requireAutopayAuctionGateway(input.amount, deadline.getTime());
+  }
+  const paymentValidUntil = kind === "auction_purchase" ? deadline : new Date(Math.max(deadline.getTime(), Date.now() + 15 * 60_000));
+  const reserved = await reserveAutopayIntent({ ...input, ...customer, kind, expiresAt: deadline.toISOString(), paymentValidUntil: paymentValidUntil.toISOString() });
   let intent = reserved.intent;
   if (intent.amount !== input.amount) throw new Error("Autopay amount changed for an existing intent.");
   if (!reserved.created) {
@@ -67,32 +73,45 @@ export async function createAutopaySession(kind: AutopayIntent["kind"], input: C
   }
 }
 
-export async function retrieveAutopaySession(reference: string): Promise<PaymentSession> {
-  let intent = await readAutopayIntent(reference);
-  if (!intent) throw new Error("Autopay intent not found.");
-  if (intent.status === "paid") return session(intent, "paid");
-  if (intent.status === "failed" && intent.cancelConfirmed && intent.failureNotified) return session(intent, "expired");
+async function readProviderTransactions(intent: AutopayIntent) {
   const config = autopayConfiguration();
   const transactions = verifyAutopayTransactions(await autopayPost("/webapi/transactionStatus", { ServiceID: config.serviceId, OrderID: intent.orderId }));
-  if (transactions.some(tx => tx.orderID !== intent!.orderId || tx.amount !== (intent!.amount / 100).toFixed(2))) throw new Error("Autopay status mismatch.");
-  // SUCCESS is left for the signed ITN settlement path, never advanced past.
+  if (transactions.some(tx => tx.orderID !== intent.orderId || tx.amount !== (intent.amount / 100).toFixed(2))) throw Error("Autopay status mismatch.");
+  return transactions;
+}
+
+export async function retrieveAutopaySession(reference: string): Promise<PaymentSession> {
+  let intent = await readAutopayIntent(reference);
+  if (!intent) throw Error("Autopay intent not found.");
+  if (intent.status === "paid") return session(intent, "paid");
+  const transactions = await readProviderTransactions(intent);
+  // A status query cannot settle a sale; SUCCESS waits for the signed ITN.
   if (transactions.some(tx => tx.paymentStatus === "SUCCESS")) return session(intent, "processing");
   if (transactions.some(tx => tx.paymentStatus === "PENDING")) {
     intent = await updateAutopayIntent(reference, { status: "processing" });
     return session(intent, "processing");
   }
-  if ((intent.cancelConfirmed || config.orderReuseBlocked) && intent.failureNotified && transactions.length && transactions.every(tx => tx.paymentStatus === "FAILURE")) {
-    intent = await updateAutopayIntent(reference, { status: "failed", cancelConfirmed: true });
+  const closed = intent.cancelConfirmed || (autopayConfiguration().orderReuseBlocked && intent.failureNotified);
+  if (closed && transactions.length && transactions.every(tx => tx.paymentStatus === "FAILURE")) {
+    intent = await updateAutopayIntent(reference, { status: "failed" });
     return session(intent, "expired");
   }
-  return session(intent, intent.status === "creating" || intent.status === "unknown" ? "unknown" : "open");
+  return session(intent, "unknown");
 }
 
 export async function expireAutopaySession(reference: string): Promise<PaymentSession> {
-  const intent = await readAutopayIntent(reference);
-  if (!intent) throw new Error("Autopay intent not found.");
-  const state = await retrieveAutopaySession(reference);
-  if (state.state === "paid" || state.state === "processing" || state.state === "expired") return state;
+  let intent = await readAutopayIntent(reference);
+  if (!intent) throw Error("Autopay intent not found.");
+  if (intent.status === "paid") return session(intent, "paid");
+  const before = await readProviderTransactions(intent);
+  if (before.some(tx => tx.paymentStatus === "SUCCESS")) return session(intent, "processing");
+  if ((intent.cancelConfirmed || (autopayConfiguration().orderReuseBlocked && intent.failureNotified)) && before.length && before.every(tx => tx.paymentStatus === "FAILURE")) {
+    intent = await updateAutopayIntent(reference, { status: "failed" });
+    return session(intent, "expired");
+  }
+  // Accepted PENDING payments are actively cancelled at the purchase deadline.
+  // Other checkout kinds keep their previous, longer validity behavior.
+  if (before.some(tx => tx.paymentStatus === "PENDING") && (intent.kind !== "auction_purchase" || Date.now() < Date.parse(intent.expiresAt))) return session(intent, "processing");
   const config = autopayConfiguration();
   const messageId = createHash("sha256").update(`cancel:${reference}`).digest("hex").slice(0, 32);
   const root = parseAutopayXml(await autopayPost("/webapi/transactionCancel", { ServiceID: config.serviceId, MessageID: messageId, OrderID: intent.orderId }));
@@ -100,8 +119,10 @@ export async function expireAutopaySession(reference: string): Promise<PaymentSe
   const fields = [xmlField(tx, "serviceID"), xmlField(tx, "messageID"), xmlField(tx, "confirmation"), xmlField(tx, "reason", false)];
   verifyAutopayHash(fields, xmlField(tx, "hash"));
   if (fields[0] !== config.serviceId || fields[1] !== messageId || fields[2] !== "CONFIRMED" || fields[3] !== "CANCELED_FULLY") return session(intent, "unknown");
-  await updateAutopayIntent(reference, { cancelConfirmed: true });
-  return retrieveAutopaySession(reference);
+  intent = await updateAutopayIntent(reference, { cancelConfirmed: true });
+  // Even full cancellation must be followed by a signed status check. A racing
+  // SUCCESS, remaining PENDING, empty response or timeout keeps the claim held.
+  return retrieveAutopaySession(intent.reference);
 }
 
 export async function refundAutopayPayment(reference: string, remoteIdOverride?: string) {

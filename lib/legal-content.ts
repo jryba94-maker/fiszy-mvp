@@ -1,7 +1,7 @@
 import { sellerDetails, sellerIdentification } from "./seller";
 
-export const LEGAL_VERSION = "2026-10-17";
-export const QUEUE_RULE = "Kliknięcie przycisku zakupu zapisuje cenę i miejsce w kolejce. Osoba na początku kolejki ma 2 minuty na rozpoczęcie płatności. Gdy operator przyjmie transakcję do przetwarzania, rezerwacja trwa do jej ostatecznego wyniku, również po upływie 2 minut. Kolejka przechodzi dalej dopiero po potwierdzeniu, że poprzednia płatność nie może już dojść do skutku. Cena i aukcja trwają dalej do potwierdzenia skutecznej płatności. Szacowany czas oczekiwania nie jest gwarancją; podczas przetwarzania płatności nie podajemy pozornego terminu.";
+export const LEGAL_VERSION = "2026-10-17.1";
+export const QUEUE_RULE = "Kliknięcie przycisku zakupu zapisuje cenę i miejsce w kolejce. Osoba na początku kolejki ma 2 minuty na opłacenie produktu, liczone od przyznania tury. Dla Autopay ważność linku i samej transakcji kończy się w tym terminie; po jego upływie Fiszy uruchamia anulowanie transakcji u operatora i sprawdza jej status. Kolejna osoba otrzymuje turę dopiero po potwierdzonym zamknięciu poprzedniej płatności. Częściowe anulowanie, niepewny status lub brak odpowiedzi nie zwalniają produktu. Opóźnione potwierdzenie skutecznej płatności jest rozpatrywane przed przekazaniem zakupu dalej. Aukcja i spadek ceny trwają do potwierdzonego zakupu. Szacowany czas oczekiwania nie jest gwarancją; ustalenie końcowego wyniku przez operatora może potrwać dłużej niż 2 minuty.";
 export function paymentOperatorText() {
   return process.env.FISZY_PAYMENT_PROVIDER?.trim().toLowerCase() === "autopay"
     ? "Podmiotem świadczącym obsługę płatności online jest Autopay S.A. z siedzibą w Sopocie, ul. Powstańców Warszawy 6, KRS 0000320590, NIP 5851351185. Zakup w aukcji obsługuje wyłącznie uzgodniony z operatorem szybki kanał BLIK. Płatności odroczone i zwykłe przelewy nie są oferowane w tym zakupie."
