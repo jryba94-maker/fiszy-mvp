@@ -8,7 +8,7 @@ export default function Page() { const seller = sellerDetails(); const sections 
     "title": "1. Administrator i kontakt",
     "paragraphs": [
       "SELLER",
-      "W sprawach ochrony danych: rodo@fiszy.pl."
+      "W sprawach ochrony danych: kontakt@fiszy.pl."
     ]
   },
   {
@@ -48,7 +48,7 @@ export default function Page() { const seller = sellerDetails(); const sections 
   {
     "title": "7. Twoje prawa",
     "paragraphs": [
-      "Możesz żądać dostępu, sprostowania, usunięcia, ograniczenia przetwarzania i przeniesienia danych w ustawowym zakresie. Możesz wnieść sprzeciw wobec przetwarzania na podstawie uzasadnionego interesu oraz wycofać zgodę bez wpływu na zgodność wcześniejszego przetwarzania. Skargę można złożyć do Prezesa UODO. Wniosek wyślij na rodo@fiszy.pl; możemy zweryfikować tożsamość, aby chronić dane."
+      "Możesz żądać dostępu, sprostowania, usunięcia, ograniczenia przetwarzania i przeniesienia danych w ustawowym zakresie. Możesz wnieść sprzeciw wobec przetwarzania na podstawie uzasadnionego interesu oraz wycofać zgodę bez wpływu na zgodność wcześniejszego przetwarzania. Skargę można złożyć do Prezesa UODO. Wniosek wyślij na kontakt@fiszy.pl; możemy zweryfikować tożsamość, aby chronić dane."
     ]
   },
   {

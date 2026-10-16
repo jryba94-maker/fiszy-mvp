@@ -45,8 +45,9 @@ test("production activation fails closed without sandbox verification, real sell
   delete process.env.AUTOPAY_INTEGRATION_VERIFIED;
   assert.equal(isPaymentProviderConfigured(), false);
   process.env.AUTOPAY_INTEGRATION_VERIFIED = "true";
-  delete process.env.FISZY_SELLER_ADDRESS;
+  process.env.FISZY_CONTACT_EMAIL = "invalid-email";
   assert.equal(isPaymentProviderConfigured(), false);
+  process.env.FISZY_CONTACT_EMAIL = "fixture@example.com";
   process.env.FISZY_SELLER_ADDRESS = "fixture address";
   process.env.FISZY_CONTACT_PHONE = "+48123456789";
   assert.equal(isPaymentProviderConfigured(), true);

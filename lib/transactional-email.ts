@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { sellerDetails } from "./seller";
 
 const RESEND_EMAILS_URL = "https://api.resend.com/emails";
 
@@ -128,7 +129,7 @@ export async function sendTransactionalMessage(input: {
     {
       from,
       to: [to],
-      reply_to: "rodo@fiszy.pl",
+      reply_to: sellerDetails().email,
       ...(scheduledAt ? { scheduled_at: scheduledAt } : {}),
       subject: `${title} · Fiszy`,
       text: `${title}\n\n${message}${actionText}`,
@@ -148,7 +149,7 @@ export async function sendWaitlistConfirmation(email: string) {
     {
       from,
       to: [email],
-      reply_to: "rodo@fiszy.pl",
+      reply_to: sellerDetails().email,
       subject: "Jesteś na liście Fiszy",
       text: [
         "Jesteś na liście.",
@@ -174,7 +175,7 @@ export async function sendSystemAlert(issues: string[], checkedAt: string) {
     {
       from,
       to: [to],
-      reply_to: "rodo@fiszy.pl",
+      reply_to: sellerDetails().email,
       subject: "Fiszy: system wymaga uwagi",
       text: `Automatyczna diagnostyka wykryła problemy:\n\n${safeIssues.map((issue) => `- ${issue}`).join("\n")}\n\nCzas kontroli: ${checkedAt}`,
     },
@@ -211,7 +212,7 @@ export async function sendOrderFulfillmentUpdate(input: {
     {
       from,
       to: [to],
-      reply_to: "rodo@fiszy.pl",
+      reply_to: sellerDetails().email,
       subject: `${label} · Fiszy`,
       text: [
         label,

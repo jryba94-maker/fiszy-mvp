@@ -44,7 +44,8 @@ not payment-provider acceptance or a legal compliance certificate.
 
 1. Provide actual seller postal address, contact phone, return address if different,
    contact email and NIP only if actually assigned. These must match onboarding.
-   Existing verified contact `rodo@fiszy.pl` is retained until replaced.
+   Seller supplied the postal/return address and phone on 2026-10-17 and selected
+   `kontakt@fiszy.pl`; mailbox creation/receiving capability is not verified.
 2. Complete Autopay acceptance of the paid-access auction business model.
 3. Configure environment-scoped ServiceID, shared key, exact assigned start URL,
    agreed SHA256/SHA512, hosted BLIK gateway and order-reuse protection. No BNPL,
@@ -68,8 +69,8 @@ not payment-provider acceptance or a legal compliance certificate.
    This change does not register a business or monitor statutory revenue due;
    paid-event analytics are not an accounting ledger for DN thresholds.
 
-No merchant secrets, live gateway IDs or genuine seller address were supplied
-in this task. Autopay therefore remains inactive unless separately configured.
+Seller identity and contact details were supplied on 2026-10-17. No merchant
+secrets or live gateway IDs were supplied. Autopay therefore remains inactive unless separately configured.
 Documents identify the selected operator rather than falsely claiming activation.
 The current Stripe adapter retains its legacy two-minute completion/refund rule,
 which its operator paragraph explicitly describes until migration.
