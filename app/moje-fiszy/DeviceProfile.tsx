@@ -7,7 +7,6 @@ import { fetchAuctionDetail, type PublicAuction } from "../components/public/auc
 import { PublicHeader } from "../components/public/PublicHeader";
 import { SafeAuctionImage } from "../components/public/SafeAuctionImage";
 import { announceWatchlistChange } from "../components/pwa/browser-notifications";
-import { DeviceNotifications } from "./DeviceNotifications";
 import styles from "./page.module.css";
 
 type Preferences = {
@@ -61,13 +60,6 @@ type Activity = {
 };
 
 type HistoryFilter = "all" | "active" | "wins" | "orders";
-
-type PortalNotification = {
-  id: string;
-  title: string;
-  text: string;
-  href: string;
-};
 
 type Ticket = {
   caseId: string;
@@ -196,7 +188,6 @@ export function DeviceProfile() {
   const [ticketCursor, setTicketCursor] = useState<string | null>(null);
   const [watchedIds, setWatchedIds] = useState<string[]>([]);
   const [watchedAuctions, setWatchedAuctions] = useState<PublicAuction[]>([]);
-  const [readNotificationIds, setReadNotificationIds] = useState<Set<string>>(() => new Set());
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
@@ -218,12 +209,11 @@ export function DeviceProfile() {
     setLoading(true);
     setError("");
     try {
-      const [profileResult, activityResult, watchResult, ticketResult, notificationResult] = await Promise.allSettled([
+      const [profileResult, activityResult, watchResult, ticketResult] = await Promise.allSettled([
         accountRequest<{ profile: Profile }>("/api/account/profile"),
         accountRequest<{ activity: Activity[]; nextCursor: string | null }>("/api/account/activity"),
         accountRequest<{ auctionIds: string[] }>("/api/account/watchlist"),
         accountRequest<{ cases: Ticket[]; nextCursor: string | null }>("/api/account/cases"),
-        accountRequest<{ readIds: string[] }>("/api/account/notifications"),
       ]);
       if (profileResult.status === "rejected") throw profileResult.reason;
       if (activityResult.status === "rejected") throw activityResult.reason;
@@ -244,13 +234,6 @@ export function DeviceProfile() {
         setTickets(ticketResult.value.cases);
         setTicketCursor(ticketResult.value.nextCursor);
       }
-      if (notificationResult.status === "fulfilled") {
-        setReadNotificationIds(new Set(notificationResult.value.readIds));
-      }
-      if ([watchResult, ticketResult, notificationResult].some((result) => result.status === "rejected")) {
-        setError("Historia aukcji jest aktualna, ale nie udało się załadować części dodatków konta.");
-      }
-      setLastRefreshedAt(new Date().toISOString());
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Nie udało się załadować konta.");
     } finally {
@@ -269,31 +252,6 @@ export function DeviceProfile() {
     orders: activity.filter((item) => item.order || item.discount?.state === "redeemed").length,
     watched: watchedIds.length,
   }), [activity, watchedIds]);
-
-  const allNotifications = useMemo<PortalNotification[]>(() => [
-    ...activity.flatMap((item) => {
-      if (item.outcome === "won_payment_pending") return [{ id: `win-${item.runId}`, title: "Masz wygraną do opłacenia", text: item.product, href: `/aukcje/${encodeURIComponent(item.auctionId)}` }];
-      if (item.discount?.state === "available" && Date.parse(item.discount.expiresAt) > now) return [{ id: `discount-${item.discount.discountId}`, title: `Masz rabat ${money(item.discount.discountAmount)}`, text: item.product, href: "#rabaty" }];
-      if (item.order?.fulfillment?.status === "shipped") return [{ id: `ship-${item.order.orderId}`, title: "Przesyłka została nadana", text: item.product, href: "#historia" }];
-      if (item.order?.fulfillment?.status === "delivered") return [{ id: `done-${item.order.orderId}`, title: "Zamówienie dostarczone", text: item.product, href: "#historia" }];
-      return [];
-    }),
-    ...tickets.filter((ticket) => ticket.adminResponse).map((ticket) => ({ id: ticket.caseId, title: "Odpowiedź na zgłoszenie", text: ticket.subject, href: "#pomoc" })),
-    ...watchedAuctions.flatMap((auction) => {
-      const startsIn = Date.parse(auction.startsAt) - Date.now();
-      const href = `/aukcje/${encodeURIComponent(auction.auctionId)}`;
-      if (auction.status === "live") return [{ id: `watch-live-${auction.runId}`, title: "Obserwowana aukcja trwa", text: auction.product, href }];
-      if (auction.status === "waiting" && startsIn > 0 && startsIn <= 24 * 60 * 60 * 1000) {
-        return [{ id: `watch-start-${auction.runId}`, title: "Obserwowana aukcja startuje wkrótce", text: `${auction.product} · ${dateLabel(auction.startsAt)}`, href }];
-      }
-      return [];
-    }),
-  ], [activity, tickets, watchedAuctions, now]);
-
-  const notifications = useMemo(
-    () => allNotifications.filter((item) => !readNotificationIds.has(item.id)),
-    [allNotifications, readNotificationIds],
-  );
 
   const discounts = useMemo(() => {
     const byId = new Map<string, NonNullable<Activity["discount"]>>();
@@ -357,28 +315,6 @@ export function DeviceProfile() {
       setError(checkoutError instanceof Error ? checkoutError.message : "Nie udało się rozpocząć zakupu.");
       setBusy("");
       await loadPortal();
-    }
-  };
-
-  const markNotificationsRead = async () => {
-    const notificationIds = notifications.map((item) => item.id);
-    if (!notificationIds.length || busy) return;
-    setBusy("notifications"); setError("");
-    try {
-      const readIds: string[] = [];
-      for (let offset = 0; offset < notificationIds.length; offset += 50) {
-        const result = await accountRequest<{ readIds: string[] }>("/api/account/notifications", {
-          method: "PATCH",
-          body: JSON.stringify({ notificationIds: notificationIds.slice(offset, offset + 50) }),
-        });
-        readIds.push(...result.readIds);
-      }
-      setReadNotificationIds((current) => new Set([...current, ...readIds]));
-      setNotice("Powiadomienia oznaczono jako przeczytane.");
-    } catch (notificationError) {
-      setError(notificationError instanceof Error ? notificationError.message : "Nie udało się zapisać powiadomień.");
-    } finally {
-      setBusy("");
     }
   };
 
@@ -502,7 +438,6 @@ export function DeviceProfile() {
             </div>
 
             <nav className={styles.accountNav} aria-label="Sekcje konta">
-              <a href="#powiadomienia">Powiadomienia</a>
               <a href="#obserwowane">Obserwowane</a>
               <a href="#rabaty">Rabaty</a>
               <a href="#historia">Historia i zamówienia</a>
@@ -516,12 +451,6 @@ export function DeviceProfile() {
             </section> : null}
 
             <section className={styles.portalGrid} aria-label="Najważniejsze informacje">
-              <article className={styles.panel} id="powiadomienia">
-                <div className={styles.panelHeading}><div><p className={styles.eyebrow}>Teraz</p><h2>Powiadomienia</h2></div><span className={styles.counter}>{notifications.length}</span></div>
-                {notifications.length ? <><div className={styles.notificationList}>{notifications.map((item) => <Link className={styles.notification} href={item.href} key={item.id}><div><strong>{item.title}</strong><span>{item.text}</span></div><span className={styles.notificationArrow} aria-hidden="true">→</span></Link>)}</div><button className={styles.notificationButton} type="button" disabled={busy === "notifications"} onClick={() => void markNotificationsRead()}>{busy === "notifications" ? "Zapisuję…" : "Oznacz wszystkie jako przeczytane"}</button></> : <p className={styles.muted}>Nie masz teraz nowych spraw wymagających działania.</p>}
-                <DeviceNotifications />
-                <p className={styles.integrationNote}>Powiadomienia w portalu działają, a ważne wiadomości mogą być wysyłane na adres przypisany do konta zgodnie z Twoimi ustawieniami.</p>
-              </article>
               <article className={styles.panel} id="obserwowane">
                 <div className={styles.panelHeading}><div><p className={styles.eyebrow}>Lista</p><h2>Obserwowane</h2></div><span className={styles.counter}>{watchedIds.length}</span></div>
                 {watchedAuctions.length ? <div className={styles.watchList}>{watchedAuctions.map((auction) => <div className={styles.watchItem} key={auction.auctionId}><div><strong>{auction.product}</strong><span>{watchStatus(auction)}</span></div><div className={styles.watchActions}><Link href={`/aukcje/${encodeURIComponent(auction.auctionId)}`}>Otwórz</Link><a href={`/api/auctions/${encodeURIComponent(auction.auctionId)}/calendar`}>Kalendarz</a><button type="button" disabled={busy === `watch-${auction.auctionId}`} onClick={() => void removeWatch(auction.auctionId)}>Usuń</button></div></div>)}</div> : <p className={styles.muted}>Dodaj aukcje do obserwowanych w katalogu.</p>}
