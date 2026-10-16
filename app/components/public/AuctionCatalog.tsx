@@ -223,8 +223,7 @@ export function AuctionCatalog() {
       <PublicHeader />
 
       <section className={styles.launchIntro} aria-labelledby="hero-title">
-        <p className={styles.eyebrow}>Pierwsza aukcja Fiszy</p>
-        <h1 id="hero-title">Cena spada. Ty wybierasz moment.</h1>
+        <h1 id="hero-title">Pierwsza aukcja<span>.</span></h1>
       </section>
 
       <section className={styles.launchAuctions} id="aukcje" aria-label="Pierwsza aukcja Fiszy">
@@ -280,10 +279,6 @@ export function AuctionCatalog() {
         ) : null}
       </section>
 
-      <section className={styles.decisionStrip} id="jak-to-dziala" aria-labelledby="decision-title">
-        <h2 id="decision-title">Twój moment. Twoja decyzja.</h2>
-        <Link href="#aukcje">Zobacz aukcję <span aria-hidden="true">↑</span></Link>
-      </section>
 
       <footer className={styles.footer}>
         <span><strong>Fiszy.</strong> Przywracamy emocje zakupów.</span>
