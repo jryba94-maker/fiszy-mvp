@@ -549,7 +549,29 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
                 <span className={styles.duration}>{auction.durationMinutes} min</span>
               </div>
             </div>
-            <h1 className={styles.title} id="auction-title">{auction.product}</h1>
+            {auction.auctionId === "airpods-pro-3" ? (
+              <details className={styles.productDetails}>
+                <summary className={styles.productSummary}>
+                  <h1 className={styles.title} id="auction-title">{auction.product}</h1>
+                  <span className={styles.productToggle} aria-hidden="true">+</span>
+                  <span className={styles.productHint}>Opis produktu</span>
+                </summary>
+                <div className={styles.productDescription}>
+                  <p className={styles.originalProduct}>Oryginalny produkt Apple</p>
+                  <p>AirPods Pro 3 to douszne słuchawki bezprzewodowe z czipem H2. Łączą redukcję hałasu z przestrzennym brzmieniem i funkcjami dopasowującymi odsłuch do otoczenia.</p>
+                  <ul>
+                    <li><strong>Mniej hałasu z otoczenia.</strong> ANC, tryb przepuszczania dźwięków otoczenia i automatyczne dostosowywanie odsłuchu.</li>
+                    <li><strong>Dźwięk wokół Ciebie.</strong> Indywidualnie dopasowany efekt przestrzenny reagujący na ruchy głowy.</li>
+                    <li><strong>Do 8 godzin z ANC.</strong> Łącznie z etui do 24 godzin słuchania. Wyniki zależą od ustawień i sposobu użytkowania.</li>
+                    <li><strong>Na trening i na co dzień.</strong> Pomiar tętna podczas ćwiczeń oraz klasa IP57 dla słuchawek i etui.</li>
+                    <li><strong>Wygodne ładowanie.</strong> Etui obsługuje USB-C oraz ładowarki MagSafe, Qi i do Apple Watch.</li>
+                  </ul>
+                  <p><strong>W pudełku:</strong> słuchawki, etui MagSafe z portem USB-C, pięć rozmiarów wkładek i dokumentacja. Kabel i zasilacz nie są dołączone.</p>
+                  <p className={styles.productFinePrint}>Opis funkcji opracowany na podstawie danych Apple. Część funkcji wymaga zgodnego urządzenia, aktualnego oprogramowania i dostępności w danym regionie. Odporność IP57 nie jest trwała i może maleć wskutek użytkowania.</p>
+                  <a href="https://www.apple.com/pl/airpods-pro/specs/" target="_blank" rel="noopener noreferrer">Pełna specyfikacja i warunki funkcji na apple.com ↗</a>
+                </div>
+              </details>
+            ) : <h1 className={styles.title} id="auction-title">{auction.product}</h1>}
 
             <div className={styles.priceArea}>
               <div className={styles.priceTopline}>
