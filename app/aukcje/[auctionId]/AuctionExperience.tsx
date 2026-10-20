@@ -26,6 +26,31 @@ import styles from "./page.module.css";
 
 type Feedback = { text: string; error?: boolean } | null;
 
+function EntryServiceConsent({
+  checked,
+  fee,
+  onChange,
+}: {
+  checked: boolean;
+  fee: number;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <label className={styles.entryServiceConsent}>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+      />
+      <span>
+        <strong>Wejście za {fee} zł — zgoda wymagana przed płatnością</strong>
+        <span>{ENTRY_SERVICE_CONSENT_TEXT}</span>
+        <small>Potwierdzenie tej zgody otrzymasz e-mailem po opłaceniu wejścia.</small>
+      </span>
+    </label>
+  );
+}
+
 function clearQueryParam(name: string) {
   const url = new URL(window.location.href);
   url.searchParams.delete(name);
@@ -732,9 +757,8 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
               ) : null}
             </div>
 
-            <div id="entry-service-consent">{canEnter ? <label className={styles.ageConfirmation}><input type="checkbox" checked={entryServiceAccepted} onChange={(event) => setEntryServiceAccepted(event.target.checked)} /><span>{ENTRY_SERVICE_CONSENT_TEXT}</span></label> : null}</div>
             <div className={`${styles.actionArea} ${styles.desktopAction}`}>
-
+              {canEnter ? <EntryServiceConsent checked={entryServiceAccepted} fee={auction.entryFee} onChange={setEntryServiceAccepted} /> : null}
               {(canEnter || canBuy) ? <label className={styles.ageConfirmation}><input type="checkbox" checked={ageConfirmed} onChange={(event) => setAgeConfirmed(event.target.checked)} /><span>Potwierdzam, że mam ukończone 18 lat i akceptuję <Link href="/regulamin">Regulamin</Link>.</span></label> : null}
               <button
                 className={styles.primaryButton}
@@ -764,7 +788,7 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
       </div>
 
       <div className={styles.mobileAction}>
-
+        {canEnter ? <EntryServiceConsent checked={entryServiceAccepted} fee={auction.entryFee} onChange={setEntryServiceAccepted} /> : null}
               {(canEnter || canBuy) ? <label className={styles.ageConfirmation}><input type="checkbox" checked={ageConfirmed} onChange={(event) => setAgeConfirmed(event.target.checked)} /><span>Potwierdzam, że mam ukończone 18 lat i akceptuję <Link href="/regulamin">Regulamin</Link>.</span></label> : null}
         <button
           className={styles.primaryButton}

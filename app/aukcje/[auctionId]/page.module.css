@@ -263,6 +263,44 @@
 
 .ageConfirmation a { color: inherit; text-decoration: underline; }
 
+.entryServiceConsent {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  margin: 0 0 12px;
+  padding: 13px;
+  border: 1px solid rgba(123, 44, 255, 0.44);
+  border-radius: 14px;
+  background: rgba(123, 44, 255, 0.1);
+  color: #d9cceb;
+  font-size: 0.73rem;
+  line-height: 1.42;
+  text-align: left;
+}
+
+.entryServiceConsent input {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  margin: 2px 0 0;
+  accent-color: #9d62ff;
+}
+
+.entryServiceConsent > span {
+  display: grid;
+  gap: 5px;
+}
+
+.entryServiceConsent strong {
+  color: #fff;
+  font-size: 0.78rem;
+}
+
+.entryServiceConsent small {
+  color: #ae9fc0;
+  font-size: 0.69rem;
+}
+
 .entryActive {
   color: #36740a;
   font-weight: 850;
@@ -464,6 +502,16 @@
 
   .mobileAction .entryNote {
     margin-top: 7px;
+  }
+
+  .mobileAction .entryServiceConsent {
+    margin-bottom: 10px;
+    padding: 10px;
+    font-size: 0.68rem;
+  }
+
+  .mobileAction .entryServiceConsent strong {
+    font-size: 0.72rem;
   }
 
   .proof {
