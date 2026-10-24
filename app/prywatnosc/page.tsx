@@ -29,7 +29,7 @@ export default function Page() { const seller = sellerDetails(); const sections 
     "title": "4. Odbiorcy",
     "paragraphs": [
       "Clerk obsługuje logowanie; Vercel hosting i pomiar działania, Upstash przechowywanie danych, Sentry diagnostykę błędów, Resend wiadomości transakcyjne, a home.pl pocztę. Przewoźnik InPost otrzymuje dane konieczne do dostawy. Dane mogą otrzymać uprawnieni księgowi, doradcy i organy publiczne na właściwej podstawie.",
-      "Aktualny operator płatności otrzymuje dane płatnika i informacje niezbędne do transakcji, zapobiegania nadużyciom i rozliczenia. Przy płatności Stripe dane otrzymuje Stripe; przy uruchomionej płatności Autopay — Autopay S.A. z siedzibą w Sopocie, ul. Powstańców Warszawy 6, jako odrębny administrator w zakresie swoich obowiązków. Nie przekazujemy danych Autopay tylko dlatego, że konto istnieje w Fiszy. Polityki operatorów są dostępne na stripe.com/privacy oraz autopay.pl/polityka-prywatnosci."
+      "Płatności online obsługuje Autopay S.A. z siedzibą w Sopocie, ul. Powstańców Warszawy 6. Autopay otrzymuje dane płatnika i informacje niezbędne do realizacji transakcji, zapobiegania nadużyciom oraz rozliczeń, jako odrębny administrator w zakresie własnych obowiązków. Fiszy nie otrzymuje kodu BLIK, pełnych danych karty ani danych logowania do banku. Polityka prywatności Autopay jest dostępna na autopay.pl/polityka-prywatnosci."
     ]
   },
   {
