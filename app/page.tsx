@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { ClerkShell } from "./components/auth/ClerkShell";
 import { AuctionCatalog } from "./components/public/AuctionCatalog";
 
 export const metadata: Metadata = {
@@ -9,5 +10,9 @@ export const metadata: Metadata = {
 };
 
 export default function HomePage() {
-  return <AuctionCatalog />;
+  return (
+    <ClerkShell pwa>
+      <AuctionCatalog />
+    </ClerkShell>
+  );
 }
