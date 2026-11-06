@@ -6,7 +6,6 @@ export const revalidate = 900;
 
 const STATIC_PATHS = [
   "/",
-  "/aukcje",
   "/jak-to-dziala",
   "/aukcja-holenderska",
   "/aukcja-holenderska-a-zwykla-licytacja",
@@ -26,7 +25,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const entries: MetadataRoute.Sitemap = STATIC_PATHS.map((pathname) => ({
     url: absoluteSiteUrl(pathname),
     changeFrequency:
-      pathname === "/" || pathname === "/aukcje"
+      pathname === "/"
         ? "daily"
         : pathname === "/jak-to-dziala" || pathname === "/aukcja-holenderska" || pathname === "/aukcja-holenderska-a-zwykla-licytacja" || pathname === "/cena-spada-w-aukcji-holenderskiej" || pathname === "/czy-aukcja-holenderska-jest-uczciwa" || pathname === "/jak-kupowac-na-aukcji-holenderskiej" || pathname === "/o-fiszy"
           ? "weekly"
@@ -34,7 +33,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority:
       pathname === "/"
         ? 1
-        : pathname === "/aukcje" || pathname === "/jak-to-dziala" || pathname === "/aukcja-holenderska" || pathname === "/aukcja-holenderska-a-zwykla-licytacja" || pathname === "/cena-spada-w-aukcji-holenderskiej" || pathname === "/czy-aukcja-holenderska-jest-uczciwa" || pathname === "/jak-kupowac-na-aukcji-holenderskiej"
+        : pathname === "/jak-to-dziala" || pathname === "/aukcja-holenderska" || pathname === "/aukcja-holenderska-a-zwykla-licytacja" || pathname === "/cena-spada-w-aukcji-holenderskiej" || pathname === "/czy-aukcja-holenderska-jest-uczciwa" || pathname === "/jak-kupowac-na-aukcji-holenderskiej"
           ? 0.9
           : pathname === "/o-fiszy"
             ? 0.8

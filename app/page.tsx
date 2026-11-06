@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { WaitlistLanding } from "./components/landing/WaitlistLanding";
+import { AuctionCatalog } from "./components/public/AuctionCatalog";
 
 export const metadata: Metadata = {
   title: "Fiszy — aukcje, w których cena spada",
@@ -9,5 +9,5 @@ export const metadata: Metadata = {
 };
 
 export default function HomePage() {
-  return <WaitlistLanding />;
+  return <AuctionCatalog />;
 }
