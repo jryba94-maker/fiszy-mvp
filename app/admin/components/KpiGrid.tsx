@@ -4,15 +4,15 @@ import styles from "../AdminDashboard.module.css";
 
 type KpiGridProps = {
   auctions: AdminAuction[];
-  orders: AdminOrder[];
+  orders: AdminOrder[] | null;
 };
 
 export function KpiGrid({ auctions, orders }: KpiGridProps) {
   const live = auctions.filter((auction) => auction.status === "live").length;
-  const newShipments = orders.filter(
+  const newShipments = orders?.filter(
     (order) => order.fulfillment.status === "new",
-  ).length;
-  const paidOrderValue = orders.reduce((total, order) => total + order.amount, 0);
+  ).length ?? 0;
+  const paidOrderValue = orders?.reduce((total, order) => total + order.amount, 0) ?? 0;
 
   const values = [
     {
@@ -22,6 +22,8 @@ export function KpiGrid({ auctions, orders }: KpiGridProps) {
       tone: "neutral",
     },
     { label: "Live", value: live, hint: "aktywne teraz", tone: "live" },
+  ] as const;
+  const orderValues = orders ? [
     {
       label: "Nowe wysyłki",
       value: newShipments,
@@ -34,11 +36,11 @@ export function KpiGrid({ auctions, orders }: KpiGridProps) {
       hint: `${orders.length} opłaconych produktów`,
       tone: "sold",
     },
-  ] as const;
+  ] as const : [];
 
   return (
     <section className={styles.kpiGrid} aria-label="Podsumowanie operacyjne">
-      {values.map((item) => (
+      {[...values, ...orderValues].map((item) => (
         <article className={styles.kpiCard} key={item.label}>
           <span className={`${styles.kpiDot} ${styles[`kpiDot_${item.tone}`]}`} aria-hidden="true" />
           <span className={styles.kpiLabel}>{item.label}</span>

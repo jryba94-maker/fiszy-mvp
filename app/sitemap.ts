@@ -7,6 +7,7 @@ export const revalidate = 900;
 const STATIC_PATHS = [
   "/",
   "/jak-to-dziala",
+  "/aukcje",
   "/aukcja-holenderska",
   "/aukcja-holenderska-a-zwykla-licytacja",
   "/cena-spada-w-aukcji-holenderskiej",

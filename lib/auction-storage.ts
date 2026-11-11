@@ -1,3 +1,4 @@
+import { productAuctionLinkKeys } from "./product-storage";
 import {
   AUCTION_ID,
   LEGACY_AUCTION_ID,
@@ -1139,23 +1140,38 @@ export async function listAuctionRunIds(input: {
   };
 }
 
-export async function createAuctionRecord(record: AuctionRecord) {
+export async function createAuctionRecord(
+  record: AuctionRecord,
+  product?: { productId: string; expectedRevision?: number },
+) {
   const script = `
-local created = redis.call("SET", KEYS[1], ARGV[1], "NX")
-if not created then return 0 end
+if redis.call("EXISTS", KEYS[1]) == 1 then return 0 end
+if #KEYS == 4 then
+  local rawProduct = redis.call("GET", KEYS[3])
+  if not rawProduct then return -1 end
+  local product = cjson.decode(rawProduct)
+  if product.productId ~= ARGV[4] or product.status == "archived" then return -1 end
+  if ARGV[5] ~= "" and product.revision ~= tonumber(ARGV[5]) then return -1 end
+  local existingLink = redis.call("GET", KEYS[4])
+  if existingLink and existingLink ~= ARGV[4] then return -1 end
+end
 redis.call("ZADD", KEYS[2], ARGV[2], ARGV[3])
+redis.call("SET", KEYS[1], ARGV[1])
+if #KEYS == 4 then redis.call("SET", KEYS[4], ARGV[4]) end
 return 1
 `;
 
+  const keys = [auctionRecordKey(record.auctionId), auctionsIndexKey()];
+  if (product) keys.push(...productAuctionLinkKeys(product.productId, record.auctionId));
   return redisCommand<number>([
     "EVAL",
     script,
-    2,
-    auctionRecordKey(record.auctionId),
-    auctionsIndexKey(),
+    keys.length,
+    ...keys,
     JSON.stringify(record),
     new Date(record.createdAt).getTime(),
     record.auctionId,
+    ...(product ? [product.productId, product.expectedRevision ?? ""] : []),
   ]);
 }
 

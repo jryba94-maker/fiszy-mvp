@@ -5,7 +5,11 @@ import { evaluateLaunchReadiness } from "../lib/launch-readiness.ts";
 import { verifyResendWebhook } from "../lib/resend-webhook.ts";
 import { createHmac } from "node:crypto";
 import {
+  ADMIN_SESSION_COOKIE,
   adminPermissions,
+  adminPrincipalSessionToken,
+  hasAdminPermission,
+  hasValidAdminRequest,
   individualAdminAccountsConfigured,
   isAdminConfigured,
 } from "../lib/admin-auth.ts";
@@ -212,6 +216,29 @@ test("individual Clerk administrators require a valid map and signing secret", (
     CLERK_SECRET_KEY: "sk_test_unit_clerk_secret",
     FISZY_ADMIN_USERS_JSON: JSON.stringify({ "wrong-id": "owner" }),
   }, () => assert.equal(individualAdminAccountsConfigured(), false));
+});
+
+test("existing individual admin cookies follow role changes and revocation", () => {
+  const signingSecret = "sk_test_unit_admin_roles";
+  const userId = "user_unitowner";
+  const actorRef = createHmac("sha256", signingSecret).update(userId).digest("hex").slice(0, 20);
+  withEnvironment({
+    FISZY_ADMIN_SECRET: undefined,
+    CLERK_SECRET_KEY: signingSecret,
+    FISZY_ADMIN_USERS_JSON: JSON.stringify({ [userId]: "owner" }),
+  }, () => {
+    const cookie = adminPrincipalSessionToken({ actorType: "admin_clerk", actorRef, role: "owner", permissions: adminPermissions("owner") });
+    const request = {
+      cookies: new Map([[ADMIN_SESSION_COOKIE, { value: cookie }]]),
+      headers: new Headers(),
+    };
+    assert.equal(hasAdminPermission(request, "orders:write"), true);
+    process.env.FISZY_ADMIN_USERS_JSON = JSON.stringify({ [userId]: "viewer" });
+    assert.equal(hasAdminPermission(request, "audit:read"), true);
+    assert.equal(hasAdminPermission(request, "orders:write"), false);
+    delete process.env.FISZY_ADMIN_USERS_JSON;
+    assert.equal(hasValidAdminRequest(request), false);
+  });
 });
 
 test("new operational audit actions reject extra or sensitive metadata", () => {

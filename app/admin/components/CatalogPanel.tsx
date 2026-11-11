@@ -139,7 +139,9 @@ export function CatalogPanel({ onSessionExpired, onAuctionDraftCreated }: Props)
       onAuctionDraftCreated();
     } catch (caught) {
       if ((caught as { status?: number }).status === 401) onSessionExpired();
-      else setError("Nie udało się utworzyć szkicu aukcji.");
+      else if (caught instanceof Error && caught.message === "product_changed") {
+        setError("Produkt zmienił się w trakcie zapisu. Sprawdź aktualne dane i ponów próbę.");
+      } else setError("Nie udało się utworzyć szkicu aukcji.");
     } finally { setBusy(false); }
   };
 

@@ -16,7 +16,7 @@ import {
   isSameOriginAdminMutation,
 } from "../../../../../../lib/admin-auth";
 import { recordSuccessfulAdminAudit } from "../../../../../../lib/admin-audit";
-import { linkProductAuction, readAuctionProductId } from "../../../../../../lib/product-storage";
+import { readAuctionProductId } from "../../../../../../lib/product-storage";
 
 export async function POST(
   request: NextRequest,
@@ -37,9 +37,10 @@ export async function POST(
     return NextResponse.json({ outcome: "invalid_request" }, { status: 400 });
   }
   try {
-    const [sourceRecord, sourceConfig] = await Promise.all([
+    const [sourceRecord, sourceConfig, sourceProductId] = await Promise.all([
       readAuctionRecord(sourceAuctionId),
       readOptionalAuctionConfig(sourceAuctionId),
+      readAuctionProductId(sourceAuctionId),
     ]);
     if (!sourceRecord) {
       return NextResponse.json({ outcome: "not_found" }, { status: 404 });
@@ -69,14 +70,12 @@ export async function POST(
       ...definition,
       productName: `${definition.productName} — kopia`.slice(0, 80),
     };
-    const created = await createAuctionRecord(record);
+    const created = await createAuctionRecord(record, sourceProductId ? { productId: sourceProductId } : undefined);
+    if (created === -1) return NextResponse.json({ outcome: "product_changed", message: "Powiązany produkt jest niedostępny. Sprawdź jego status w katalogu." }, { status: 409 });
     if (created !== 1) {
       return NextResponse.json({ outcome: "storage_error" }, { status: 503 });
     }
-    const sourceProductId = await readAuctionProductId(sourceAuctionId);
-    const productLinked = sourceProductId
-      ? await linkProductAuction(sourceProductId, record.auctionId)
-      : false;
+    const productLinked = Boolean(sourceProductId);
     const auditEventId = await recordSuccessfulAdminAudit(request, {
       action: "auction.duplicated",
       resourceType: "auction",

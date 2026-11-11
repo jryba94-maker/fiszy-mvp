@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { hasValidAdminRequest, isAdminConfigured } from "../../../../lib/admin-auth";
+import { hasAdminPermission, hasValidAdminRequest, isAdminConfigured } from "../../../../lib/admin-auth";
 import {
   fulfillmentResponse,
   readOrderFulfillments,
@@ -18,6 +18,9 @@ export async function GET(request: NextRequest) {
   }
   if (!hasValidAdminRequest(request)) {
     return NextResponse.json({ outcome: "unauthorized" }, { status: 401 });
+  }
+  if (!hasAdminPermission(request, "orders:write")) {
+    return NextResponse.json({ outcome: "forbidden" }, { status: 403 });
   }
 
   const cursor = request.nextUrl.searchParams.get("cursor");

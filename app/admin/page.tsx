@@ -29,6 +29,7 @@ import { KpiGrid } from "./components/KpiGrid";
 import { LandingTrafficPanel } from "./components/LandingTrafficPanel";
 import { LegalHistoryPanel } from "./components/LegalHistoryPanel";
 import { MarketingAgentsPanel } from "./components/MarketingAgentsPanel";
+import { AutopayPanel } from "./components/AutopayPanel";
 import { OrdersPanel } from "./components/OrdersPanel";
 import { PortalOperationsPanel } from "./components/PortalOperationsPanel";
 import { RunHistoryPanel } from "./components/RunHistoryPanel";
@@ -43,7 +44,7 @@ import type {
 } from "./types";
 
 type SessionStatus = "checking" | "signed_out" | "authenticated" | "unconfigured";
-type AdminSection = "overview" | "traffic" | "catalog" | "auctions" | "orders" | "history" | "legal" | "users" | "operations" | "marketing" | "audit";
+type AdminSection = "overview" | "traffic" | "catalog" | "auctions" | "orders" | "history" | "legal" | "users" | "operations" | "marketing" | "audit" | "payments";
 
 const ADMIN_SECTIONS: Array<{ id: AdminSection; label: string; caption: string }> = [
   { id: "overview", label: "Pulpit", caption: "Wyniki i system" },
@@ -53,6 +54,7 @@ const ADMIN_SECTIONS: Array<{ id: AdminSection; label: string; caption: string }
   { id: "catalog", label: "Produkty", caption: "Katalog i szablony" },
   { id: "auctions", label: "Aukcje", caption: "Lista i edycja" },
   { id: "orders", label: "Zamówienia", caption: "Realizacja" },
+  { id: "payments", label: "Płatności", caption: "Autopay i zwroty" },
   { id: "history", label: "Rundy", caption: "Uczestnicy" },
   { id: "legal", label: "Dokumenty", caption: "Wersje i archiwum" },
   { id: "users", label: "Użytkownicy", caption: "Pomoc i lista e-mail" },
@@ -63,7 +65,7 @@ function sectionAllowed(section: AdminSection, permissions: string[]) {
   if (section === "catalog" || section === "auctions") return permissions.includes("auctions:write");
   if (section === "orders") return permissions.includes("orders:write");
   if (section === "history" || section === "users") return permissions.includes("users:read");
-  if (section === "audit") return permissions.includes("audit:read");
+  if (section === "audit" || section === "payments") return permissions.includes("audit:read");
   if (section === "legal") return permissions.includes("audit:read");
   if (section === "traffic") return permissions.includes("audit:read");
   if (section === "operations") return permissions.includes("audit:read") && permissions.includes("users:write");
@@ -111,6 +113,7 @@ export default function AdminPage() {
   const [notice, setNotice] = useState<Notice>(null);
   const [legacyMode, setLegacyMode] = useState(false);
   const [activeSection, setActiveSection] = useState<AdminSection>("overview");
+  const canReadOrders = adminPermissions.includes("orders:write");
   const loadingRef = useRef(false);
   const busyOrderRef = useRef<string | null>(null);
 
@@ -162,7 +165,7 @@ export default function AdminPage() {
     try {
       const [auctionResult, orderResult, healthResult] = await Promise.allSettled([
         loadAuctions(),
-        loadOrders(),
+        canReadOrders ? loadOrders() : Promise.resolve({ orders: [], legacy: false }),
         loadHealth(),
       ]);
       const failures: string[] = [];
@@ -184,7 +187,7 @@ export default function AdminPage() {
       if (orderResult.status === "fulfilled") {
         setOrders(orderResult.value.orders);
         usedLegacy ||= orderResult.value.legacy;
-        anySuccess = true;
+        anySuccess ||= canReadOrders;
       } else {
         if (isUnauthorized(orderResult.reason)) {
           handleExpiredSession();
@@ -211,7 +214,7 @@ export default function AdminPage() {
       loadingRef.current = false;
       if (!silent) setDashboardLoading(false);
     }
-  }, [handleExpiredSession]);
+  }, [canReadOrders, handleExpiredSession]);
 
   useEffect(() => {
     if (sessionStatus !== "authenticated") return;
@@ -565,7 +568,7 @@ export default function AdminPage() {
 
       {activeSection === "overview" ? (
         <div className={styles.sectionStack}>
-          <KpiGrid auctions={auctions} orders={orders} />
+          <KpiGrid auctions={auctions} orders={canReadOrders ? orders : null} />
           <HealthPanel health={health} auctions={auctions} />
         </div>
       ) : null}
@@ -618,13 +621,15 @@ export default function AdminPage() {
 
       {activeSection === "legal" ? <div className={styles.sectionStack}><LegalHistoryPanel onSessionExpired={handleExpiredSession} /></div> : null}
 
+      {activeSection === "payments" ? <div className={styles.sectionStack}><AutopayPanel onSessionExpired={handleExpiredSession} /></div> : null}
+
       {activeSection === "audit" ? <div className={styles.sectionStack}><AuditPanel onSessionExpired={handleExpiredSession} /></div> : null}
 
       {activeSection === "users" ? <div className={styles.sectionStack}><PortalOperationsPanel onSessionExpired={handleExpiredSession} /></div> : null}
 
       {activeSection === "operations" ? <div className={styles.sectionStack}><BusinessOperationsPanel onSessionExpired={handleExpiredSession} /></div> : null}
 
-      {activeSection === "marketing" ? <div className={styles.sectionStack}><MarketingAgentsPanel onSessionExpired={handleExpiredSession} /></div> : null}
+      {activeSection === "marketing" ? <div className={styles.sectionStack}><MarketingAgentsPanel onSessionExpired={handleExpiredSession} canRun={adminPermissions.includes("marketing:write")} /></div> : null}
 
       <footer className={styles.footer}>
         <span>Fiszy / panel operacyjny</span>
