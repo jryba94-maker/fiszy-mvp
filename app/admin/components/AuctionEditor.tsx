@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { AdminAuction, AuctionDefinitionInput } from "../types";
 import { formatMoney, slugify } from "../utils";
 import styles from "../AdminDashboard.module.css";
@@ -37,6 +37,7 @@ const EMPTY_DRAFT: Draft = {
 type AuctionEditorProps = {
   editingAuction: AdminAuction | null;
   busy: boolean;
+  saveError?: string;
   onCancel: () => void;
   onSubmit: (
     input: AuctionDefinitionInput,
@@ -74,6 +75,7 @@ function validImageValue(value: string) {
 export function AuctionEditor({
   editingAuction,
   busy,
+  saveError,
   onCancel,
   onSubmit,
 }: AuctionEditorProps) {
@@ -81,6 +83,15 @@ export function AuctionEditor({
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [slugTouched, setSlugTouched] = useState(false);
   const [error, setError] = useState("");
+  const dialogRef = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!editingAuctionId || !dialog) return;
+    dialog.showModal();
+    dialog.querySelector<HTMLElement>("#editor-heading")?.focus();
+    return () => dialog.close();
+  }, [editingAuctionId]);
 
   useEffect(() => {
     setDraft(editingAuction ? draftFromAuction(editingAuction) : EMPTY_DRAFT);
@@ -211,7 +222,7 @@ export function AuctionEditor({
   const parsedRegularPrice = Number(draft.regularPrice);
   const parsedDuration = Number(draft.durationMinutes);
 
-  return (
+  const editor = (
     <section className={styles.panelSection} id="auction-editor" aria-labelledby="editor-heading">
       <div className={styles.sectionHeader}>
         <div>
@@ -231,7 +242,7 @@ export function AuctionEditor({
         <fieldset
           className={styles.formFields}
           disabled={busy}
-          aria-describedby={error ? "auction-editor-error" : undefined}
+          aria-describedby={error || saveError ? "auction-editor-error" : undefined}
         >
           <legend className={styles.srOnly}>Dane aukcji</legend>
           <div className={styles.formGrid}>
@@ -435,9 +446,9 @@ export function AuctionEditor({
           </div>
         </aside>
 
-        {error ? (
+        {error || saveError ? (
           <p className={styles.errorNotice} id="auction-editor-error" role="alert">
-            {error}
+            {error || saveError}
           </p>
         ) : null}
 
@@ -455,4 +466,18 @@ export function AuctionEditor({
       </form>
     </section>
   );
+
+  return editingAuction ? (
+    <dialog
+      ref={dialogRef}
+      className={styles.auctionEditDialog}
+      aria-labelledby="editor-heading"
+      onCancel={(event) => {
+        event.preventDefault();
+        if (!busy) onCancel();
+      }}
+    >
+      {editor}
+    </dialog>
+  ) : editor;
 }

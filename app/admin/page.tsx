@@ -468,15 +468,8 @@ export default function AdminPage() {
 
   const handleEdit = (auction: AdminAuction) => {
     setActiveSection("auctions");
+    setNotice(null);
     setEditingAuction(auction);
-    window.requestAnimationFrame(() => {
-      const editor = document.getElementById("auction-editor");
-      editor?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-      document.getElementById("editor-heading")?.focus({ preventScroll: true });
-    });
   };
 
   if (sessionStatus !== "authenticated") {
@@ -586,6 +579,7 @@ export default function AdminPage() {
       <AuctionEditor
         editingAuction={editingAuction}
         busy={savingEditor}
+        saveError={editingAuction && notice?.tone === "error" ? notice.message : undefined}
         onCancel={() => setEditingAuction(null)}
         onSubmit={handleEditorSubmit}
       /></div> : null}
