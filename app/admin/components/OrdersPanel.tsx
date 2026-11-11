@@ -87,6 +87,7 @@ function OrderCard({
   const [draft, setDraft] = useState(() => draftFromOrder(order));
   const [localError, setLocalError] = useState("");
   const [copied, setCopied] = useState(false);
+  const [orderIdCopyStatus, setOrderIdCopyStatus] = useState("");
 
   useEffect(() => {
     setDraft(draftFromOrder(order));
@@ -160,7 +161,24 @@ function OrderCard({
     <article className={styles.orderCard}>
       <div className={styles.orderHeader}>
         <div>
-          <span className={styles.orderId}>{order.orderId}</span>
+          <button
+            className={styles.orderIdCopy}
+            type="button"
+            title={order.orderId}
+            aria-label={`Kopiuj numer zamówienia: ${order.orderId}`}
+            onClick={async () => {
+              setOrderIdCopyStatus("");
+              try {
+                await navigator.clipboard.writeText(order.orderId);
+                setOrderIdCopyStatus("Skopiowano numer zamówienia.");
+              } catch {
+                setOrderIdCopyStatus("Nie udało się skopiować numeru zamówienia.");
+              }
+            }}
+          >
+            {order.orderId}
+          </button>
+          <span className={styles.srOnly} role="status">{orderIdCopyStatus}</span>
           {order.orderKind === "post_auction_discount" ? (
             <span className={styles.discountOrderPill}>Zakup po aukcji</span>
           ) : null}

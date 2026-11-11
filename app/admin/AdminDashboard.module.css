@@ -2499,3 +2499,23 @@
 .auctionEditDialog::backdrop {
   background: rgb(0 0 0 / 55%);
 }
+
+.orderHeader > div:first-child { flex: 1 1 0; }
+.orderHeader > .orderHeadlineMeta { width: auto; }
+
+.orderIdCopy {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: var(--admin-muted);
+  font: 0.66rem Consolas, "Courier New", monospace;
+  text-align: left;
+  cursor: copy;
+}
+
+.orderIdCopy:hover { text-decoration: underline; }
