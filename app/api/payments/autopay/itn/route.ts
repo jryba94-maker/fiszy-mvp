@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     for (const tx of transactions) {
       const reference = `ap_${tx.orderID}`;
       const intent = await readAutopayIntent(reference);
-      if (!intent || tx.amount !== (intent.amount / 100).toFixed(2) || tx.gatewayID !== autopayConfiguration().gatewayId) throw new Error("Autopay notification does not match a registered payment.");
+      if (!intent || tx.amount !== (intent.amount / 100).toFixed(2) || (intent.gatewayId && tx.gatewayID !== intent.gatewayId)) throw new Error("Autopay notification does not match a registered payment.");
       const payment = normalizedAutopayPayment(intent);
       if (tx.paymentStatus === "PENDING") {
         await updateAutopayIntent(reference, { status: "processing" });

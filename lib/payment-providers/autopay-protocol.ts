@@ -11,10 +11,14 @@ export function autopayConfiguration() {
     if (url.origin === host && !url.username && !url.password && !url.search && !url.hash) startUrl = url.toString();
   } catch { /* Missing configuration keeps the adapter disabled. */ }
   const serviceId = process.env.AUTOPAY_SERVICE_ID ?? "";
+  // An explicit channel can be supplied only when Autopay assigns one. Otherwise
+  // the adapter discovers the single available hosted BLIK channel via gatewayList.
   const gatewayId = process.env.AUTOPAY_FAST_GATEWAY_ID ?? "";
   const key = process.env.AUTOPAY_SHARED_KEY ?? "";
   const algorithm = process.env.AUTOPAY_HASH_ALGORITHM ?? "sha256";
-  const credentialsConfigured = /^\d{1,10}$/.test(serviceId) && /^\d{1,5}$/.test(gatewayId) && Number(gatewayId) > 0 && Boolean(key) && Boolean(startUrl) && ["sha256", "sha512"].includes(algorithm);
+  const credentialsConfigured = /^\d{1,10}$/.test(serviceId) &&
+    (!gatewayId || (/^\d{1,5}$/.test(gatewayId) && Number(gatewayId) > 0)) &&
+    Boolean(key) && Boolean(startUrl) && ["sha256", "sha512"].includes(algorithm);
   return { sandbox, host, startUrl, serviceId, gatewayId, key, algorithm, credentialsConfigured,
     orderReuseBlocked: process.env.AUTOPAY_ORDER_REUSE_BLOCKED === "true",
     verified: process.env.AUTOPAY_INTEGRATION_VERIFIED === "true" };

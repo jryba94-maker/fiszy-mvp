@@ -7,6 +7,7 @@ export type AutopayIntent = {
   auctionId: string; runId: string; bidderId: string; amount: number;
   claimToken?: string; discountId?: string; accountId?: string; reservationToken?: string;
   entryConsentId?: string;
+  gatewayId?: string;
   createdAt: string; expiresAt: string; paymentValidUntil: string;
   status: "creating" | "open" | "processing" | "paid" | "failed" | "unknown";
   checkoutUrl: string | null; remoteId?: string; paidRemoteId?: string;

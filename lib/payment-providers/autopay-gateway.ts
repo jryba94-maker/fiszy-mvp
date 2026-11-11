@@ -15,8 +15,12 @@ export async function requireAutopayAuctionGateway(amount: number, deadline: num
     if (!response.ok) throw Error("Unable to verify Autopay channel.");
     const data = await response.json() as { result?: string; serviceID?: string | number; messageID?: string; gatewayList?: Gateway[] };
     if (data.result !== "OK" || String(data.serviceID) !== config.serviceId || data.messageID !== fields.MessageID || !Array.isArray(data.gatewayList)) throw Error("Invalid Autopay channel response.");
-    const gateway = data.gatewayList.find(item => String(item.gatewayID) === config.gatewayId);
-    if (!gateway) throw Error("Configured Autopay channel is unavailable.");
+    const candidates = data.gatewayList.filter(item => item.groupType === "BLIK" && item.state === "OK" &&
+      (config.gatewayId ? String(item.gatewayID) === config.gatewayId : true));
+    // Do not guess where a merchant has several hosted BLIK channels. A merchant
+    // may pin the intended channel with AUTOPAY_FAST_GATEWAY_ID in that case.
+    if (candidates.length !== 1 || !candidates[0]?.gatewayID) throw Error("Autopay BLIK channel is unavailable or ambiguous.");
+    const gateway = candidates[0];
     cached = { key, expiresAt: Date.now() + 60000, gateway };
     return gateway;
   };
@@ -29,10 +33,11 @@ export async function requireAutopayAuctionGateway(amount: number, deadline: num
   }
   const currency = gateway.currencies?.find(item => item.currency === "PLN");
   const min = gateway.minValidityTime;
-  if (gateway.groupType !== "BLIK" || gateway.state !== "OK" || !currency ||
+  if (gateway.groupType !== "BLIK" || gateway.state !== "OK" || !gateway.gatewayID || !currency ||
       (currency.minAmount != null && amount / 100 < currency.minAmount) ||
       (currency.maxAmount != null && amount / 100 > currency.maxAmount) ||
       (min != null && (!Number.isFinite(min) || min < 0 || min * 60000 > deadline - Date.now())) || deadline <= Date.now()) {
     throw Error("Autopay channel cannot support this auction's remaining payment window.");
   }
+  return String(gateway.gatewayID);
 }

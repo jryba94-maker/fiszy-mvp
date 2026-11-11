@@ -40,6 +40,9 @@ test("production activation fails closed without sandbox verification, real sell
   assert.equal(isPaymentProviderConfigured(), false);
   process.env.AUTOPAY_ORDER_REUSE_BLOCKED = "true";
   assert.equal(isPaymentProviderConfigured(), true);
+  delete process.env.AUTOPAY_FAST_GATEWAY_ID;
+  assert.equal(autopayConfiguration().credentialsConfigured, true);
+  process.env.AUTOPAY_FAST_GATEWAY_ID = "999";
   process.env.AUTOPAY_ENVIRONMENT = "production";
   process.env.AUTOPAY_START_URL = "https://pay.autopay.eu/payment-fixture";
   delete process.env.AUTOPAY_INTEGRATION_VERIFIED;

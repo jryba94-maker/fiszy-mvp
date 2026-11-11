@@ -32,12 +32,13 @@ export async function createAutopaySession(kind: AutopayIntent["kind"], input: C
   const requestedDeadline = input.expiresAt ? input.expiresAt * 1000 : Date.now() + 15 * 60_000;
   // Entry can be sold weeks before start, but its payment link must stay short.
   const deadline = new Date(kind === "auction_entry" ? Math.min(requestedDeadline, Date.now() + 15 * 60_000) : requestedDeadline);
+  let gatewayId = config.gatewayId;
   if (kind === "auction_purchase") {
     if (!input.expiresAt || !input.claimToken || deadline.getTime() > Date.parse(input.claimToken) + 120000) throw Error("Invalid auction payment deadline.");
-    await requireAutopayAuctionGateway(input.amount, deadline.getTime());
+    gatewayId = await requireAutopayAuctionGateway(input.amount, deadline.getTime());
   }
   const paymentValidUntil = kind === "auction_purchase" ? deadline : new Date(Math.max(deadline.getTime(), Date.now() + 15 * 60_000));
-  const reserved = await reserveAutopayIntent({ ...input, ...customer, kind, expiresAt: deadline.toISOString(), paymentValidUntil: paymentValidUntil.toISOString() });
+  const reserved = await reserveAutopayIntent({ ...input, ...customer, kind, gatewayId: gatewayId || undefined, expiresAt: deadline.toISOString(), paymentValidUntil: paymentValidUntil.toISOString() });
   let intent = reserved.intent;
   if (intent.amount !== input.amount) throw new Error("Autopay amount changed for an existing intent.");
   if (!reserved.created) {
@@ -53,7 +54,7 @@ export async function createAutopaySession(kind: AutopayIntent["kind"], input: C
     if (bound !== 1) { await updateAutopayIntent(intent.reference, { status: "failed" }); throw new Error("Discount claim is no longer current."); }
   }
   const fields = { ServiceID: config.serviceId, OrderID: intent.orderId, Amount: (input.amount / 100).toFixed(2),
-    Description: kind === "auction_entry" ? "Fiszy - dostep do aukcji" : "Fiszy - zakup produktu", GatewayID: config.gatewayId, Currency: "PLN", CustomerEmail: customer.customer.email!,
+    Description: kind === "auction_entry" ? "Fiszy - dostep do aukcji" : "Fiszy - zakup produktu", ...(gatewayId ? { GatewayID: gatewayId } : {}), Currency: "PLN", CustomerEmail: customer.customer.email!,
     ValidityTime: autopayDate(new Date(intent.paymentValidUntil)), LinkValidityTime: autopayDate(deadline) };
   try {
     const root = parseAutopayXml(await autopayPost("", fields, true));
