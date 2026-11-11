@@ -10,6 +10,7 @@ import {
   listRunParticipants,
   readAuctionRunConfig,
   readAuctionRunHistoryDetails,
+  updateAuctionRecordIfRevision,
 } from "../lib/auction-storage.ts";
 import {
   DEFAULT_AUCTION_RUN_ID,
@@ -457,6 +458,21 @@ test("cancellation checks the current run and protects orders before detaching i
   });
   try { assert.equal(await cancelCurrentAuctionRun(AUCTION_ID, "run-a", 2, Date.now() + 60_000), 1); }
   finally { restore(); }
+});
+
+test("product edits update both run snapshots without replacing their payment terms", async () => {
+  const product = { productName: "Nowa nazwa", productImageUrl: "https://example.com/product.jpg", category: "gaming" };
+  const restore = installRedisMock((command) => {
+    assert.equal(command[0], "EVAL");
+    assert.deepEqual(JSON.parse(command.at(-1)), { runId: "run-a", product });
+    assert.match(command[1], /activeConfig\[field\] = update\.product\[field\]/);
+    assert.match(command[1], /runConfig\[field\] = update\.product\[field\]/);
+    assert.doesNotMatch(command[1], /activeConfig\.(entryFee|regularPrice|durationMinutes)\s*=/);
+    return 1;
+  });
+  try {
+    assert.equal(await updateAuctionRecordIfRevision(2, { auctionId: AUCTION_ID, state: "published", currentRunId: "run-a" }, Date.now(), { runId: "run-a", product }), 1);
+  } finally { restore(); }
 });
 
 test("winner attachment stores a provider-owned payment reference", async () => {

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { AdminAuction, AuctionDefinitionInput } from "../types";
-import { formatMoney, slugify } from "../utils";
+import { formatMoney, isAuctionActive, slugify } from "../utils";
 import styles from "../AdminDashboard.module.css";
 import { ProductThumb } from "./ProductThumb";
 
@@ -80,6 +80,7 @@ export function AuctionEditor({
   onSubmit,
 }: AuctionEditorProps) {
   const editingAuctionId = editingAuction?.auctionId ?? null;
+  const lockedAuction = editingAuction && isAuctionActive(editingAuction.status) ? editingAuction : null;
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [slugTouched, setSlugTouched] = useState(false);
   const [error, setError] = useState("");
@@ -196,7 +197,7 @@ export function AuctionEditor({
         productName,
         productImageUrl: productImageUrl || null,
         category: draft.category,
-        postAuctionOffer: {
+        postAuctionOffer: lockedAuction?.postAuctionOffer ?? {
           enabled: true,
           validityDays: offerValidityDays,
           inventory: null,
@@ -324,11 +325,13 @@ export function AuctionEditor({
               <small>Kategoria zasila filtry katalogu i opis aukcji.</small>
             </label>
 
+            {lockedAuction ? <p className={`${styles.fieldWide} ${styles.disabledReason}`}>W aktywnej rundzie możesz zmienić nazwę, zdjęcie i kategorię. Warunki udziału pozostają bez zmian.</p> : null}
             <label className={styles.field} htmlFor="regular-price">
               <span>Cena regularna</span>
               <div className={styles.suffixedInput}>
                 <input
                   id="regular-price"
+                  disabled={Boolean(lockedAuction)}
                   className={styles.input}
                   type="number"
                   min="2"
@@ -344,13 +347,14 @@ export function AuctionEditor({
               <small>To również cena startowa aukcji. Cena minimalna zawsze wynosi 1 zł.</small>
             </label>
 
-            <label className={styles.field}><span><input type="checkbox" checked={draft.noPreviousOffer} onChange={(event) => update("noPreviousOffer", event.target.checked)} /> Produkt nie był wcześniej oferowany w Fiszy</span></label>
-            <label className={styles.field} htmlFor="lowest-price"><span>Najniższa cena z 30 dni przed aukcją (zł)</span><input id="lowest-price" className={styles.input} type="number" min="1" max="100000" step="1" disabled={draft.noPreviousOffer} value={draft.noPreviousOffer ? "" : draft.lowestPrice30DaysBeforeAuction} onChange={(event) => update("lowestPrice30DaysBeforeAuction", event.target.value)} /><small>Wpisz udokumentowaną cenę. Nie zastępuj jej ceną regularną bez historii. Wartość zostanie zapisana na całą aukcję.</small></label>
+            <label className={styles.field}><span><input type="checkbox" disabled={Boolean(lockedAuction)} checked={draft.noPreviousOffer} onChange={(event) => update("noPreviousOffer", event.target.checked)} /> Produkt nie był wcześniej oferowany w Fiszy</span></label>
+            <label className={styles.field} htmlFor="lowest-price"><span>Najniższa cena z 30 dni przed aukcją (zł)</span><input id="lowest-price" className={styles.input} type="number" min="1" max="100000" step="1" disabled={Boolean(lockedAuction) || draft.noPreviousOffer} value={draft.noPreviousOffer ? "" : draft.lowestPrice30DaysBeforeAuction} onChange={(event) => update("lowestPrice30DaysBeforeAuction", event.target.value)} /><small>Wpisz udokumentowaną cenę. Nie zastępuj jej ceną regularną bez historii. Wartość zostanie zapisana na całą aukcję.</small></label>
             <label className={styles.field} htmlFor="entry-fee">
               <span>Opłata za wejście</span>
               <div className={styles.suffixedInput}>
                 <input
                   id="entry-fee"
+                  disabled={Boolean(lockedAuction)}
                   className={styles.input}
                   type="number"
                   min="1"
@@ -371,6 +375,7 @@ export function AuctionEditor({
               <div className={styles.suffixedInput}>
                 <input
                   id="duration"
+                  disabled={Boolean(lockedAuction)}
                   className={styles.input}
                   type="number"
                   min="1"
@@ -385,7 +390,7 @@ export function AuctionEditor({
               </div>
             </label>
 
-            <fieldset className={`${styles.offerFieldset} ${styles.fieldWide}`}>
+            <fieldset disabled={Boolean(lockedAuction)} className={`${styles.offerFieldset} ${styles.fieldWide}`}>
               <legend>Zakup po aukcji</legend>
               <p className={styles.disabledReason}>
                 Każdy przegrany uczestnik otrzyma jednorazowy rabat równy opłacie za wejście. Liczba sztuk nie jest limitowana.

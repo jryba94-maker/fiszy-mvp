@@ -152,10 +152,11 @@ export async function PATCH(request: NextRequest, context: Context) {
       if (issues.length) return NextResponse.json({ outcome: "auction_not_ready", issues }, { status: 400 });
     }
 
-    const definitionChanged =
+    const productChanged =
       definition.productName !== record.productName ||
       definition.productImageUrl !== record.productImageUrl ||
-      definition.category !== record.category ||
+      definition.category !== record.category;
+    const termsChanged =
       definition.postAuctionOffer.enabled !== record.postAuctionOffer.enabled ||
       definition.postAuctionOffer.validityDays !== record.postAuctionOffer.validityDays ||
       definition.postAuctionOffer.inventory !== record.postAuctionOffer.inventory ||
@@ -166,6 +167,7 @@ export async function PATCH(request: NextRequest, context: Context) {
       definition.startPrice !== record.startPrice ||
       definition.floorPrice !== record.floorPrice ||
       definition.durationMinutes !== record.durationMinutes;
+    const definitionChanged = productChanged || termsChanged;
 
     let activeMutationBlocked = false;
     if (config) {
@@ -178,12 +180,12 @@ export async function PATCH(request: NextRequest, context: Context) {
 
     if (
       activeMutationBlocked &&
-      (definitionChanged ||
+      (termsChanged ||
         requestedState === "archived" ||
         (record.state === "published" && requestedState !== "published"))
     ) {
       return NextResponse.json(
-        { outcome: "auction_in_progress" },
+        { outcome: "auction_in_progress", message: "Podczas aktywnej rundy możesz zmienić nazwę, zdjęcie i kategorię. Cena, wpisowe, czas trwania i warunki rabatu pozostają bez zmian." },
         { status: 409 },
       );
     }
@@ -195,21 +197,21 @@ export async function PATCH(request: NextRequest, context: Context) {
       revision: record.revision + 1,
       updatedAt: new Date().toISOString(),
     };
-    const currentRunOffer =
-      config &&
-      config.runId === record.currentRunId &&
-      !record.postAuctionOffer.enabled &&
-      definition.postAuctionOffer.enabled
-        ? {
-            runId: config.runId,
-            postAuctionOffer: definition.postAuctionOffer,
-          }
-        : undefined;
+    const enableRunOffer = !record.postAuctionOffer.enabled && definition.postAuctionOffer.enabled;
+    const currentRunUpdate = config && config.runId === record.currentRunId && (enableRunOffer || (activeMutationBlocked && productChanged)) ? {
+      runId: config.runId,
+      ...(enableRunOffer ? { postAuctionOffer: definition.postAuctionOffer } : {}),
+      ...(activeMutationBlocked && productChanged ? { product: {
+        productName: definition.productName,
+        productImageUrl: definition.productImageUrl,
+        category: definition.category,
+      } } : {}),
+    } : undefined;
     const result = await updateAuctionRecordIfRevision(
       expectedRevision,
       nextRecord,
       config ? new Date(config.startsAt).getTime() : null,
-      currentRunOffer,
+      currentRunUpdate,
     );
     if (result !== 1) {
       return NextResponse.json(

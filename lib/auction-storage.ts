@@ -1236,15 +1236,16 @@ export async function updateAuctionRecordIfRevision(
   expectedRevision: number,
   record: AuctionRecord,
   currentStartsAtMs: number | null,
-  currentRunOffer?: {
+  currentRunUpdate?: {
     runId: string;
-    postAuctionOffer: AuctionConfig["postAuctionOffer"];
+    postAuctionOffer?: AuctionConfig["postAuctionOffer"];
+    product?: Pick<AuctionConfig, "productName" | "productImageUrl" | "category">;
   },
 ) {
   const currentRunId =
-    currentRunOffer?.runId ?? record.currentRunId ?? defaultAuctionConfig().runId;
-  const serializedCurrentRunOffer = currentRunOffer
-    ? JSON.stringify(currentRunOffer.postAuctionOffer)
+    currentRunUpdate?.runId ?? record.currentRunId ?? defaultAuctionConfig().runId;
+  const serializedCurrentRunUpdate = currentRunUpdate
+    ? JSON.stringify(currentRunUpdate)
     : "";
   const script = `
 local raw = redis.call("GET", KEYS[1])
@@ -1262,18 +1263,26 @@ if ARGV[7] ~= "" then
   if not activeRaw or not runRaw then return -1 end
   local activeOk, parsedActive = pcall(cjson.decode, activeRaw)
   local runOk, parsedRun = pcall(cjson.decode, runRaw)
-  local offerOk, offer = pcall(cjson.decode, ARGV[7])
+  local updateOk, update = pcall(cjson.decode, ARGV[7])
   if
     not activeOk or type(parsedActive) ~= "table" or parsedActive.runId ~= ARGV[6] or
     not runOk or type(parsedRun) ~= "table" or parsedRun.runId ~= ARGV[6] or
-    not offerOk or type(offer) ~= "table"
+    not updateOk or type(update) ~= "table"
   then
     return -1
   end
   activeConfig = parsedActive
   runConfig = parsedRun
-  activeConfig.postAuctionOffer = offer
-  runConfig.postAuctionOffer = offer
+  if update.postAuctionOffer then
+    activeConfig.postAuctionOffer = update.postAuctionOffer
+    runConfig.postAuctionOffer = update.postAuctionOffer
+  end
+  if update.product then
+    for _, field in ipairs({"productName", "productImageUrl", "category"}) do
+      activeConfig[field] = update.product[field]
+      runConfig[field] = update.product[field]
+    end
+  end
 end
 redis.call("SET", KEYS[1], ARGV[2])
 if ARGV[3] == "published" and ARGV[4] ~= "" then
@@ -1302,7 +1311,7 @@ return 1
     currentStartsAtMs ?? "",
     record.auctionId,
     currentRunId,
-    serializedCurrentRunOffer,
+    serializedCurrentRunUpdate,
   ]);
 }
 
