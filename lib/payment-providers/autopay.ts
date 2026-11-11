@@ -63,9 +63,11 @@ export async function createAutopaySession(kind: AutopayIntent["kind"], input: C
   const fields = { ServiceID: config.serviceId, OrderID: intent.orderId, Amount: (input.amount / 100).toFixed(2),
     Description: kind === "auction_entry" ? "Fiszy - dostep do aukcji" : "Fiszy - zakup produktu", GatewayID: gatewayId || "0", Currency: "PLN", CustomerEmail: customer.customer.email!,
     ValidityTime: autopayDate(new Date(intent.paymentValidUntil)), LinkValidityTime: autopayDate(deadline) };
+  let responseShape: { fields: string[]; status: string; confirmation: string; reason: string } | null = null;
   try {
     const root = parseAutopayXml(await autopayPost("", fields, true));
     const tx = xmlRecord(root.transaction);
+    responseShape = { fields: Object.keys(tx).sort(), status: xmlField(tx, "status", false), confirmation: xmlField(tx, "confirmation", false), reason: xmlField(tx, "reason", false) };
     const status = xmlField(tx, "status");
     const url = xmlField(tx, "redirecturl");
     const orderId = xmlField(tx, "orderID");
@@ -78,6 +80,7 @@ export async function createAutopaySession(kind: AutopayIntent["kind"], input: C
     return session(intent, "processing");
   } catch (error) {
     // HTTP timeout is ambiguous: provider may already have accepted the payment.
+    if (responseShape) console.error("Autopay pre-transaction rejected", responseShape);
     await updateAutopayIntent(intent.reference, { status: "unknown" });
     throw error;
   }
