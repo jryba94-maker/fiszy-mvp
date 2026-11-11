@@ -43,6 +43,13 @@ export async function createAutopaySession(kind: AutopayIntent["kind"], input: C
   if (intent.amount !== input.amount) throw new Error("Autopay amount changed for an existing intent.");
   if (!reserved.created) {
     if (intent.checkoutUrl) return session(intent, intent.status === "paid" ? "paid" : "processing");
+    // A malformed pre-transaction response can leave an entry attempt without a
+    // continuation link. It could not have been paid by the customer, but cancel
+    // it with Autopay first; only a confirmed terminal failure permits a retry.
+    if (kind === "auction_entry" && intent.status === "unknown") {
+      const recovered = await expireAutopaySession(intent.reference, true);
+      if (recovered.state === "expired") return createAutopaySession(kind, input);
+    }
     throw new Error("Autopay creation is still being reconciled; do not start another payment.");
   }
   // Bind the local claim before sending anything that could charge the customer.
@@ -54,7 +61,7 @@ export async function createAutopaySession(kind: AutopayIntent["kind"], input: C
     if (bound !== 1) { await updateAutopayIntent(intent.reference, { status: "failed" }); throw new Error("Discount claim is no longer current."); }
   }
   const fields = { ServiceID: config.serviceId, OrderID: intent.orderId, Amount: (input.amount / 100).toFixed(2),
-    Description: kind === "auction_entry" ? "Fiszy - dostep do aukcji" : "Fiszy - zakup produktu", ...(gatewayId ? { GatewayID: gatewayId } : {}), Currency: "PLN", CustomerEmail: customer.customer.email!,
+    Description: kind === "auction_entry" ? "Fiszy - dostep do aukcji" : "Fiszy - zakup produktu", GatewayID: gatewayId || "0", Currency: "PLN", CustomerEmail: customer.customer.email!,
     ValidityTime: autopayDate(new Date(intent.paymentValidUntil)), LinkValidityTime: autopayDate(deadline) };
   try {
     const root = parseAutopayXml(await autopayPost("", fields, true));
@@ -63,7 +70,9 @@ export async function createAutopaySession(kind: AutopayIntent["kind"], input: C
     const url = xmlField(tx, "redirecturl");
     const orderId = xmlField(tx, "orderID");
     const remoteId = xmlField(tx, "remoteID");
-    verifyAutopayHash([status, url, orderId, remoteId], xmlField(tx, "hash"));
+    // The documented spelling is `hash`; some live Autopay service profiles
+    // return the same signed field as `Hash`.
+    verifyAutopayHash([status, url, orderId, remoteId], xmlField(tx, "hash", false) || xmlField(tx, "Hash"));
     if (status !== "PENDING" || orderId !== intent.orderId || !/^[A-Za-z0-9]{1,20}$/.test(remoteId) || new URL(url).origin !== config.host) throw new Error("Invalid Autopay continuation.");
     intent = await updateAutopayIntent(intent.reference, { status: "processing", checkoutUrl: url, remoteId });
     return session(intent, "processing");
@@ -100,7 +109,7 @@ export async function retrieveAutopaySession(reference: string): Promise<Payment
   return session(intent, "unknown");
 }
 
-export async function expireAutopaySession(reference: string): Promise<PaymentSession> {
+export async function expireAutopaySession(reference: string, forceCancel = false): Promise<PaymentSession> {
   let intent = await readAutopayIntent(reference);
   if (!intent) throw Error("Autopay intent not found.");
   if (intent.status === "paid") return session(intent, "paid");
@@ -112,7 +121,7 @@ export async function expireAutopaySession(reference: string): Promise<PaymentSe
   }
   // Accepted PENDING payments are actively cancelled at the purchase deadline.
   // Other checkout kinds keep their previous, longer validity behavior.
-  if (before.some(tx => tx.paymentStatus === "PENDING") && (intent.kind !== "auction_purchase" || Date.now() < Date.parse(intent.expiresAt))) return session(intent, "processing");
+  if (!forceCancel && before.some(tx => tx.paymentStatus === "PENDING") && (intent.kind !== "auction_purchase" || Date.now() < Date.parse(intent.expiresAt))) return session(intent, "processing");
   const config = autopayConfiguration();
   const messageId = createHash("sha256").update(`cancel:${reference}`).digest("hex").slice(0, 32);
   const root = parseAutopayXml(await autopayPost("/webapi/transactionCancel", { ServiceID: config.serviceId, MessageID: messageId, OrderID: intent.orderId }));
