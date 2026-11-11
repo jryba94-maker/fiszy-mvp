@@ -363,12 +363,13 @@ export async function startEntryCheckout(
   runId: string,
   ageConfirmed = false,
   entryServiceAccepted = false,
+  entryServiceVersion?: string,
 ) {
   return (await requestWithLegacyFallback(
     auctionId,
     dynamicRunPath(auctionId, runId, "entry"),
     "/api/auction/entry",
-    { ...JSON_POST, body: JSON.stringify({ ageConfirmed, entryServiceAccepted }) },
+    { ...JSON_POST, body: JSON.stringify({ ageConfirmed, entryServiceAccepted, entryServiceVersion }) },
   )) as EntryResponse;
 }
 

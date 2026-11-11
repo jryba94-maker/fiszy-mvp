@@ -44,7 +44,9 @@ import { AutopayCustomerError, autopayCustomer, expireAutopaySession } from "../
 
 const PURCHASE_CHECKOUT_WINDOW_SECONDS = 2 * 60;
 
-type BidderRequest = { expectedPrice?: unknown; ageConfirmed?: unknown; entryServiceAccepted?: unknown };
+import { entryServiceTerms } from "../../../../lib/entry-service-terms";
+
+type BidderRequest = { expectedPrice?: unknown; ageConfirmed?: unknown; entryServiceAccepted?: unknown; entryServiceVersion?: unknown };
 
 async function authenticatedBidder() {
   const { userId } = await auth();
@@ -111,6 +113,7 @@ async function parseBidderBody(request: NextRequest) {
       expectedPrice: body.expectedPrice as number | undefined,
       ageConfirmed: body.ageConfirmed === true,
       entryServiceAccepted: body.entryServiceAccepted === true,
+      entryServiceVersion: body.entryServiceVersion,
     };
   } catch {
     return null;
@@ -297,8 +300,9 @@ export async function handleEntryPost(
       );
     }
 
-    if (!bidderRequest.entryServiceAccepted) return NextResponse.json({ outcome: "entry_service_consent_required" }, { status: 400 });
-    const consent = await recordEntryServiceConsent({ accountId: bidderId.replace(/^clerk:/, ""), auctionId: active.auctionId, runId: active.config.runId, fee: active.config.entryFee });
+    const terms = entryServiceTerms(bidderRequest.entryServiceVersion);
+    if (!bidderRequest.entryServiceAccepted || !terms) return NextResponse.json({ outcome: "entry_service_consent_required" }, { status: 400 });
+    const consent = await recordEntryServiceConsent({ accountId: bidderId.replace(/^clerk:/, ""), auctionId: active.auctionId, runId: active.config.runId, fee: active.config.entryFee }, terms.version);
     const session = await createEntryPaymentSession({
       origin: getCheckoutOrigin(request),
       auctionId: active.auctionId,

@@ -1,6 +1,6 @@
 "use client";
 
-import { ENTRY_SERVICE_CONSENT_TEXT } from "../../../lib/entry-service-terms";
+import { ENTRY_SERVICE_CONSENT_TEXT, ENTRY_SERVICE_CONSENT_VERSION } from "../../../lib/entry-service-terms";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
@@ -28,11 +28,9 @@ type Feedback = { text: string; error?: boolean } | null;
 
 function EntryServiceConsent({
   checked,
-  fee,
   onChange,
 }: {
   checked: boolean;
-  fee: number;
   onChange: (checked: boolean) => void;
 }) {
   return (
@@ -43,9 +41,7 @@ function EntryServiceConsent({
         onChange={(event) => onChange(event.target.checked)}
       />
       <span>
-        <strong>Wejście za {fee} zł — zgoda wymagana przed płatnością</strong>
         <span>{ENTRY_SERVICE_CONSENT_TEXT}</span>
-        <small>Potwierdzenie tej zgody otrzymasz e-mailem po opłaceniu wejścia.</small>
       </span>
     </label>
   );
@@ -527,7 +523,7 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
     setIsEntering(true);
     setEntryFeedback(null);
     try {
-      const data = await startEntryCheckout(auction.auctionId, auction.runId, ageConfirmed, entryServiceAccepted);
+      const data = await startEntryCheckout(auction.auctionId, auction.runId, ageConfirmed, entryServiceAccepted, ENTRY_SERVICE_CONSENT_VERSION);
       if (data.outcome === "checkout" && data.checkoutUrl) {
         recordAuctionEvent(auction, { entryState: "checkout" });
         window.location.assign(data.checkoutUrl);
@@ -835,8 +831,9 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
           <button type="button" aria-label="Zamknij" disabled={consentBusy} onClick={() => consentDialog.current?.close()}>×</button>
         </div>
         <fieldset disabled={consentBusy} className={styles.consentFields}>
-          {consentAction === "entry" ? <EntryServiceConsent checked={entryServiceAccepted} fee={auction.entryFee} onChange={setEntryServiceAccepted} /> : null}
-          <label className={styles.ageConfirmation}><input type="checkbox" checked={ageConfirmed} onChange={(event) => setAgeConfirmed(event.target.checked)} /><span>Potwierdzam, że mam ukończone 18 lat i akceptuję <Link href="/regulamin" target="_blank" rel="noopener noreferrer">Regulamin</Link>.</span></label>
+          {consentAction === "entry" ? <EntryServiceConsent checked={entryServiceAccepted} onChange={setEntryServiceAccepted} /> : null}
+          <label className={styles.ageConfirmation}><input type="checkbox" checked={ageConfirmed} onChange={(event) => setAgeConfirmed(event.target.checked)} /><span>Mam ukończone 18 lat i akceptuję <Link href="/regulamin" target="_blank" rel="noopener noreferrer">regulamin</Link>.</span></label>
+          {consentAction === "entry" ? <p className={styles.entryNote}>Potwierdzenie umowy i zgody otrzymasz e-mailem.</p> : null}
         </fieldset>
         {consentFeedback ? <p className={`${styles.feedback} ${consentFeedback.error ? styles.feedbackError : ""}`} role={consentFeedback.error ? "alert" : "status"}>{consentFeedback.text}</p> : null}
         <button className={styles.primaryButton} type="button" disabled={consentBusy || !ageConfirmed || (consentAction === "entry" ? !canEnter || !entryServiceAccepted : !canBuy)} onClick={() => {

@@ -1,14 +1,16 @@
 import { createHash, randomUUID } from "node:crypto";
 import { redisCommand } from "./redis";
-import { ENTRY_SERVICE_CONSENT_VERSION, ENTRY_SERVICE_CONSENT_TEXT } from "./entry-service-terms";
+import { ENTRY_SERVICE_CONSENT_VERSION, entryServiceTerms } from "./entry-service-terms";
 import { entryContractText } from "./legal-content";
 export type EntryServiceConsent = { id: string; accountId: string; auctionId: string; runId: string; fee: number; acceptedAt: string; version: string; text: string; contract: string };
 function key(id: string) {
   if (!/^[a-f0-9]{32}$/.test(id)) throw new Error("Invalid service consent id.");
   return `fiszy:${process.env.VERCEL_ENV ?? "local"}:entry-service-consent:${id}`;
 }
-export async function recordEntryServiceConsent(input: Pick<EntryServiceConsent, "accountId" | "auctionId" | "runId" | "fee">) {
-  const consent: EntryServiceConsent = { ...input, id: randomUUID().replaceAll("-", ""), acceptedAt: new Date().toISOString(), version: ENTRY_SERVICE_CONSENT_VERSION, text: ENTRY_SERVICE_CONSENT_TEXT, contract: entryContractText() };
+export async function recordEntryServiceConsent(input: Pick<EntryServiceConsent, "accountId" | "auctionId" | "runId" | "fee">, version: string = ENTRY_SERVICE_CONSENT_VERSION) {
+  const terms = entryServiceTerms(version);
+  if (!terms) throw new Error("Unknown entry consent version.");
+  const consent: EntryServiceConsent = { ...input, ...terms, id: randomUUID().replaceAll("-", ""), acceptedAt: new Date().toISOString(), contract: entryContractText() };
   const identity = createHash("sha256").update(JSON.stringify([input, consent.version, consent.contract])).digest("hex");
   const raw = await redisCommand<string>(["EVAL", `
 local old = redis.call("GET", KEYS[1])
