@@ -74,8 +74,9 @@ export async function GET(request: NextRequest, context: Context) {
     const winnerId = winner?.bidderId ?? order?.bidderId ?? null;
     const participants = page.participants.map((participant) => ({
       participantId: participant.participantId,
-      entryStatus: participant.entryStatus,
+      entryStatus: outcome.cancelledAt && participant.entryStatus === "granted" && participant.entryFee > 0 ? "refund_required" : participant.entryStatus,
       fee: participant.entryFee,
+      paymentReference: participant.entryPaymentReference ?? (participant.entryPaymentSessionId || null),
       grantedAt: participant.grantedAt ?? null,
       refundedAt: participant.refundedAt ?? null,
       isWinner: participant.participantId === winnerId,

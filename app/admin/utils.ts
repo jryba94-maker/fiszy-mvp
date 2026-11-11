@@ -32,6 +32,7 @@ export const STATUS_LABELS: Record<AuctionDisplayStatus, string> = {
   payment_pending: "Finalizacja",
   sold: "Sprzedana",
   ended: "Zakończona",
+  cancelled: "Anulowana",
 };
 
 export const FULFILLMENT_LABELS: Record<FulfillmentStatus, string> = {
@@ -139,6 +140,7 @@ export function sortAuctions(auctions: AdminAuction[]) {
     draft: 4,
     sold: 5,
     ended: 6,
+    cancelled: 7,
     archived: 7,
   };
 

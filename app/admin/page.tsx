@@ -12,6 +12,7 @@ import {
   loadHealth,
   loadOrders,
   setAuctionRecordState,
+  cancelAuctionRun,
   startAuctionRun,
   updateAuction,
   updateOrderFulfillment,
@@ -351,6 +352,22 @@ export default function AdminPage() {
     }
   };
 
+  const handleCancelRun = async (auction: AdminAuction) => {
+    if (!window.confirm(`Anulować rundę „${auction.productName}”? Zniknie z katalogu, ale jej historia pozostanie. Ewentualne zwroty wykonasz ręcznie u operatora płatności.`)) return;
+    setBusyAuctionId(auction.auctionId);
+    setNotice(null);
+    try {
+      await cancelAuctionRun(auction);
+      setNotice({ tone: "success", message: "Runda anulowana. Sprawdź wpłaty w historii rundy; zwroty wykonaj ręcznie." });
+      await loadDashboard();
+    } catch (error) {
+      if (isUnauthorized(error)) handleExpiredSession();
+      else setNotice({ tone: "error", message: errorMessage(error) });
+    } finally {
+      setBusyAuctionId(null);
+    }
+  };
+
   const handleArchiveToggle = async (auction: AdminAuction) => {
     const restoring = auction.recordState === "archived";
     const confirmed = window.confirm(
@@ -574,6 +591,7 @@ export default function AdminPage() {
         onDuplicate={(auction) => void handleDuplicate(auction)}
         onStart={(auction, startsAt) => void handleStartRun(auction, startsAt)}
         onArchiveToggle={(auction) => void handleArchiveToggle(auction)}
+        onCancelRun={(auction) => void handleCancelRun(auction)}
       />
 
       <AuctionEditor

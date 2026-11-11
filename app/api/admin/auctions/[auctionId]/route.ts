@@ -2,11 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   type AuctionRecordState,
   auctionPublishIssues,
+  getAuctionEndsAt,
   getTimedAuctionState,
   normalizeAuctionId,
+  normalizeRunId,
   parseAuctionDefinition,
 } from "../../../../../lib/auction";
 import {
+  cancelCurrentAuctionRun,
   readAuctionRecord,
   readAuctionWinner,
   readOptionalAuctionConfig,
@@ -93,6 +96,25 @@ export async function PATCH(request: NextRequest, context: Context) {
     ]);
     if (!record) {
       return NextResponse.json({ outcome: "not_found" }, { status: 404 });
+    }
+
+    if (body.action === "cancel_run") {
+      const runId = normalizeRunId(body.runId);
+      const revision = body.expectedRevision;
+      if (!runId || typeof revision !== "number" || !Number.isSafeInteger(revision) || revision < 1) {
+        return NextResponse.json({ outcome: "invalid_request" }, { status: 400 });
+      }
+      if (!config || config.runId !== runId || getTimedAuctionState(Date.now(), config).status === "ended") {
+        return NextResponse.json({ outcome: "auction_changed" }, { status: 409 });
+      }
+      const result = await cancelCurrentAuctionRun(auctionId, runId, revision, getAuctionEndsAt(config).getTime());
+      if (result !== 1) return NextResponse.json({ outcome: result === -1 ? "pending_payment" : "auction_changed" }, { status: 409 });
+      await recordSuccessfulAdminAudit(request, {
+        action: "auction.updated", resourceType: "auction", resourceId: auctionId,
+        details: { previousState: "published", state: "draft", revision: revision + 1, definitionChanged: false },
+      });
+      logEvent("admin_auction_run_cancelled", { auctionId, runId, refunds: "manual" });
+      return NextResponse.json({ outcome: "ok", message: "Runda anulowana. Wpłaty sprawdź w historii rundy; zwroty wykonaj ręcznie." });
     }
 
     const definition = parseAuctionDefinition({

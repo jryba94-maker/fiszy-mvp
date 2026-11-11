@@ -48,6 +48,7 @@ const AUCTION_RUN_STATUSES = new Set<AuctionRunStatus>([
   "payment_pending",
   "sold",
   "ended",
+  "cancelled",
 ]);
 const AUCTION_CATEGORIES = new Set<AuctionCategory>([
   "electronics",
@@ -633,6 +634,13 @@ export async function updateAuction(
   return { legacy: false, message: asString(asRecord(payload).message) ?? undefined };
 }
 
+export async function cancelAuctionRun(auction: AdminAuction) {
+  return request(`/api/admin/auctions/${encodeURIComponent(auction.auctionId)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ action: "cancel_run", runId: auction.runId, expectedRevision: auction.revision }),
+  });
+}
+
 export async function setAuctionRecordState(
   auctionId: string,
   state: AuctionRecordState,
@@ -764,7 +772,7 @@ function normalizeRun(value: unknown, auctionId: string, index: number): AdminAu
 function normalizeParticipant(value: unknown, index: number): AdminParticipant {
   const root = asRecord(value);
   const entryStatusValue = firstString(root.entryStatus);
-  const entryStatus = entryStatusValue === "granted" || entryStatusValue === "refunded"
+  const entryStatus = entryStatusValue === "granted" || entryStatusValue === "refunded" || entryStatusValue === "refund_required"
     ? entryStatusValue
     : "unknown";
 
@@ -775,6 +783,7 @@ function normalizeParticipant(value: unknown, index: number): AdminParticipant {
     runId: firstString(root.runId),
     entryStatus,
     entryFee: firstNumber(root.entryFee, root.fee),
+    paymentReference: firstString(root.paymentReference),
     grantedAt: firstString(root.grantedAt),
     refundedAt: firstString(root.refundedAt),
     isWinner: asBoolean(root.isWinner ?? root.winner),

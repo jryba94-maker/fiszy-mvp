@@ -11,7 +11,8 @@ export type AuctionRunStatus =
   | "live"
   | "payment_pending"
   | "sold"
-  | "ended";
+  | "ended"
+  | "cancelled";
 
 export type AuctionDisplayStatus =
   | AuctionRecordState
@@ -131,8 +132,9 @@ export type AdminParticipant = {
   participantId: string;
   auctionId: string | null;
   runId: string | null;
-  entryStatus: "granted" | "refunded" | "unknown";
+  entryStatus: "granted" | "refunded" | "refund_required" | "unknown";
   entryFee: number | null;
+  paymentReference?: string | null;
   grantedAt: string | null;
   refundedAt: string | null;
   isWinner: boolean;

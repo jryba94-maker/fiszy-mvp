@@ -153,7 +153,7 @@ export async function GET(request: NextRequest, context: AuctionContext) {
       return {
         config,
         endsAt: getAuctionEndsAt(config).toISOString(),
-        status: computedRunStatus(now, config, detail.winner, detail.order),
+        status: detail.cancelledAt ? "cancelled" : computedRunStatus(now, config, detail.winner, detail.order),
         participantCount: detail.participantCount,
         winner: winnerSummary(detail.winner, detail.order),
         order: orderSummary(detail.order),

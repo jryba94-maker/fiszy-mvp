@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   attachAuctionWinnerCheckout,
+  cancelCurrentAuctionRun,
   createAuctionWithRun,
   grantAuctionEntryIfCurrent,
   listAuctionRunIds,
@@ -344,7 +345,7 @@ test("run outcomes use cached participant counts without scanning participant in
     commands.push(received);
     assert.equal(received[0], "MGET");
     if (received.slice(1).some((key) => key.endsWith(":winner"))) {
-      return [JSON.stringify(winner), JSON.stringify(order), null, null];
+      return [JSON.stringify(winner), JSON.stringify(order), null, null, null, "2026-08-10T08:12:00.000Z"];
     }
     return ["2", "0", "0", "0"];
   });
@@ -355,8 +356,8 @@ test("run outcomes use cached participant counts without scanning participant in
     assert.equal(commands.every((command) => command[0] === "MGET"), true);
     assert.equal(commands.some((command) => command[0] === "ZRANGE"), false);
     assert.deepEqual(details, [
-      { runId: "run-a", winner, order, participantCount: 2 },
-      { runId: "run-b", winner: null, order: null, participantCount: 0 },
+      { runId: "run-a", winner, order, cancelledAt: null, participantCount: 2 },
+      { runId: "run-b", winner: null, order: null, cancelledAt: "2026-08-10T08:12:00.000Z", participantCount: 0 },
     ]);
   } finally {
     restore();
@@ -432,14 +433,30 @@ test("duplicate entry grant atomically repairs participant history", async () =>
     const duplicateReturnAt = script.indexOf("return 2");
     assert.ok(repairAt >= 0 && participantIndexAt > repairAt);
     assert.ok(participantCountAt >= 0 && duplicateReturnAt > participantIndexAt);
-    assert.equal(command?.[2], 8);
-    const participant = JSON.parse(command?.[16] ?? "{}");
+    assert.equal(command?.[2], 9);
+    assert.match(command?.[11] ?? "", /:cancelled$/);
+    assert.ok(script.indexOf("return -5") < repairAt);
+    const participant = JSON.parse(command?.[17] ?? "{}");
     assert.equal(participant.entryPaymentProvider, "stripe");
     assert.equal(participant.entryPaymentReference, "cs_test_duplicate");
-    assert.equal(command?.[20], AUCTION_ID, "Lua repair did not receive auction id.");
+    assert.equal(command?.[21], AUCTION_ID, "Lua repair did not receive auction id.");
   } finally {
     restore();
   }
+});
+
+test("cancellation checks the current run and protects orders before detaching it", async () => {
+  const restore = installRedisMock(([operation, script, keyCount, ...args]) => {
+    assert.equal(operation, "EVAL");
+    assert.equal(keyCount, 7);
+    assert.match(args[5], /:cancelled$/);
+    assert.ok(script.indexOf('redis.call("EXISTS", KEYS[4])') < script.indexOf('redis.call("SET", KEYS[6]'));
+    assert.match(script, /redis\.call\("DEL", KEYS\[2\]\)/);
+    assert.doesNotMatch(script, /redis\.call\("DEL", KEYS\[7\]\)/);
+    return 1;
+  });
+  try { assert.equal(await cancelCurrentAuctionRun(AUCTION_ID, "run-a", 2, Date.now() + 60_000), 1); }
+  finally { restore(); }
 });
 
 test("winner attachment stores a provider-owned payment reference", async () => {

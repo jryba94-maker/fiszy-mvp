@@ -12,7 +12,7 @@ export type LaunchReadinessAuction = {
   productName: string;
   productImageUrl: string | null;
   recordState: "draft" | "published" | "archived";
-  status: "waiting" | "live" | "payment_pending" | "sold" | "ended" | null;
+  status: "waiting" | "live" | "payment_pending" | "sold" | "ended" | "cancelled" | null;
   startsAt: string | null;
   entryFee: number;
   regularPrice: number;

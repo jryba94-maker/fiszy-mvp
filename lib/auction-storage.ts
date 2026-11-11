@@ -54,7 +54,7 @@ export type ParticipantRunRecord = {
   participantId: string;
   auctionId: string;
   runId: string;
-  entryStatus: "granted" | "refunded";
+  entryStatus: "granted" | "refunded" | "refund_required";
   entryFee: number;
   entryPaymentProvider?: PaymentProviderName;
   entryPaymentReference?: string;
@@ -72,6 +72,7 @@ export type ParticipantHistoryItem = {
 
 export type AuctionRunHistoryOutcome = {
   runId: string;
+  cancelledAt: string | null;
   winner: AuctionWinner | null;
   order: AuctionOrder | null;
 };
@@ -354,6 +355,7 @@ function normalizeParticipantRunRecord(
     !auctionId ||
     !runId ||
     (candidate.entryStatus !== "granted" &&
+      candidate.entryStatus !== "refund_required" &&
       candidate.entryStatus !== "refunded") ||
     typeof candidate.entryFee !== "number" ||
     !Number.isFinite(candidate.entryFee) ||
@@ -1203,6 +1205,33 @@ return 1
   ]);
 }
 
+function cancelledRunKey(auctionId: string, runId: string) {
+  return `${auctionRunConfigKey(runId, auctionId)}:cancelled`;
+}
+
+export async function cancelCurrentAuctionRun(auctionId: string, runId: string, expectedRevision: number, endsAtMs: number) {
+  const script = `
+local raw = redis.call("GET", KEYS[1])
+local cfg = redis.call("GET", KEYS[2])
+if not raw or not cfg then return 0 end
+local record = cjson.decode(raw)
+if record.state ~= "published" or record.currentRunId ~= ARGV[1] or record.revision ~= tonumber(ARGV[2]) or cjson.decode(cfg).runId ~= ARGV[1] then return 0 end
+local now = redis.call("TIME")
+if tonumber(now[1]) * 1000 + math.floor(tonumber(now[2]) / 1000) >= tonumber(ARGV[5]) then return 0 end
+if redis.call("EXISTS", KEYS[4]) == 1 or redis.call("EXISTS", KEYS[5]) == 1 then return -1 end
+if redis.call("EXISTS", KEYS[7]) == 0 then return 0 end
+record.state = "draft"
+record.currentRunId = cjson.null
+record.revision = record.revision + 1
+record.updatedAt = ARGV[4]
+redis.call("SET", KEYS[6], ARGV[4])
+redis.call("SET", KEYS[1], cjson.encode(record))
+redis.call("DEL", KEYS[2])
+redis.call("ZREM", KEYS[3], ARGV[3])
+return 1`;
+  return redisCommand<number>(["EVAL", script, 7, auctionRecordKey(auctionId), auctionConfigKey(auctionId), catalogIndexKey(), winnerKey(runId, auctionId), auctionRunOrderKey(auctionId, runId), cancelledRunKey(auctionId, runId), auctionRunConfigKey(runId, auctionId), runId, expectedRevision, auctionId, new Date().toISOString(), endsAtMs]);
+}
+
 export async function updateAuctionRecordIfRevision(
   expectedRevision: number,
   record: AuctionRecord,
@@ -1879,6 +1908,7 @@ export async function listParticipantHistory(input: {
     auctionRunConfigKey(participant.runId, participant.auctionId),
     winnerKey(participant.runId, participant.auctionId),
     auctionRunOrderKey(participant.auctionId, participant.runId),
+    cancelledRunKey(participant.auctionId, participant.runId),
   ]);
   const stored = await redisCommand<Array<string | null>>(["MGET", ...detailKeys]);
   const values = stored ?? [];
@@ -1887,14 +1917,16 @@ export async function listParticipantHistory(input: {
   }
 
   const items = page.page.flatMap(({ value: participant }, index) => {
-    const config = parseStoredAuctionConfig(values[index * 3]);
+    const config = parseStoredAuctionConfig(values[index * 4]);
     if (!config || config.runId !== participant.runId) return [];
     return [{
-      participant,
+      participant: values[index * 4 + 3] && participant.entryStatus === "granted"
+        ? { ...participant, entryStatus: "refund_required" as const }
+        : participant,
       config,
-      winner: parseStoredAuctionWinner(values[index * 3 + 1]),
+      winner: parseStoredAuctionWinner(values[index * 4 + 1]),
       order: parseStoredHistoryOrder(
-        values[index * 3 + 2],
+        values[index * 4 + 2],
         participant.auctionId,
         participant.runId,
       ),
@@ -1983,6 +2015,7 @@ export async function readAuctionRunHistoryOutcomes(
   const keys = runIds.flatMap((runId) => [
     winnerKey(runId, auctionId),
     auctionRunOrderKey(auctionId, runId),
+    cancelledRunKey(auctionId, runId),
   ]);
   const stored = await redisCommand<Array<string | null>>(["MGET", ...keys]);
   const values = stored ?? [];
@@ -1992,8 +2025,9 @@ export async function readAuctionRunHistoryOutcomes(
 
   return runIds.map((runId, index) => ({
     runId,
-    winner: parseStoredAuctionWinner(values[index * 2]),
-    order: parseStoredHistoryOrder(values[index * 2 + 1], auctionId, runId),
+    winner: parseStoredAuctionWinner(values[index * 3]),
+    order: parseStoredHistoryOrder(values[index * 3 + 1], auctionId, runId),
+    cancelledAt: values[index * 3 + 2] ?? null,
   }));
 }
 
@@ -2067,6 +2101,7 @@ local function accountForParticipant(added)
   end
 end
 
+if redis.call("EXISTS", KEYS[9]) == 1 then return -5 end
 local existingRaw = redis.call("GET", KEYS[2])
 if existingRaw then
   local ok, existing = pcall(cjson.decode, existingRaw)
@@ -2127,7 +2162,7 @@ return 1
   return redisCommand<number>([
     "EVAL",
     script,
-    8,
+    9,
     auctionConfigKey(normalizedAuctionId),
     entryKey(normalizedRunId, participantId, normalizedAuctionId),
     winnerKey(normalizedRunId, normalizedAuctionId),
@@ -2136,6 +2171,7 @@ return 1
     runParticipantsIndexKey(normalizedAuctionId, normalizedRunId),
     runParticipantCountKey(normalizedAuctionId, normalizedRunId),
     runParticipantVersionKey(normalizedAuctionId, normalizedRunId),
+    cancelledRunKey(normalizedAuctionId, normalizedRunId),
     normalizedRunId,
     entry.paymentSessionId ?? "",
     nowMs,
@@ -2177,7 +2213,7 @@ local existingRaw = redis.call("GET", KEYS[1])
 if existingRaw then
   local ok, existing = pcall(cjson.decode, existingRaw)
   if not ok or type(existing) ~= "table" then return -1 end
-  if existing.entryStatus == "granted" or existing.entryStatus == "refunded" then
+  if existing.entryStatus == "granted" or existing.entryStatus == "refunded" or existing.entryStatus == "refund_required" then
     return 0
   end
   return -1

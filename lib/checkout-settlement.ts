@@ -161,6 +161,22 @@ export async function handlePaidEntry(session: SettlementSession) {
         paidEntry.auctionId,
       );
 
+  if (grantResult === -5) {
+    const recorded = await recordRefundedAuctionEntry({
+      schemaVersion: 1,
+      ...paidEntry,
+      participantId: paidEntry.bidderId,
+      entryStatus: "refund_required",
+      entryFee: runConfig.entryFee,
+      entryPaymentProvider: session.provider ?? "stripe",
+      entryPaymentReference: session.id,
+      entryPaymentSessionId: session.id,
+    });
+    if (recorded !== 0 && recorded !== 1) throw new Error("Unable to record payment for cancelled auction run.");
+    logEvent("cancelled_auction_entry_manual_refund", { auctionId: paidEntry.auctionId, runId: paidEntry.runId, reference: session.id }, "warning");
+    return "auction_entry_manual_refund_required";
+  }
+
   if (grantResult === 1 || grantResult === 2) {
     logEvent("auction_entry_granted", {
       auctionId: paidEntry.auctionId,

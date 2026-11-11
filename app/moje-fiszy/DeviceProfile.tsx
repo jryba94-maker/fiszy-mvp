@@ -37,7 +37,7 @@ type Activity = {
   product: string;
   productImageUrl: string | null;
   startsAt: string;
-  entryStatus: "granted" | "refunded";
+  entryStatus: "granted" | "refunded" | "refund_required";
   entryFee: number;
   enteredAt: string;
   outcome: "participating" | "lost" | "won_payment_pending" | "won_paid";
@@ -122,6 +122,7 @@ function activityLabel(item: Activity) {
   if (item.outcome === "won_paid") return "Wygrana opłacona";
   if (item.outcome === "won_payment_pending") return "Czeka na płatność";
   if (item.entryStatus === "refunded") return "Wejście zwrócone";
+  if (item.entryStatus === "refund_required") return "Runda anulowana — zwrot w obsłudze";
   if (item.outcome === "lost") return "Aukcja zakończona";
   return "Uczestniczysz";
 }

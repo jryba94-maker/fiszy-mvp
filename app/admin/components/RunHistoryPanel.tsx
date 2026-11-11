@@ -320,8 +320,9 @@ export function RunHistoryPanel({
                                 ? "Wejście aktywne"
                                 : participant.entryStatus === "refunded"
                                   ? "Wejście zwrócone"
-                                  : "Status nieznany"}
+                                  : participant.entryStatus === "refund_required" ? "Do ręcznego zwrotu" : "Status nieznany"}
                               {participant.grantedAt ? ` · ${formatDateTime(participant.grantedAt)}` : ""}
+                              {participant.entryStatus === "refund_required" && participant.paymentReference ? <code> · {participant.paymentReference}</code> : null}
                             </span>
                           </li>
                         ))}

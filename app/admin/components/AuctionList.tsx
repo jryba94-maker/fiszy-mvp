@@ -35,6 +35,7 @@ type AuctionListProps = {
   onDuplicate: (auction: AdminAuction) => void;
   onStart: (auction: AdminAuction, startsAt: string) => void;
   onArchiveToggle: (auction: AdminAuction) => void;
+  onCancelRun: (auction: AdminAuction) => void;
 };
 
 function filterCount(auctions: AdminAuction[], filter: AuctionFilter) {
@@ -58,6 +59,7 @@ export function AuctionList({
   onDuplicate,
   onStart,
   onArchiveToggle,
+  onCancelRun,
 }: AuctionListProps) {
   const [now, setNow] = useState(() => Date.now());
   const [schedulingId, setSchedulingId] = useState<string | null>(null);
@@ -244,6 +246,11 @@ export function AuctionList({
                   >
                     {archived ? "Przywróć" : "Archiwizuj"}
                   </button>
+                  {auction.recordState === "published" && (auction.status === "waiting" || auction.status === "live") && auction.runId && auction.revision !== null ? (
+                    <button className={styles.secondaryButton} type="button" disabled={busy} onClick={() => onCancelRun(auction)}>
+                      Anuluj rundę
+                    </button>
+                  ) : null}
                   <button
                     className={styles.cardPrimaryButton}
                     type="button"
