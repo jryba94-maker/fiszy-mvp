@@ -214,7 +214,9 @@ export function AuctionCatalog() {
     }
   };
 
-  const auctions = catalog?.auctions ?? [];
+  const auctions = [...(catalog?.auctions ?? [])].sort((a, b) =>
+    Date.parse(a.startsAt) - Date.parse(b.startsAt) || a.auctionId.localeCompare(b.auctionId),
+  );
 
   return (
     <main className={styles.page}>

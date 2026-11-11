@@ -64,6 +64,7 @@ export async function listSortedSetPage(input: {
   limit: number;
   pruneBeforeScore?: number;
   expireSeconds?: number;
+  ascending?: boolean;
 }) {
   if (
     !PURPOSE_PATTERN.test(input.purpose) ||
@@ -95,13 +96,15 @@ if tonumber(ARGV[4]) and tonumber(ARGV[4]) > 0 then
 end
 
 local start = tonumber(ARGV[5]) or 0
+local rankCommand = ARGV[6] == "1" and "ZRANK" or "ZREVRANK"
+local rangeCommand = ARGV[6] == "1" and "ZRANGE" or "ZREVRANGE"
 if ARGV[1] ~= "" then
-  local rank = redis.call("ZREVRANK", KEYS[1], ARGV[1])
+  local rank = redis.call(rankCommand, KEYS[1], ARGV[1])
   if not rank then return {0} end
   start = rank + 1
 end
 
-local members = redis.call("ZREVRANGE", KEYS[1], start, start + tonumber(ARGV[2]))
+local members = redis.call(rangeCommand, KEYS[1], start, start + tonumber(ARGV[2]))
 local result = {1}
 for _, member in ipairs(members) do
   table.insert(result, member)
@@ -118,6 +121,7 @@ return result
     input.pruneBeforeScore ?? "",
     input.expireSeconds ?? 0,
     legacyOffset ?? 0,
+    input.ascending ? 1 : 0,
   ]);
   if (!Array.isArray(result) || result[0] !== 1) return null;
 

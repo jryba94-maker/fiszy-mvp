@@ -1078,7 +1078,8 @@ export async function listAuctionIds(input: {
     purpose:
       input.catalogOnly === false
         ? "auctions.all.v1"
-        : "auctions.catalog.v1",
+        : "auctions.catalog.asc.v1",
+    ascending: input.catalogOnly !== false,
     cursor: input.cursor,
     limit,
   });
