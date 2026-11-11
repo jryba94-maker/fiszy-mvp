@@ -34,11 +34,9 @@ test("ISTN has a separate canonical signature and acknowledgement keyed by remot
   assert.throws(() => verifyAutopayTransactions(signed(item)));
   assert.match(autopayAcknowledgement([item], true), /<remoteOutID>out123<\/remoteOutID>/);
 });
-test("production activation fails closed without sandbox verification, real seller data and order reuse protection", () => {
+test("production activation fails closed without verification or real seller data", () => {
   process.env.FISZY_PAYMENT_PROVIDER = "autopay";
   delete process.env.AUTOPAY_ORDER_REUSE_BLOCKED;
-  assert.equal(isPaymentProviderConfigured(), false);
-  process.env.AUTOPAY_ORDER_REUSE_BLOCKED = "true";
   assert.equal(isPaymentProviderConfigured(), true);
   delete process.env.AUTOPAY_FAST_GATEWAY_ID;
   assert.equal(autopayConfiguration().credentialsConfigured, true);

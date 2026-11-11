@@ -48,7 +48,11 @@ export function configuredPaymentProvider(): PaymentProviderName {
 export function isPaymentProviderConfigured() {
   if (configuredPaymentProvider() === "autopay") {
     const config = autopayConfiguration();
-    return config.credentialsConfigured && config.orderReuseBlocked && (config.sandbox || (config.verified && sellerReady()));
+    // A production service must be verified and have real seller details. Queue
+    // progression itself never assumes reusable OrderIDs: it waits for a signed,
+    // confirmed cancellation plus a final status check unless Autopay's explicit
+    // reuse guarantee is separately enabled.
+    return config.credentialsConfigured && (config.sandbox || (config.verified && sellerReady()));
   }
   return configuredPaymentProvider() === "stripe" && Boolean(process.env.STRIPE_SECRET_KEY);
 }
