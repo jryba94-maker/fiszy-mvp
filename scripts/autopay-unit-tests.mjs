@@ -67,3 +67,13 @@ test("Warsaw validity date and immutable price history keep independent meaning"
   assert.ok(auctionPublishIssues(defaultAuctionDefinition()).includes("lowest_price_history_missing"));
   assert.equal(parseStoredAuctionDefinition(defaultAuctionDefinition()).lowestPrice30DaysBeforeAuction, undefined);
 });
+
+test("Explicit first offer can be published without inventing price history", () => {
+  const firstOffer = parseAuctionDefinition({ ...defaultAuctionDefinition(), lowestPrice30DaysBeforeAuction: null, noPreviousOffer: true });
+  assert.equal(firstOffer.noPreviousOffer, true);
+  assert.equal(firstOffer.lowestPrice30DaysBeforeAuction, null);
+  assert.equal(parseStoredAuctionDefinition(firstOffer).noPreviousOffer, true);
+  assert.ok(!auctionPublishIssues(firstOffer).includes("lowest_price_history_missing"));
+  assert.ok(auctionPublishIssues({ ...firstOffer, noPreviousOffer: false }).includes("lowest_price_history_missing"));
+  assert.equal(parseAuctionDefinition({ ...firstOffer, lowestPrice30DaysBeforeAuction: 299 }).noPreviousOffer, undefined);
+});

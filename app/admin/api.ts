@@ -307,6 +307,7 @@ function normalizeAuction(value: unknown, index: number): AdminAuction {
         definition.entryFee,
       ) ?? 5,
     lowestPrice30DaysBeforeAuction: firstNumber(root.lowestPrice30DaysBeforeAuction, publicAuction.lowestPrice30DaysBeforeAuction, record.lowestPrice30DaysBeforeAuction, definition.lowestPrice30DaysBeforeAuction),
+    noPreviousOffer: asBoolean(record.noPreviousOffer ?? definition.noPreviousOffer ?? root.noPreviousOffer),
     regularPrice:
       firstNumber(
         root.regularPrice,
@@ -429,6 +430,7 @@ function definitionBody(input: AuctionDefinitionInput) {
     entryFee: input.entryFee,
     regularPrice: input.regularPrice,
     lowestPrice30DaysBeforeAuction: input.lowestPrice30DaysBeforeAuction ?? null,
+    noPreviousOffer: input.noPreviousOffer === true,
     startPrice: input.startPrice,
     floorPrice: input.floorPrice,
     durationMinutes: input.durationMinutes,
@@ -664,6 +666,8 @@ export async function startAuctionRun(
     postAuctionOffer: auction.postAuctionOffer,
     entryFee: auction.entryFee,
     regularPrice: auction.regularPrice,
+    lowestPrice30DaysBeforeAuction: auction.lowestPrice30DaysBeforeAuction,
+    noPreviousOffer: auction.noPreviousOffer,
     startPrice: auction.startPrice,
     floorPrice: auction.floorPrice,
     durationMinutes: auction.durationMinutes,

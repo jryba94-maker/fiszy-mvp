@@ -221,10 +221,10 @@ export function AuctionCatalog() {
       <PublicHeader />
 
       <section className={styles.launchIntro} aria-labelledby="hero-title">
-        <h1 id="hero-title">Pierwsza aukcja<span>.</span></h1>
+        <h1 id="hero-title">Aukcje<span>.</span></h1>
       </section>
 
-      <section className={styles.launchAuctions} id="aukcje" aria-label="Pierwsza aukcja Fiszy">
+      <section className={styles.launchAuctions} id="aukcje" aria-label="Lista aukcji">
         {catalog?.fallback ? (
           <p className={styles.notice} role="status">
             Katalog jest jeszcze podłączany. Pokazujemy dostępną aukcję testową — jej mechanika działa normalnie.
@@ -249,8 +249,8 @@ export function AuctionCatalog() {
             ))}
             {!auctions.length && !error ? (
               <div className={styles.emptyBox}>
-                <p>Nie ma teraz aktywnej aukcji.</p>
-                <span>Szczegóły pierwszej aukcji pojawią się tutaj.</span>
+                <p>Nie ma jeszcze opublikowanych aukcji.</p>
+                <span>Nowe terminy pojawią się tutaj.</span>
               </div>
             ) : null}
             {error ? (

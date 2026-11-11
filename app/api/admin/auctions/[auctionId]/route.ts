@@ -105,6 +105,8 @@ export async function PATCH(request: NextRequest, context: Context) {
       postAuctionOffer: body.postAuctionOffer ?? record.postAuctionOffer,
       entryFee: body.entryFee ?? record.entryFee,
       regularPrice: body.regularPrice ?? record.regularPrice,
+      lowestPrice30DaysBeforeAuction: body.lowestPrice30DaysBeforeAuction === undefined ? record.lowestPrice30DaysBeforeAuction : body.lowestPrice30DaysBeforeAuction,
+      noPreviousOffer: body.noPreviousOffer ?? record.noPreviousOffer,
       startPrice: body.startPrice ?? record.startPrice,
       floorPrice: body.floorPrice ?? record.floorPrice,
       durationMinutes: body.durationMinutes ?? record.durationMinutes,
@@ -137,6 +139,8 @@ export async function PATCH(request: NextRequest, context: Context) {
       definition.postAuctionOffer.inventory !== record.postAuctionOffer.inventory ||
       definition.entryFee !== record.entryFee ||
       definition.regularPrice !== record.regularPrice ||
+      (definition.lowestPrice30DaysBeforeAuction ?? null) !== (record.lowestPrice30DaysBeforeAuction ?? null) ||
+      Boolean(definition.noPreviousOffer) !== Boolean(record.noPreviousOffer) ||
       definition.startPrice !== record.startPrice ||
       definition.floorPrice !== record.floorPrice ||
       definition.durationMinutes !== record.durationMinutes;

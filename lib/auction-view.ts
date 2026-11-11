@@ -221,8 +221,8 @@ export async function listPublicAuctions(input: {
   const auctions: PublicAuction[] = [];
   let cursor = input.cursor ?? null;
 
-  // The catalog index is historical, so ended runs can remain in it. Read
-  // bounded pages until the requested number of available auctions is filled.
+  // Skip stale index entries and unpublished records without hiding any
+  // published auction, regardless of the state of its current run.
   for (let pageNumber = 0; pageNumber < 20 && auctions.length < limit; pageNumber += 1) {
     const page = await listAuctionIds({
       cursor,
@@ -233,11 +233,7 @@ export async function listPublicAuctions(input: {
 
     const bases = await readAuctionBases(page.auctionIds);
     const hydrated = await hydratePublicAuctions(bases, { now: Date.now() });
-    auctions.push(
-      ...hydrated
-        .map(({ auction }) => auction)
-        .filter((auction) => auction.status === "waiting" || auction.status === "live"),
-    );
+    auctions.push(...hydrated.map(({ auction }) => auction));
     cursor = page.nextCursor;
     if (!cursor) break;
   }

@@ -20,6 +20,14 @@ function startLabel(auction: PublicAuction) {
   return "Ta aukcja dobiegła końca";
 }
 
+const statusLabels: Record<PublicAuction["status"], string> = {
+  waiting: "Nadchodząca aukcja",
+  live: "Aukcja trwa",
+  payment_pending: "Płatność w toku",
+  sold: "Sprzedano",
+  ended: "Zakończona",
+};
+
 export function AuctionCard({ auction, watched = false, watchBusy = false, onWatchToggle = () => undefined }: {
   auction: PublicAuction;
   watched?: boolean;
@@ -27,7 +35,7 @@ export function AuctionCard({ auction, watched = false, watchBusy = false, onWat
   onWatchToggle?: (auctionId: string, watched: boolean) => void;
 }) {
   const titleId = `auction-card-${auction.auctionId.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
-  const displayedPriceLabel = auction.status === "waiting" ? "Cena startowa" : "Aktualna cena";
+  const displayedPriceLabel = auction.status === "waiting" ? "Cena startowa" : auction.status === "sold" || auction.status === "ended" ? "Cena końcowa" : "Aktualna cena";
   return (
     <article className={`${styles.auctionCard} ${styles.featureCard}`} aria-labelledby={titleId}>
       <SafeAuctionImage
@@ -37,7 +45,7 @@ export function AuctionCard({ auction, watched = false, watchBusy = false, onWat
         frameClassName={styles.cardImage}
       />
       <div className={styles.cardBody}>
-        <p className={styles.featureStatus}>{auction.status === "waiting" ? "Nadchodzi pierwsza aukcja" : auction.status === "live" ? "Aukcja trwa" : "Pierwsza aukcja Fiszy"}</p>
+        <p className={styles.featureStatus}>{statusLabels[auction.status]}</p>
         <h3 className={styles.cardTitle} id={titleId}>{auction.product}</h3>
         <div className={styles.cardMeta}>{startLabel(auction)} · {auction.durationMinutes} min</div>
         <div className={styles.priceRow}>
