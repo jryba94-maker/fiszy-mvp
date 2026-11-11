@@ -5,6 +5,7 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 type ClerkEmailAddress = {
   id?: unknown;
   email_address?: unknown;
+  verification?: { status?: unknown };
 };
 
 type ClerkUser = {
@@ -25,7 +26,7 @@ export function accountIdFromParticipantId(participantId: string) {
   return ACCOUNT_ID_PATTERN.test(accountId) ? accountId : null;
 }
 
-export async function readClerkAccountEmail(accountIdValue: string) {
+export async function readClerkAccountEmail(accountIdValue: string, options: { verifiedOnly?: boolean } = {}) {
   const accountId = accountIdValue.trim();
   const secret = process.env.CLERK_SECRET_KEY?.trim();
   if (!ACCOUNT_ID_PATTERN.test(accountId) || !secret?.startsWith("sk_")) return null;
@@ -38,7 +39,10 @@ export async function readClerkAccountEmail(accountIdValue: string) {
       signal: AbortSignal.timeout(5_000),
     },
   );
-  if (!response.ok) return null;
+  if (!response.ok) {
+    if (options.verifiedOnly && response.status !== 404) throw new Error("Clerk email lookup failed.");
+    return null;
+  }
 
   const user = (await response.json()) as ClerkUser;
   const addresses = Array.isArray(user.email_addresses)
@@ -50,5 +54,6 @@ export async function readClerkAccountEmail(accountIdValue: string) {
   const primary = primaryId
     ? addresses.find((address) => address.id === primaryId)
     : addresses[0];
+  if (options.verifiedOnly && (!primaryId || primary?.verification?.status !== "verified")) return null;
   return validEmail(primary?.email_address);
 }

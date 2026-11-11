@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { applyResendDeliveryEvent, type OutboxMessage } from "../../../../lib/message-outbox";
+import { recordCampaignDelivery } from "../../../../lib/campaign-delivery";
 import { verifyResendWebhook } from "../../../../lib/resend-webhook";
 
 export const dynamic = "force-dynamic";
@@ -17,11 +18,16 @@ export async function POST(request: NextRequest) {
   if (!verifyResendWebhook({ payload, id, timestamp, signature, secret })) return NextResponse.json({ outcome: "invalid_signature" }, { status: 400 });
   let event: unknown;
   try { event = JSON.parse(payload); } catch { return NextResponse.json({ outcome: "invalid_payload" }, { status: 400 }); }
-  const value = event as { type?: unknown; created_at?: unknown; data?: { email_id?: unknown } };
+  const value = event as { type?: unknown; created_at?: unknown; data?: { email_id?: unknown; tags?: { fiszy_campaign?: unknown } } };
   const status = typeof value.type === "string" ? TYPES[value.type] : null;
-  if (!status) return NextResponse.json({ outcome: "ignored" });
+  const campaignId = value.data?.tags?.fiszy_campaign;
+  if (!status && !campaignId) return NextResponse.json({ outcome: "ignored" });
   if (typeof value.created_at !== "string" || typeof value.data?.email_id !== "string") return NextResponse.json({ outcome: "invalid_payload" }, { status: 400 });
   try {
+    if (campaignId && typeof value.type === "string" && await recordCampaignDelivery({ campaignId, providerMessageId: value.data.email_id, type: value.type })) {
+      return NextResponse.json({ outcome: "campaign_updated" });
+    }
+    if (!status) return NextResponse.json({ outcome: "ignored" });
     const result = await applyResendDeliveryEvent({ eventId: id, providerMessageId: value.data.email_id, status, occurredAt: value.created_at });
     return NextResponse.json({ outcome: result?.outcome ?? "invalid_payload" }, { status: result ? 200 : 400 });
   } catch (error) {
