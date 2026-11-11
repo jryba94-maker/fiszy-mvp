@@ -226,7 +226,7 @@ try {
   await assert.rejects(createAutopaySession("auction_purchase", input), /cannot support/);
   assert.equal(starts, beforeSlowChannel);
   process.env.AUTOPAY_FAST_GATEWAY_ID = "997"; channelMinimum = null; channelGroup = "BNPL";
-  await assert.rejects(createAutopaySession("auction_purchase", input), /cannot support/);
+  await assert.rejects(createAutopaySession("auction_purchase", input), /BLIK channel is unavailable or ambiguous/);
   assert.equal(starts, beforeSlowChannel);
   process.env.AUTOPAY_FAST_GATEWAY_ID = "999"; channelGroup = "BLIK";
   const entryAuction=await seed("entry",true);
