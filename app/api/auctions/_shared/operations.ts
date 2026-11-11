@@ -40,7 +40,7 @@ import { errorDetails, logEvent } from "../../../../lib/observability";
 import { advanceAuctionQueue, purchaseDeadline } from "../../../../lib/auction-queue";
 import { readAutopayEntryIntent } from "../../../../lib/autopay-storage";
 import { recordEntryServiceConsent } from "../../../../lib/entry-service-consent";
-import { AutopayCustomerError, autopayCustomer } from "../../../../lib/payment-providers/autopay";
+import { AutopayCustomerError, autopayCustomer, expireAutopaySession } from "../../../../lib/payment-providers/autopay";
 
 const PURCHASE_CHECKOUT_WINDOW_SECONDS = 2 * 60;
 
@@ -154,12 +154,28 @@ export async function handleEntryGet(
       bidderId,
       active.auctionId,
     );
+    let paymentPending = false;
+    if (!entry && configuredPaymentProvider() === "autopay") {
+      let intent = await readAutopayEntryIntent(active.auctionId, active.config.runId, bidderId);
+      // A pre-transaction that never supplied a hosted checkout URL is not a
+      // customer-visible payment. Reconcile it with Autopay on the next page
+      // load so an operator-side cancellation immediately restores the button.
+      if (intent?.status === "unknown" && !intent.checkoutUrl) {
+        try {
+          await expireAutopaySession(intent.reference, true);
+          intent = await readAutopayEntryIntent(active.auctionId, active.config.runId, bidderId);
+        } catch (error) {
+          logEvent("autopay_entry_reconciliation_failed", errorDetails(error), "warning");
+        }
+      }
+      paymentPending = Boolean(intent && intent.status !== "failed");
+    }
     return NextResponse.json({
       outcome: "ok",
       auctionId: active.auctionId,
       runId: active.config.runId,
       hasEntry: Boolean(entry),
-      paymentPending: !entry && configuredPaymentProvider() === "autopay" ? await readAutopayEntryIntent(active.auctionId, active.config.runId, bidderId).then(intent => Boolean(intent && intent.status !== "failed")) : false,
+      paymentPending,
       entryFee: active.config.entryFee,
       grantedAt: entry?.grantedAt ?? null,
     });
