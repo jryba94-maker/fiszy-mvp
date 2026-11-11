@@ -798,10 +798,23 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
           </div>
         </section>
 
-        <section className={styles.proof} aria-label="Zasady bezpieczeństwa aukcji">
-          <div className={styles.proofItem}><strong>Wejście przed startem</strong><span>Dołączasz do wybranej rundy do chwili jej rozpoczęcia.</span></div>
-          <div className={styles.proofItem}><strong>Kolejka decyzji</strong><span>Serwer zapisuje kliknięcie, cenę i kolejność — bez przewagi odświeżania strony.</span></div>
-          <div className={styles.proofItem}><strong>Bezpieczne rozliczenie</strong><span>Wejście i zakup odbywają się w szyfrowanym systemie operatora płatności.</span></div>
+        <section className={styles.proof} aria-label="Jak działa aukcja i płatność">
+          <div className={styles.proofItem}>
+            <strong>Ty wybierasz moment</strong>
+            <span>Cena spada w trakcie aukcji. Kliknij, gdy Ci odpowiada. Fiszy zapisze cenę z chwili kliknięcia.</span>
+          </div>
+          <div className={styles.proofItem}>
+            <strong>Pierwszy klik daje pierwszeństwo</strong>
+            <span>Osoba, która kliknie pierwsza, ma 2 minuty na zapłatę. Jeśli płatność nie dojdzie do skutku, szansę na zakup dostaje kolejna osoba w kolejce.</span>
+          </div>
+          <div className={`${styles.proofItem} ${styles.paymentBanner}`}>
+            <div>
+              <strong>Bezpieczne płatności</strong>
+              <span>Opłatę za wejście i zakup obsługuje Autopay na szyfrowanej stronie płatności.</span>
+              <span className={styles.paymentMethods}>Wejście · metody dostępne w Autopay<br />Zakup produktu · BLIK</span>
+            </div>
+            <Image src="/autopay-white.svg" width={107} height={27} alt="Autopay" />
+          </div>
         </section>
       </div>
 

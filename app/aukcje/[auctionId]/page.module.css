@@ -318,7 +318,7 @@
 
 .proof {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
   margin-top: 18px;
 }
@@ -341,6 +341,20 @@
   color: #666963;
   font-size: 0.75rem;
   line-height: 1.45;
+}
+
+.paymentBanner {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px 24px;
+}
+
+.paymentMethods {
+  display: block;
+  margin-top: 8px;
 }
 
 .mobileAction {
