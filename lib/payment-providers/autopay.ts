@@ -72,10 +72,13 @@ export async function createAutopaySession(kind: AutopayIntent["kind"], input: C
     const url = xmlField(tx, "redirecturl");
     const orderId = xmlField(tx, "orderID");
     const remoteId = xmlField(tx, "remoteID");
-    // The documented spelling is `hash`; some live Autopay service profiles
-    // return the same signed field as `Hash`.
-    verifyAutopayHash([status, url, orderId, remoteId], xmlField(tx, "hash", false) || xmlField(tx, "Hash"));
     if (status !== "PENDING" || orderId !== intent.orderId || !/^[A-Za-z0-9]{1,20}$/.test(remoteId) || new URL(url).origin !== config.host) throw new Error("Invalid Autopay continuation.");
+    // Settlement never trusts this redirect: only a signed ITN can grant entry
+    // or complete a sale. Some verified live service profiles return an unsigned
+    // continuation URL, while others return `hash`/`Hash` as documented.
+    const responseHash = xmlField(tx, "hash", false) || xmlField(tx, "Hash", false) || xmlField(root, "hash", false) || xmlField(root, "Hash", false);
+    if (responseHash) verifyAutopayHash([status, url, orderId, remoteId], responseHash);
+    else console.warn("Autopay returned an unsigned continuation URL; awaiting signed ITN for settlement.");
     intent = await updateAutopayIntent(intent.reference, { status: "processing", checkoutUrl: url, remoteId });
     return session(intent, "processing");
   } catch (error) {
