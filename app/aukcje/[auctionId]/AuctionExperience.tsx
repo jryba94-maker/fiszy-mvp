@@ -165,6 +165,8 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
   const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [entryPaymentPending, setEntryPaymentPending] = useState(false);
   const [entryServiceAccepted, setEntryServiceAccepted] = useState(false);
+  const [consentAction, setConsentAction] = useState<"entry" | "buy" | null>(null);
+  const consentDialog = useRef<HTMLDialogElement>(null);
   const [queueData, setQueueData] = useState<{ scope: string; status: BuyerQueueStatus } | null>(null);
   const [queueError, setQueueError] = useState(false);
   const checkoutAttemptRef = useRef<string | null>(null);
@@ -493,7 +495,7 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
     else if (isEntering) actionLabel = "PRZECHODZĘ DO PŁATNOŚCI…";
     else if (isBuying) actionLabel = "REZERWUJĘ…";
     else if (entryPaymentPending) actionLabel = "POTWIERDZAMY OPŁATĘ ZA WEJŚCIE";
-    else if (canEnter) actionLabel = `OPŁAĆ WEJŚCIE — ${auction.entryFee} ZŁ`;
+    else if (canEnter) actionLabel = "CHCĘ WZIĄĆ UDZIAŁ";
     else if (isPaying) actionLabel = "DOKOŃCZ PŁATNOŚĆ";
     else if (isQueued) actionLabel = `JESTEŚ ${buyerQueue?.position}. W KOLEJCE`;
     else if (isProcessing) actionLabel = paymentClosing ? "ZAMYKAMY PŁATNOŚĆ" : "TRWA TWOJA TURA";
@@ -506,10 +508,22 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
     else if (displayStatus === "sold") actionLabel = "SPRZEDANE";
     else actionLabel = "AUKCJA ZAKOŃCZONA";
   }
-  const actionDisabled = !isAuthLoaded || checkingEntry || isEntering || isBuying || (canEnter && !entryServiceAccepted) || (!canEnter && !canBuy && !needsSignIn);
+  const actionDisabled = !isAuthLoaded || checkingEntry || isEntering || isBuying || (!canEnter && !canBuy && !needsSignIn);
+  const consentRunId = auction?.runId;
+  useEffect(() => {
+    if ((consentAction === "entry" && !canEnter) || (consentAction === "buy" && !canBuy)) {
+      consentDialog.current?.close();
+    }
+  }, [canEnter, canBuy, consentAction]);
+  useEffect(() => {
+    consentDialog.current?.close();
+  }, [consentRunId, userId]);
+  useEffect(() => {
+    setAgeConfirmed(false);
+  }, [userId]);
 
   const handleEntry = async () => {
-    if (!auction || !canEnter || isEntering) return;
+    if (!auction || !canEnter || isEntering || !ageConfirmed || !entryServiceAccepted) return;
     setIsEntering(true);
     setEntryFeedback(null);
     try {
@@ -536,7 +550,7 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
   };
 
   const handleBuy = async () => {
-    if (!auction || !canBuy || isBuying) return;
+    if (!auction || !canBuy || isBuying || !ageConfirmed) return;
     setIsBuying(true);
     setPurchaseFeedback(null);
     try {
@@ -603,8 +617,16 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
     if (needsSignIn) {
       const redirectUrl = `${window.location.pathname}${window.location.search}`;
       window.location.assign(`/sign-in?redirect_url=${encodeURIComponent(redirectUrl)}`);
+    } else if (canEnter || (canBuy && !ageConfirmed)) {
+      setConsentAction(canEnter ? "entry" : "buy");
+      setEntryServiceAccepted(false);
+      if (canEnter) {
+        setEntryFeedback(null);
+        setAgeConfirmed(false);
+      }
+      else setPurchaseFeedback(null);
+      consentDialog.current?.showModal();
     } else if (canBuy) void handleBuy();
-    else if (canEnter) void handleEntry();
   };
 
   if (!auction) {
@@ -639,7 +661,9 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
 
   const actionNote = (hasCurrentEntry || checkingEntry)
     ? null
-     : canEnter && !entryServiceAccepted ? "Przed płatnością zaznacz oświadczenie o rozpoczęciu usługi powyżej." : `Jednorazowe wejście do tej aukcji: ${auction.entryFee} zł`;
+    : `Jednorazowe wejście do tej aukcji: ${auction.entryFee} zł`;
+  const consentBusy = isEntering || isBuying;
+  const consentFeedback = consentAction === "entry" ? entryFeedback : purchaseFeedback;
 
   return (
     <main className={styles.page}>
@@ -758,8 +782,6 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
             </div>
 
             <div className={`${styles.actionArea} ${styles.desktopAction}`}>
-              {canEnter ? <EntryServiceConsent checked={entryServiceAccepted} fee={auction.entryFee} onChange={setEntryServiceAccepted} /> : null}
-              {(canEnter || canBuy) ? <label className={styles.ageConfirmation}><input type="checkbox" checked={ageConfirmed} onChange={(event) => setAgeConfirmed(event.target.checked)} /><span>Potwierdzam, że mam ukończone 18 lat i akceptuję <Link href="/regulamin">Regulamin</Link>.</span></label> : null}
               <button
                 className={styles.primaryButton}
                 type="button"
@@ -788,8 +810,6 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
       </div>
 
       <div className={styles.mobileAction}>
-        {canEnter ? <EntryServiceConsent checked={entryServiceAccepted} fee={auction.entryFee} onChange={setEntryServiceAccepted} /> : null}
-              {(canEnter || canBuy) ? <label className={styles.ageConfirmation}><input type="checkbox" checked={ageConfirmed} onChange={(event) => setAgeConfirmed(event.target.checked)} /><span>Potwierdzam, że mam ukończone 18 lat i akceptuję <Link href="/regulamin">Regulamin</Link>.</span></label> : null}
         <button
           className={styles.primaryButton}
           type="button"
@@ -809,6 +829,23 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
         </p>
         ) : null}
       </div>
+      <dialog ref={consentDialog} className={styles.consentDialog} aria-labelledby="consent-title" onClose={() => setConsentAction(null)} onCancel={(event) => { if (consentBusy) event.preventDefault(); }}>
+        <div className={styles.consentHeader}>
+          <h2 id="consent-title">{consentAction === "buy" ? "Potwierdź udział" : "Wejście do aukcji"}</h2>
+          <button type="button" aria-label="Zamknij" disabled={consentBusy} onClick={() => consentDialog.current?.close()}>×</button>
+        </div>
+        <fieldset disabled={consentBusy} className={styles.consentFields}>
+          {consentAction === "entry" ? <EntryServiceConsent checked={entryServiceAccepted} fee={auction.entryFee} onChange={setEntryServiceAccepted} /> : null}
+          <label className={styles.ageConfirmation}><input type="checkbox" checked={ageConfirmed} onChange={(event) => setAgeConfirmed(event.target.checked)} /><span>Potwierdzam, że mam ukończone 18 lat i akceptuję <Link href="/regulamin" target="_blank" rel="noopener noreferrer">Regulamin</Link>.</span></label>
+        </fieldset>
+        {consentFeedback ? <p className={`${styles.feedback} ${consentFeedback.error ? styles.feedbackError : ""}`} role={consentFeedback.error ? "alert" : "status"}>{consentFeedback.text}</p> : null}
+        <button className={styles.primaryButton} type="button" disabled={consentBusy || !ageConfirmed || (consentAction === "entry" ? !canEnter || !entryServiceAccepted : !canBuy)} onClick={() => {
+          if (consentAction === "entry") void handleEntry();
+          else if (consentAction === "buy") { consentDialog.current?.close(); void handleBuy(); }
+        }}>
+          {consentAction === "buy" ? actionLabel : isEntering ? "PRZECHODZĘ DO PŁATNOŚCI…" : `OPŁAĆ WEJŚCIE — ${auction.entryFee} ZŁ`}
+        </button>
+      </dialog>
     </main>
   );
 }

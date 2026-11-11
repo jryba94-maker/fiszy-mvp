@@ -666,3 +666,23 @@
 
 .paymentResume { display: inline-flex; align-items: center; justify-content: center; padding: 12px 18px; border: 1px solid #9c72e1; border-radius: 999px; color: #eadbff; text-decoration: none; font-weight: 600; }
 .paymentResume:focus-visible { outline: 2px solid #fff; outline-offset: 4px; }
+.consentDialog {
+  box-sizing: border-box;
+  width: min(460px, calc(100% - 24px));
+  max-height: calc(100dvh - 24px);
+  margin: auto;
+  padding: clamp(16px, 4vw, 26px);
+  border: 1px solid #3a3246;
+  border-radius: 20px;
+  background: #17141d;
+  color: #fff;
+  overscroll-behavior: contain;
+}
+
+.consentDialog::backdrop { background: rgb(0 0 0 / 72%); }
+.consentHeader { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.consentHeader h2 { margin: 0; font-size: 1.25rem; }
+.consentHeader button { flex: 0 0 44px; min-height: 44px; border: 1px solid #4b4258; border-radius: 12px; background: transparent; color: inherit; font-size: 1.4rem; cursor: pointer; }
+.consentFields { display: grid; gap: 12px; min-inline-size: 0; margin: 0 0 16px; padding: 0; border: 0; }
+.consentFields .entryServiceConsent, .consentFields .ageConfirmation { margin: 0; }
+.consentDialog > .primaryButton { width: 100%; }
