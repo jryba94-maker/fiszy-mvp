@@ -4,12 +4,13 @@ import { NextRequest } from "next/server.js";
 import { redis } from "./local-redis-test-client.mjs";
 import { autopayDate } from "../lib/payment-providers/autopay-protocol.ts";
 import { createAutopaySession, expireAutopaySession } from "../lib/payment-providers/autopay.ts";
-import { readAutopayIntent, readAutopayRefund, autopayRefundId, reserveAutopayIntent } from "../lib/autopay-storage.ts";
-import { enqueueAuctionPurchase, readAuctionQueueStatus, readAuctionWinner, auctionConfigKey, auctionRecordKey, entryKey, winnerKey } from "../lib/auction-storage.ts";
+import { autopayOperationalIssues, readAutopayIntent, readAutopayRefund, autopayRefundId, reserveAutopayIntent } from "../lib/autopay-storage.ts";
+import { createAuctionRecord, enqueueAuctionPurchase, readAuctionQueueStatus, readAuctionWinner, auctionConfigKey, auctionRecordKey, entryKey, winnerKey } from "../lib/auction-storage.ts";
 import { reconcileAuctionTurnDeadline } from "../lib/auction-turn-deadline.ts";
 import { advanceAuctionQueue } from "../lib/auction-queue.ts";
 import { POST as itn } from "../app/api/payments/autopay/itn/route.ts";
 import { POST as istn } from "../app/api/payments/autopay/istn/route.ts";
+import { createProduct, defaultProductInput, readAuctionProductId } from "../lib/product-storage.ts";
 import { readAuctionOrder } from "../lib/order-storage.ts";
 import { recordEntryServiceConsent, readEntryServiceConsent } from "../lib/entry-service-consent.ts";
 Object.assign(process.env, { VERCEL_ENV: "development", STORAGE_KV_REST_API_URL: "http://autopay-redis.invalid", STORAGE_KV_REST_API_TOKEN: "test", FISZY_PAYMENT_PROVIDER: "autopay", AUTOPAY_ENVIRONMENT: "sandbox", AUTOPAY_SERVICE_ID: "12345", AUTOPAY_SHARED_KEY: "integration-fixture-key", AUTOPAY_FAST_GATEWAY_ID: "999", AUTOPAY_START_URL: "https://testpay.autopay.eu/payment-fixture", AUTOPAY_HASH_ALGORITHM: "sha256", AUTOPAY_ORDER_REUSE_BLOCKED: "true", CLERK_SECRET_KEY: "sk_test_fixture" });
@@ -98,6 +99,18 @@ async function seed(name, future = false) {
 try {
   for (const account of accounts) await redis(["SET", `${namespace}:account:${account}:profile`, JSON.stringify({ schemaVersion: 1, accountId: account, revision: 1, fullName: "Fixture User", phone: "+48123456789", address: { label: "Dom", line1: "Testowa 1", line2: null, postalCode: "00-001", city: "Warszawa", country: "PL" }, preferences: { emailAuctionStart: false, emailWin: false, emailOrderUpdates: false, marketing: false, analytics: false }, ageConfirmedAt: new Date(now).toISOString(), deletionRequestedAt: null, createdAt: new Date(now).toISOString(), updatedAt: new Date(now).toISOString() })]);
   const auction = await seed("paid");
+  const product = await createProduct({ ...defaultProductInput(), sku: "AUDIT-FIXTURE", name: "Fixture product" });
+  assert.ok(product);
+  const source = JSON.parse(await redis(["GET", auctionRecordKey(auction)]));
+  const draft = { ...source, auctionId: `autopay-linked-${tag}`, currentRunId: null, state: "draft" };
+  assert.equal(await createAuctionRecord(draft, { productId: product.productId, expectedRevision: product.revision + 1 }), -1);
+  assert.equal(await redis(["GET", auctionRecordKey(draft.auctionId)]), null);
+  assert.equal(await readAuctionProductId(draft.auctionId), null);
+  assert.equal(await createAuctionRecord(draft, { productId: product.productId, expectedRevision: product.revision }), 1);
+  assert.equal(await readAuctionProductId(draft.auctionId), product.productId);
+  assert.equal(await createAuctionRecord(draft), 0);
+  assert.equal((await autopayOperationalIssues()).inspectedRecentPayments, 0);
+
   const head = await readAuctionWinner(run, auction);
   const input = { auctionId: auction, runId: run, bidderId: bidders[0], amount: 9500, claimToken: head.claimedAt, expiresAt: Math.floor(now/1000)+120 };
   const payment = await createAutopaySession("auction_purchase", input);
@@ -236,6 +249,9 @@ try {
     if(value?.includes(consent.version) && value.includes("Warunki usługi")) foundReceipt=true;
   }
   assert.equal(foundReceipt,true);
+  const diagnostics = await autopayOperationalIssues();
+  assert.ok(diagnostics.inspectedRecentPayments > 0);
+  assert.ok(diagnostics.inspectedRecentRefunds > 0);
   console.log(JSON.stringify({outcome:"passed",concurrentAdvanceRequests:150,consentRetries:150,duplicatePaidNotifications:10,lateSuccess:"one order",ambiguousCreate:"held",failure:"next buyer",cutoff:"pending cancel + signed full close and status required",queuedWindow:"fresh 120 seconds at promotion after 10 minutes wait",slowChannels:"rejected",refund:"only bank CONFIRMED completes",entry:"only ITN grants; immutable receipt persisted",note:"Real isolated Redis/Lua; provider HTTP responses simulated. No live Autopay certification."}));
 } finally {
   Date.now=originalNow;globalThis.fetch=previousFetch;

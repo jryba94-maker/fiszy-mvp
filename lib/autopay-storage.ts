@@ -121,13 +121,19 @@ export async function autopayOperationalIssues() {
     redisCommand<string[]>(["ZREVRANGE", `${prefix()}:intents`, 0, 99]),
     redisCommand<string[]>(["ZREVRANGE", `${prefix()}:refunds`, 0, 99]),
   ]);
-  const [intents, refunds] = await Promise.all([
-    Promise.all((intentRefs ?? []).map(readAutopayIntent)),
-    Promise.all((refundIds ?? []).map(readAutopayRefund)),
+  const [intentRecords, refundRecords] = await Promise.all([
+    intentRefs?.length
+      ? redisCommand<Array<string | null>>(["MGET", ...intentRefs.map(autopayIntentKey)])
+      : [],
+    refundIds?.length
+      ? redisCommand<Array<string | null>>(["MGET", ...refundIds.map(refundKey)])
+      : [],
   ]);
+  const intents = (intentRecords ?? []).map((raw) => raw ? JSON.parse(raw) as AutopayIntent : null);
+  const refunds = (refundRecords ?? []).map((raw) => raw ? JSON.parse(raw) as AutopayRefund : null);
   const cutoff = Date.now() - 30 * 60_000;
   return {
-    stalePayments: intents.filter((intent): intent is AutopayIntent => Boolean(intent && !["paid", "failed"].includes(intent.status) && Date.parse(intent.paymentValidUntil) < cutoff)).map(intent => ({ reference: intent.reference, status: intent.status, createdAt: intent.createdAt })),
+    stalePayments: intents.filter((intent): intent is AutopayIntent => Boolean(intent && !["paid", "failed"].includes(intent.status) && Date.parse(intent.paymentValidUntil) < cutoff)).map(intent => ({ reference: intent.reference, status: intent.status, createdAt: intent.createdAt, auctionId: intent.auctionId, runId: intent.runId, remoteId: intent.remoteId })),
     refundsRequiringAttention: refunds.filter((refund): refund is AutopayRefund => Boolean(refund && (refund.state === "failed" || (refund.state !== "completed" && Date.parse(refund.updatedAt) < Date.now() - 7 * 86_400_000)))).map(refund => ({ messageId: refund.messageId, reference: refund.reference, state: refund.state, amount: refund.amount, updatedAt: refund.updatedAt })),
     inspectedRecentPayments: intentRefs?.length ?? 0,
     inspectedRecentRefunds: refundIds?.length ?? 0,

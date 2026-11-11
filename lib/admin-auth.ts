@@ -15,11 +15,13 @@ export type AdminPermission =
   | "users:read"
   | "users:write"
   | "support:write"
-  | "audit:read";
+  | "audit:read"
+  | "operations:write"
+  | "marketing:write";
 
 const ROLE_PERMISSIONS: Record<AdminRole, AdminPermission[]> = {
-  owner: ["auctions:write", "orders:write", "users:read", "users:write", "support:write", "audit:read"],
-  operator: ["auctions:write", "orders:write", "users:read", "support:write", "audit:read"],
+  owner: ["auctions:write", "orders:write", "users:read", "users:write", "support:write", "audit:read", "operations:write", "marketing:write"],
+  operator: ["auctions:write", "orders:write", "users:read", "support:write", "audit:read", "operations:write", "marketing:write"],
   support: ["users:read", "support:write"],
   viewer: ["users:read", "audit:read"],
 };
@@ -137,6 +139,10 @@ export function adminPrincipalSessionToken(principal: AdminPrincipal) {
   return `v2.${expiresAt}.${principal.role}.${principal.actorRef}.${nonce}.${principalSessionSignature(secret, expiresAt, principal.role, principal.actorRef, nonce)}`;
 }
 
+function individualAdminActorRef(userId: string, signingSecret: string) {
+  return createHmac("sha256", signingSecret).update(userId).digest("hex").slice(0, 20);
+}
+
 function verifiedCookiePrincipal(token: string | undefined): AdminPrincipal | null {
   if (!token) return null;
   if (!token.startsWith("v2.")) {
@@ -156,7 +162,12 @@ function verifiedCookiePrincipal(token: string | undefined): AdminPrincipal | nu
     Number(expiresAt) <= now || Number(expiresAt) > now + ADMIN_SESSION_SECONDS + 60 ||
     !safeEqual(signature, principalSessionSignature(secret, expiresAt, role, actorRef, nonce))
   ) return null;
-  return { role, permissions: [...ROLE_PERMISSIONS[role]], actorType: "admin_clerk", actorRef };
+  for (const [userId, currentRole] of configuredIndividualAdmins()) {
+    if (individualAdminActorRef(userId, secret) === actorRef) {
+      return { role: currentRole, permissions: [...ROLE_PERMISSIONS[currentRole]], actorType: "admin_clerk", actorRef };
+    }
+  }
+  return null;
 }
 
 function verifiedSynchronousPrincipal(request: NextRequest): AdminPrincipal | null {
@@ -208,10 +219,7 @@ export async function resolveAdminPrincipal(request: NextRequest): Promise<Admin
     const { userId } = await auth();
     const role = userId ? admins.get(userId) : null;
     if (!userId || !role) return null;
-    const actorRef = createHmac("sha256", signingSecret)
-      .update(userId)
-      .digest("hex")
-      .slice(0, 20);
+    const actorRef = individualAdminActorRef(userId, signingSecret);
     return { role, permissions: [...ROLE_PERMISSIONS[role]], actorType: "admin_clerk", actorRef };
   } catch {
     return null;

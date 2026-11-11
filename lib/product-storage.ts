@@ -406,15 +406,8 @@ export async function adjustProductInventory(input: {
   });
 }
 
-export async function linkProductAuction(productIdValue: string, auctionIdValue: string) {
-  const productId = normalizeProductId(productIdValue);
-  const auctionId = normalizeAuctionId(auctionIdValue);
-  if (!productId || !auctionId) return false;
-  const product = await readProduct(productId);
-  if (!product || product.status === "archived") return false;
-  const result = await redisCommand<string>(["SET", auctionProductKey(auctionId), productId, "NX"]);
-  if (result === "OK") return true;
-  return (await redisCommand<string>(["GET", auctionProductKey(auctionId)])) === productId;
+export function productAuctionLinkKeys(productId: string, auctionId: string) {
+  return [productKey(productId), auctionProductKey(auctionId)] as const;
 }
 
 export async function readAuctionProductId(auctionIdValue: string) {

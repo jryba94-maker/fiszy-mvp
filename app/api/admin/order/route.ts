@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { hasValidAdminRequest, isAdminConfigured } from "../../../../lib/admin-auth";
+import { hasAdminPermission, hasValidAdminRequest, isAdminConfigured } from "../../../../lib/admin-auth";
 import { LEGACY_AUCTION_ID } from "../../../../lib/auction";
 import { readAuctionConfig } from "../../../../lib/auction-storage";
 import {
@@ -19,6 +19,9 @@ export async function GET(request: NextRequest) {
   }
   if (!hasValidAdminRequest(request)) {
     return NextResponse.json({ outcome: "unauthorized" }, { status: 401 });
+  }
+  if (!hasAdminPermission(request, "orders:write")) {
+    return NextResponse.json({ outcome: "forbidden" }, { status: 403 });
   }
 
   try {
