@@ -684,5 +684,26 @@
 .consentHeader h2 { margin: 0; font-size: 1.25rem; }
 .consentHeader button { flex: 0 0 44px; min-height: 44px; border: 1px solid #4b4258; border-radius: 12px; background: transparent; color: inherit; font-size: 1.4rem; cursor: pointer; }
 .consentFields { display: grid; gap: 12px; min-inline-size: 0; margin: 0 0 16px; padding: 0; border: 0; }
-.consentFields .entryServiceConsent, .consentFields .ageConfirmation { margin: 0; }
+.consentFields .entryServiceConsent,
+.consentFields .ageConfirmation {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: start;
+  gap: 11px;
+  margin: 0;
+  padding: 13px;
+  border: 1px solid rgba(123, 44, 255, 0.44);
+  border-radius: 14px;
+  background: rgba(123, 44, 255, 0.1);
+  color: #e0d6ee;
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+.consentFields input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: #9d62ff;
+}
+.joinOfferNote { display: block; margin-top: 4px; }
 .consentDialog > .primaryButton { width: 100%; }

@@ -658,6 +658,9 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
   const actionNote = (hasCurrentEntry || checkingEntry)
     ? null
     : `Jednorazowe wejście do tej aukcji: ${auction.entryFee} zł`;
+  const offerNote = auction.postAuctionOffer.enabled && (canEnter || needsSignIn)
+    ? `Nie kupisz? Po aukcji dostaniesz na konto ${auction.entryFee} zł rabatu na ten produkt (ważny ${auction.postAuctionOffer.validityDays} ${auction.postAuctionOffer.validityDays === 1 ? "dzień" : "dni"}).`
+    : null;
   const consentBusy = isEntering || isBuying;
   const consentFeedback = consentAction === "entry" ? entryFeedback : purchaseFeedback;
 
@@ -748,11 +751,6 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
                 {queueError ? <p role="status">Odświeżamy status kolejki. Pokazane czasy mogą być nieaktualne.</p> : null}
               </section>
             ) : null}
-            {auction.postAuctionOffer.enabled ? (
-              <p className={styles.offerNote}>
-                Nie kupisz w aukcji? Otrzymasz {auction.entryFee} zł rabatu na {auction.product}. Po aukcji znajdziesz go na swoim koncie — masz {auction.postAuctionOffer.validityDays} dni, żeby skorzystać.
-              </p>
-            ) : null}
             {!auction.storageReady ? (
               <p className={styles.storageWarning} role="alert">
                 Zakup jest zablokowany do czasu przywrócenia bezpiecznego zapisu.
@@ -793,6 +791,7 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
                 id="desktop-action-note"
               >
                 {actionNote}
+                {offerNote ? <span className={styles.joinOfferNote}>{offerNote}</span> : null}
               </p> : null}
             </div>
           </div>
@@ -822,6 +821,7 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
           id="mobile-action-note"
         >
           {actionNote}
+          {offerNote ? <span className={styles.joinOfferNote}>{offerNote}</span> : null}
         </p>
         ) : null}
       </div>
