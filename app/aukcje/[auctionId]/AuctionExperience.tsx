@@ -1,6 +1,7 @@
 "use client";
 
 import { ENTRY_SERVICE_CONSENT_TEXT, ENTRY_SERVICE_CONSENT_VERSION } from "../../../lib/entry-service-terms";
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
@@ -842,6 +843,9 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
         }}>
           {consentAction === "buy" ? actionLabel : isEntering ? "PRZECHODZĘ DO PŁATNOŚCI…" : `OPŁAĆ WEJŚCIE — ${auction.entryFee} ZŁ`}
         </button>
+        {consentAction === "entry" ? (
+          <Image className={styles.autopayLogo} src="/autopay-white.svg" width={107} height={27} alt="Autopay" />
+        ) : null}
       </dialog>
     </main>
   );

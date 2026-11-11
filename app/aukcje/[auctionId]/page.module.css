@@ -707,3 +707,8 @@
 }
 .joinOfferNote { display: block; margin-top: 4px; }
 .consentDialog > .primaryButton { width: 100%; }
+
+.autopayLogo {
+  display: block;
+  margin: 14px auto 0;
+}
