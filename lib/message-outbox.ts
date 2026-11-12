@@ -86,7 +86,15 @@ function cleanText(value: unknown, maxLength: number) {
 function parseOutboxMessage(raw: unknown): OutboxMessage | null {
   if (typeof raw !== "string" || !raw) return null;
   try {
-    const value = JSON.parse(raw) as Partial<OutboxMessage>;
+    const decoded = JSON.parse(raw) as Partial<OutboxMessage> | null;
+    if (!decoded || typeof decoded !== "object" || Array.isArray(decoded)) return null;
+    const value = {
+      ...decoded,
+      accountId: decoded.accountId ?? null,
+      actionLabel: decoded.actionLabel ?? null,
+      actionUrl: decoded.actionUrl ?? null,
+      deliveredAt: decoded.deliveredAt ?? null,
+    };
     if (
       value.schemaVersion !== 1 ||
       typeof value.messageId !== "string" ||
