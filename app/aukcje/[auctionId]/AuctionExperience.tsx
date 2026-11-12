@@ -107,7 +107,7 @@ function timerAt(
 }
 
 function outcomeMessage(outcome: string, action: "entry" | "buy") {
-  if (outcome === "customer_details_required") return "Uzupełnij imię i nazwisko, telefon oraz adres dostawy w Moje Fiszy przed zakupem.";
+  if (outcome === "customer_details_required") return "Uzupełnij imię i nazwisko, telefon oraz adres dostawy w Moje Fiszy, aby wziąć udział.";
   if (outcome === "entry_service_consent_required") return "Zaznacz żądanie rozpoczęcia usługi dostępu przed płatnością.";
   if (outcome === "payment_processing") return "Operator przetwarza Twoją płatność. Produkt jest zarezerwowany — nie płać ponownie.";
   if (outcome === "age_confirmation_required") {
@@ -493,7 +493,7 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
     else if (displayStatus === "sold") actionLabel = "SPRZEDANE";
     else actionLabel = "AUKCJA ZAKOŃCZONA";
   }
-  const actionDisabled = !isAuthLoaded || checkingEntry || isEntering || isBuying || (!canEnter && !canBuy && !needsSignIn);
+  const actionDisabled = !isAuthLoaded || checkingEntry || isEntering || isBuying || (canBuy && !ageConfirmed) || (!canEnter && !canBuy && !needsSignIn);
   const consentRunId = auction?.runId;
   useEffect(() => {
     if ((consentAction === "entry" && !canEnter) || (consentAction === "buy" && !canBuy)) {
@@ -602,8 +602,8 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
     if (needsSignIn) {
       const redirectUrl = `${window.location.pathname}${window.location.search}`;
       window.location.assign(`/sign-in?redirect_url=${encodeURIComponent(redirectUrl)}`);
-    } else if (canEnter || (canBuy && !ageConfirmed)) {
-      setConsentAction(canEnter ? "entry" : "buy");
+    } else if (canEnter) {
+      setConsentAction("entry");
       setEntryServiceAccepted(false);
       if (canEnter) {
         setEntryFeedback(null);
@@ -611,7 +611,7 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
       }
       else setPurchaseFeedback(null);
       consentDialog.current?.showModal();
-    } else if (canBuy) void handleBuy();
+    } else if (canBuy && ageConfirmed) void handleBuy();
   };
 
   if (!auction) {
@@ -765,6 +765,7 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
             </div>
 
             <div className={`${styles.actionArea} ${styles.desktopAction}`}>
+              {canBuy && <label className={styles.ageConfirmation}><input type="checkbox" checked={ageConfirmed} onChange={(event) => setAgeConfirmed(event.target.checked)} /><span>Mam ukończone 18 lat i akceptuję <Link href="/regulamin" target="_blank" rel="noopener noreferrer">regulamin</Link>.</span></label>}
               <button
                 className={styles.primaryButton}
                 type="button"
@@ -800,12 +801,13 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
               <strong>Bezpieczne płatności</strong>
               <span>Opłatę za wejście i zakup obsługuje Autopay na szyfrowanej stronie płatności.</span>
             </div>
-            <Image src="/blik-banki-800x132.png" width={320} height={53} alt="BLIK – banki" />
+            <Image src="/blik-banki-800x132.png" width={640} height={106} style={{ maxWidth: "100%", height: "auto" }} alt="BLIK – banki" />
           </div>
         </section>
       </div>
 
       <div className={styles.mobileAction}>
+        {canBuy && <label className={styles.ageConfirmation}><input type="checkbox" checked={ageConfirmed} onChange={(event) => setAgeConfirmed(event.target.checked)} /><span>Mam ukończone 18 lat i akceptuję <Link href="/regulamin" target="_blank" rel="noopener noreferrer">regulamin</Link>.</span></label>}
         <button
           className={styles.primaryButton}
           type="button"
