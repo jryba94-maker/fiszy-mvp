@@ -264,6 +264,14 @@ test("scheduled transactional messages pass through the durable outbox exactly o
     if (command[0] === "ZRANGEBYSCORE") {
       const maximum = Number(command[3]);
       result = [...due.entries()].filter(([, score]) => score <= maximum).map(([id]) => id);
+    } else if (command[0] === "MGET") {
+      result = command.slice(1).map(key => values.get(key) ?? null);
+    } else if (command[0] === "EVAL" && String(command[1]).includes("local rangeCommand")) {
+      result = [1, ...[...values.values()].filter(value => /^MSG-/.test(value))];
+    } else if (command[0] === "EVAL" && String(command[1]).includes('"ZADD", KEYS[2], "NX"')) {
+      const [, , , , , id, , score] = command;
+      result = due.has(id) ? 0 : 1;
+      if (result) due.set(id, Number(score));
     } else if (command[0] === "GET") {
       result = values.get(command[1]) ?? null;
     } else if (command[0] === "EVAL" && String(command[1]).includes('redis.call("SET", KEYS[1], ARGV[1], "EX", ARGV[5])')) {
@@ -312,6 +320,7 @@ test("scheduled transactional messages pass through the durable outbox exactly o
       scheduledAt: "2026-08-26T18:00:00.000Z",
     });
     assert.equal(queued.created, true);
+    due.delete(queued.message.messageId);
     const processed = await processMessageOutbox({ limit: 5 });
     assert.deepEqual(processed, { processed: 1, delivered: 1, retried: 0, dead: 0, errors: 0 });
     assert.equal(sent.length, 1);
