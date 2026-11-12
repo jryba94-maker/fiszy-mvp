@@ -254,14 +254,14 @@ return encoded
   return parseOutboxMessage(result);
 }
 
-async function settleMessage(message: OutboxMessage, delivered: boolean, now: number, providerMessageId: string | null = null) {
+async function settleMessage(message: OutboxMessage, delivered: boolean, now: number, providerMessageId: string | null = null, errorCode = "provider_error") {
   const nextDelay = Math.min(24 * 60 * 60_000, 30_000 * 2 ** Math.min(message.attempts, 10));
   const terminal = delivered || message.attempts >= 8;
   const next: OutboxMessage = {
     ...message,
     state: delivered ? "delivered" : terminal ? "dead" : "retry",
     deliveredAt: delivered ? new Date(now).toISOString() : null,
-    lastErrorCode: delivered ? null : "provider_error",
+    lastErrorCode: delivered ? null : errorCode,
     providerMessageId: delivered ? providerMessageId : message.providerMessageId ?? null,
     deliveryStatus: delivered ? "sent" : message.deliveryStatus ?? null,
     deliveryUpdatedAt: delivered ? new Date(now).toISOString() : message.deliveryUpdatedAt ?? null,
@@ -350,8 +350,15 @@ return redis.call("ZADD", KEYS[2], "NX", ARGV[3], ARGV[1])
       const settled = await settleMessage(message, true, Date.now(), providerMessageId);
       if (!settled) throw new Error("Message settlement conflicted.");
       stats.delivered += 1;
-    } catch {
-      const settled = await settleMessage(message, false, Date.now());
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "";
+      const status = /^Transactional email provider returned ([1-5][0-9]{2})\.$/.exec(detail)?.[1];
+      const code = status ? `resend_http_${status}`
+        : detail === "Transactional email provider returned an invalid message id." ? "resend_invalid_id"
+        : detail.includes("not configured") ? "invalid_message_or_configuration"
+        : error instanceof Error && error.name === "TimeoutError" ? "provider_timeout"
+        : "provider_error";
+      const settled = await settleMessage(message, false, Date.now(), null, code);
       if (settled?.state === "dead") stats.dead += 1;
       else if (settled?.state === "retry") stats.retried += 1;
       else stats.errors += 1;
