@@ -25,3 +25,6 @@ jobs:
       - run: npm run test:queue
         env:
           QUEUE_TEST_REDIS_PORT: "6387"
+      - run: npm run test:autopay:integration
+        env:
+          QUEUE_TEST_REDIS_PORT: "6387"
