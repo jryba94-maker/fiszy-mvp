@@ -107,8 +107,9 @@ try {
   assert.equal(redisRequests-beforePollRequests, 6000, "one Redis HTTP round trip per authorized queue snapshot");
   const pollDuration = performance.now()-pollStarted;
   const ordered = bidders.toSorted((a,b) => snapshots[bidders.indexOf(a)].position - snapshots[bidders.indexOf(b)].position);
-  assert.equal(Date.parse((await status(ordered[1])).estimatedTurnAt) - now, 120000);
-  assert.equal(Date.parse((await status(ordered[2])).estimatedTurnAt) - now, 240000);
+  const firstClaimAt = Date.parse((await readAuctionWinner(run, auction)).claimedAt);
+  assert.equal(Date.parse((await status(ordered[1])).estimatedTurnAt) - firstClaimAt, 120000);
+  assert.equal(Date.parse((await status(ordered[2])).estimatedTurnAt) - firstClaimAt, 240000);
   assert.equal(await enqueue(ordered[2], 1), 2);
   assert.equal((await status(ordered[2])).price, 95);
   assert.equal(await enqueue(ordered[0], 1), 1);
@@ -144,10 +145,11 @@ try {
   // a fresh two-minute turn, measured from promotion rather than their click.
   assert.equal(await releaseAuctionWinner(run, head.bidderId, undefined, auction, head.claimedAt, true), 1);
   await redis(["SET", entryKey(run, "new-buyer", auction), "{}"]);
+  const promotionStartedAt = Date.now();
   assert.equal(await enqueueAuctionPurchase(run, "new-buyer", now - 1000, now + 600000, now + 200000, { bidderId: "new-buyer", price: 90, clickedAt: new Date(now + 200000).toISOString() }, auction), 2);
   head = await readAuctionWinner(run, auction);
   assert.equal(head.bidderId, ordered[2]);
-  assert.equal(head.claimedAt, new Date(now + 200000).toISOString());
+  assert.ok(Date.parse(head.claimedAt) >= promotionStartedAt && Date.parse(head.claimedAt) <= Date.now());
   await redis(["SET", winnerKey(run, auction), JSON.stringify({ ...head, paymentStatus: "paid" })]);
   assert.equal(await enqueue(ordered[3]), 0);
   assert.equal(await promoteNextAuctionPurchase(run, auction), null);
