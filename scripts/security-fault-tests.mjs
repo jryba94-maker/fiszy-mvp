@@ -374,7 +374,7 @@ test("winner cancellation uses the exact claim without a Stripe session", async 
   }
 });
 
-test("stale pending winner does not block a new run when expiry webhook is lost", async () => {
+test("stale pending winner cannot be replaced by rescheduling an existing auction", async () => {
   const previousFetch = globalThis.fetch;
   const originalNow = Date.now;
   const previousSettings = {
@@ -495,8 +495,8 @@ test("stale pending winner does not block a new run when expiry webhook is lost"
       }),
       { params: Promise.resolve({ auctionId }) },
     );
-    assert.equal(response.status, 201, JSON.stringify(await response.clone().json()));
-    assert.equal((await response.json()).outcome, "scheduled");
+    assert.equal(response.status, 409, JSON.stringify(await response.clone().json()));
+    assert.equal((await response.json()).outcome, "auction_already_scheduled");
     assert.equal(releases, 1);
     assert.equal(schedules, 1);
 
@@ -514,8 +514,8 @@ test("stale pending winner does not block a new run when expiry webhook is lost"
         headers: { Authorization: `Bearer ${secret}` },
       }),
     );
-    assert.equal(legacyResponse.status, 200);
-    assert.equal((await legacyResponse.json()).outcome, "scheduled");
+    assert.equal(legacyResponse.status, 409);
+    assert.equal((await legacyResponse.json()).outcome, "auction_already_scheduled");
     assert.equal(releases, 2);
     assert.equal(schedules, 2);
   } finally {
