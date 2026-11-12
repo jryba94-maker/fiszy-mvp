@@ -1463,6 +1463,26 @@ return 0
   ]);
 }
 
+function purchaseIntakeKey(auctionId: string, runId: string) {
+  return `${queueKey(runId, auctionId)}:intake`;
+}
+
+export async function registerPurchaseAttempt(auctionId: string, runId: string, token: string) {
+  const key = purchaseIntakeKey(auctionId, runId);
+  const result = await redisCommand<number>(["EVAL", `
+local sequence = redis.call("INCR", KEYS[2])
+redis.call("EXPIRE", KEYS[2], 60)
+redis.call("ZADD", KEYS[1], sequence, ARGV[1])
+redis.call("EXPIRE", KEYS[1], 60)
+return 1
+`, 2, key, `${key}:sequence`, token]);
+  if (result !== 1) throw new Error("Unable to register purchase attempt.");
+}
+
+export async function releasePurchaseAttempt(auctionId: string, runId: string, token: string) {
+  await redisCommand<number>(["ZREM", purchaseIntakeKey(auctionId, runId), token]);
+}
+
 export async function enqueueAuctionPurchase(
   runId: string,
   bidderId: string,
@@ -1471,6 +1491,7 @@ export async function enqueueAuctionPurchase(
   nowMs: number,
   entry: AuctionQueueEntry,
   auctionId: string = AUCTION_ID,
+  intakeToken?: string,
 ) {
   const script = `
 local configRaw = redis.call("GET", KEYS[1])
@@ -1479,6 +1500,21 @@ local ok, config = pcall(cjson.decode, configRaw)
 if not ok or type(config) ~= "table" or config.runId ~= ARGV[1] then return -1 end
 if tonumber(ARGV[3]) < tonumber(ARGV[4]) or tonumber(ARGV[3]) >= tonumber(ARGV[5]) then return -1 end
 if redis.call("EXISTS", KEYS[2]) ~= 1 then return -2 end
+if ARGV[9] ~= "" then
+  local clock = redis.call("TIME")
+  local now = tonumber(clock[1]) * 1000 + math.floor(tonumber(clock[2]) / 1000)
+  local deadline = tonumber(string.match(ARGV[9], "^(%d+):"))
+  if not deadline or deadline <= now or not redis.call("ZSCORE", KEYS[8], ARGV[9]) then return -6 end
+  while true do
+    local first = redis.call("ZRANGE", KEYS[8], 0, 0)[1]
+    if first == ARGV[9] then break end
+    local firstDeadline = first and tonumber(string.match(first, "^(%d+):"))
+    if not firstDeadline then return -6 end
+    if firstDeadline > now then return -5 end
+    redis.call("ZREM", KEYS[8], first)
+  end
+  redis.call("ZREM", KEYS[8], ARGV[9])
+end
 local currentRaw = redis.call("GET", KEYS[3])
 if currentRaw then
   local current = cjson.decode(currentRaw)
@@ -1509,7 +1545,7 @@ return 2
 `;
 
   return redisCommand<number>([
-    "EVAL", script, 7,
+    "EVAL", script, 8,
     auctionConfigKey(auctionId),
     entryKey(runId, bidderId, auctionId),
     winnerKey(runId, auctionId),
@@ -1517,9 +1553,11 @@ return 2
     queueEntryKey(runId, bidderId, auctionId),
     queueKey(runId, auctionId),
     `${queueEntryKey(runId, bidderId, auctionId)}:attempted`,
+    purchaseIntakeKey(auctionId, runId),
     runId, bidderId, nowMs, startsAtMs, endsAtMs, JSON.stringify(entry),
     `${prefix()}:auction:${checkedAuctionId(auctionId)}:run:${checkedRunId(runId)}:purchase-queue:`,
     new Date().toISOString(),
+    intakeToken ?? "",
   ]);
 }
 

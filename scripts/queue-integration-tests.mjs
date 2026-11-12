@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createConnection } from "node:net";
 import { randomUUID } from "node:crypto";
-import { enqueueAuctionPurchase, readAuctionQueueStatus, readAuctionWinner, releaseAuctionWinner, promoteNextAuctionPurchase, attachAuctionWinnerCheckout, auctionConfigKey, auctionRecordKey, entryKey, winnerKey } from "../lib/auction-storage.ts";
+import { registerPurchaseAttempt, releasePurchaseAttempt, enqueueAuctionPurchase, readAuctionQueueStatus, readAuctionWinner, releaseAuctionWinner, promoteNextAuctionPurchase, attachAuctionWinnerCheckout, auctionConfigKey, auctionRecordKey, entryKey, winnerKey } from "../lib/auction-storage.ts";
 import { advanceAuctionQueue } from "../lib/auction-queue.ts";
 
 // Run against an isolated local Redis, executing the actual production Lua.
@@ -67,6 +67,27 @@ try {
   await redis(["SET", auctionConfigKey(auction), JSON.stringify({ runId: run })]);
   await redis(["SET", auctionRecordKey(auction), JSON.stringify({ currentRunId: run, state: "published" })]);
   await Promise.all(bidders.map(bidder => redis(["SET", entryKey(run, bidder, auction), "{}"])));
+  for (const firstIsEligible of [true, false]) {
+    const fixtureAuction = `queue-intake-${randomUUID()}`;
+    await redis(["SET", auctionConfigKey(fixtureAuction), JSON.stringify({ runId: run })]);
+    await redis(["SET", entryKey(run, "second", fixtureAuction), "{}"]);
+    if (firstIsEligible) await redis(["SET", entryKey(run, "first", fixtureAuction), "{}"]);
+    const deadline = Date.now() + 5000;
+    const first = `${deadline}:first`;
+    const second = `${deadline}:second`;
+    const submit = (bidderId, token) => enqueueAuctionPurchase(
+      run, bidderId, now - 1000, now + 600000, now,
+      { bidderId, price: 95, clickedAt: new Date(now).toISOString() }, fixtureAuction, token,
+    );
+    await registerPurchaseAttempt(fixtureAuction, run, first);
+    await registerPurchaseAttempt(fixtureAuction, run, second);
+    assert.equal(await submit("second", second), -5, "later validated attempt must wait");
+    assert.equal(await readAuctionWinner(run, fixtureAuction), null);
+    assert.equal(await submit("first", first), firstIsEligible ? 1 : -2);
+    await releasePurchaseAttempt(fixtureAuction, run, first);
+    assert.equal(await submit("second", second), firstIsEligible ? 2 : 1);
+    assert.equal((await readAuctionWinner(run, fixtureAuction))?.bidderId, firstIsEligible ? "first" : "second");
+  }
   const clickStarted = performance.now();
   const clickTimes = [];
   const results = await Promise.all(bidders.map(async bidder => { const start = performance.now(); const result = await enqueue(bidder); clickTimes.push(performance.now()-start); return result; }));

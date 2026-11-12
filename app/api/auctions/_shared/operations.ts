@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { reconcileAuctionTurnDeadline } from "../../../../lib/auction-turn-deadline";
 import { after, NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
@@ -13,6 +14,8 @@ import {
 import {
   attachAuctionWinnerCheckout,
   enqueueAuctionPurchase,
+  registerPurchaseAttempt,
+  releasePurchaseAttempt,
   promoteNextAuctionPurchase,
   readAuctionEntry,
   readAuctionRecord,
@@ -48,8 +51,8 @@ import { entryServiceTerms } from "../../../../lib/entry-service-terms";
 
 type BidderRequest = { expectedPrice?: unknown; ageConfirmed?: unknown; entryServiceAccepted?: unknown; entryServiceVersion?: unknown };
 
-async function authenticatedBidder() {
-  const { userId } = await auth();
+async function authenticatedBidder(knownUserId?: string) {
+  const userId = knownUserId ?? (await auth()).userId;
   if (!userId) return null;
   let blocked: boolean | null = null;
   let ageConfirmedAt: string | null = null;
@@ -335,6 +338,43 @@ export async function handleBuyPost(
   receivedAt: number,
   expectedRunId?: string | null,
 ) {
+  const auctionId = normalizeAuctionId(auctionIdValue);
+  if (!auctionId) return NextResponse.json({ outcome: "not_found" }, { status: 404 });
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ outcome: "sign_in_required" }, { status: 401 });
+
+  try {
+    const runId = expectedRunId == null
+      ? (await activeRun(auctionId))?.config.runId
+      : normalizeRunId(expectedRunId);
+    if (!runId) return NextResponse.json({ outcome: "not_found" }, { status: 404 });
+    const deadline = Date.now() + 5000;
+    const token = `${deadline}:${randomUUID()}`;
+    await registerPurchaseAttempt(auctionId, runId, token);
+    try {
+      return await handleRegisteredBuy(request, auctionId, receivedAt, runId, userId, token, deadline);
+    } finally {
+      try {
+        await releasePurchaseAttempt(auctionId, runId, token);
+      } catch {
+        logEvent("auction_purchase_intake_release_failed", { auctionId, runId }, "warning");
+      }
+    }
+  } catch (error) {
+    logEvent("auction_purchase_intake_failed", { auctionId, ...errorDetails(error) }, "error");
+    return NextResponse.json({ outcome: "storage_error" }, { status: 503 });
+  }
+}
+
+async function handleRegisteredBuy(
+  request: NextRequest,
+  auctionIdValue: string,
+  receivedAt: number,
+  expectedRunId: string,
+  userId: string,
+  intakeToken: string,
+  intakeDeadline: number,
+) {
   let roundEndsAt: number | null = null;
   let queueResult: number | null = null;
   const respond = (payload: { outcome: string; [key: string]: unknown }, init?: ResponseInit) => {
@@ -353,7 +393,7 @@ export async function handleBuyPost(
   if (!bidderRequest) {
     return respond({ outcome: "invalid_request" }, { status: 400 });
   }
-  const bidder = await authenticatedBidder();
+  const bidder = await authenticatedBidder(userId);
   if (!bidder) {
     return respond({ outcome: "sign_in_required" }, { status: 401 });
   }
@@ -617,15 +657,23 @@ export async function handleBuyPost(
     if (configuredPaymentProvider() === "autopay") await autopayCustomer(bidderId, true);
 
     try {
-      queueResult = await enqueueAuctionPurchase(
-        active.config.runId,
-        bidderId,
-        new Date(active.config.startsAt).getTime(),
-        roundEndsAt,
-        receivedAt,
-        purchase,
-        active.auctionId,
-      );
+      do {
+        queueResult = await enqueueAuctionPurchase(
+          active.config.runId,
+          bidderId,
+          new Date(active.config.startsAt).getTime(),
+          roundEndsAt,
+          receivedAt,
+          purchase,
+          active.auctionId,
+          intakeToken,
+        );
+        if (queueResult !== -5) break;
+        await new Promise<void>((resolve) => setTimeout(resolve, 100));
+      } while (Date.now() < intakeDeadline && !request.signal.aborted);
+      if (queueResult === -5 || queueResult === -6) {
+        return respond({ outcome: "intake_timeout" }, { status: 503 });
+      }
     } catch (error) {
       console.error("Winner claim returned an ambiguous error.", error);
       try {
