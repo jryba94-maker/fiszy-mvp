@@ -302,6 +302,7 @@ export async function handleEntryPost(
 
     const terms = entryServiceTerms(bidderRequest.entryServiceVersion);
     if (!bidderRequest.entryServiceAccepted || !terms) return NextResponse.json({ outcome: "entry_service_consent_required" }, { status: 400 });
+    await autopayCustomer(bidderId, true);
     const consent = await recordEntryServiceConsent({ accountId: bidderId.replace(/^clerk:/, ""), auctionId: active.auctionId, runId: active.config.runId, fee: active.config.entryFee }, terms.version);
     const session = await createEntryPaymentSession({
       origin: getCheckoutOrigin(request),
