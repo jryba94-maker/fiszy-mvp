@@ -6,8 +6,9 @@ import { listAccountProfiles, readAccountProfile } from "./portal-storage";
 import { redisCommand } from "./redis";
 import { siteUrl } from "./site";
 import { sendCampaignMessage, transactionalEmailConfigured } from "./transactional-email";
+import { listRecentWaitlistSignups, normalizeWaitlistEmail } from "./waitlist-storage";
 
-type Segment = "all" | "recent";
+type Segment = "all" | "recent" | "waitlist";
 type State = "draft" | "queued" | "paused" | "completed" | "cancelled";
 type Content = { name: string; subject: string; text: string; imageUrl: string; ctaLabel: string; ctaUrl: string; segment: Segment };
 type Pending = { fingerprint: string; since: number; attempts: number };
@@ -58,7 +59,7 @@ export function normalizeCampaign(input: unknown): Content | null {
   const ctaLabel = field(values.ctaLabel ?? "", 80);
   const rawUrl = field(values.ctaUrl ?? "", 450);
   if (!name || !subject || !text || rawImageUrl === null || ctaLabel === null || rawUrl === null || Boolean(ctaLabel) !== Boolean(rawUrl)) return null;
-  if (values.segment !== "all" && values.segment !== "recent") return null;
+  if (values.segment !== "all" && values.segment !== "recent" && values.segment !== "waitlist") return null;
   let ctaUrl = "";
   if (rawUrl) {
     try {
@@ -150,7 +151,12 @@ export async function saveCampaign(input: unknown, id?: string, revision?: unkno
 }
 
 export async function campaignAudience(segment: Segment) {
-  if (segment !== "all" && segment !== "recent") throw new CampaignError("invalid_segment", 400);
+  if (segment !== "all" && segment !== "recent" && segment !== "waitlist") throw new CampaignError("invalid_segment", 400);
+  if (segment === "waitlist") {
+    const waitlist = await listRecentWaitlistSignups();
+    if (waitlist.total > MAX_RECIPIENTS) throw new CampaignError("audience_too_large");
+    return [...new Set(waitlist.signups.map((signup) => `email:${signup.email}`))];
+  }
   const ids: string[] = [];
   const cutoff = Date.now() - 30 * 86400_000;
   let cursor: string | null = null;
@@ -231,9 +237,11 @@ export async function processCampaign(id: string) {
     const campaign = await read(id);
     if (campaign.state !== "queued" || campaign.nextAt > Date.now()) return summary(campaign);
     for (let i = 0; i < BATCH_SIZE && campaign.processed < campaign.recipients.length && Date.now() < deadline; i += 1) {
-      const profile = await readAccountProfile(campaign.recipients[campaign.processed]);
-      const email = profile?.preferences.marketing && !profile.deletionRequestedAt
-        ? await readClerkAccountEmail(profile.accountId, { verifiedOnly: true }) : null;
+      const recipient = campaign.recipients[campaign.processed];
+      const waitlistEmail = recipient.startsWith("email:") ? normalizeWaitlistEmail(recipient.slice("email:".length)) : null;
+      const profile = waitlistEmail ? null : await readAccountProfile(recipient);
+      const email = waitlistEmail ?? (profile?.preferences.marketing && !profile.deletionRequestedAt
+        ? await readClerkAccountEmail(profile.accountId, { verifiedOnly: true }) : null);
       const fingerprint = email ? campaignEmailFingerprint(email) : null;
       const pending = campaign.pending;
       if (!email || !fingerprint || campaign.seen.includes(fingerprint) || await isCampaignEmailSuppressed(fingerprint) ||

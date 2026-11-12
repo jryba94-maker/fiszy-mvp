@@ -92,6 +92,17 @@ export async function readPrivacyConsents(accountIdValue: string) {
   return Object.fromEntries(PRIVACY_PURPOSES.map((purpose, index) => [purpose, parseConsent(raw?.[index])])) as Record<PrivacyPurpose, PrivacyConsentEvent | null>;
 }
 
+export async function listAccountPrivacyConsentEvents(accountIdValue: string, purpose?: PrivacyPurpose) {
+  const accountId = account(accountIdValue);
+  const ids = await redisCommand<string[]>(["ZREVRANGE", consentIndex(accountId), 0, 99]) ?? [];
+  if (!ids.length) return [];
+  const raw = await redisCommand<Array<string | null>>(["MGET", ...ids.map((id) => consentEventKey(accountId, id))]) ?? [];
+  return raw.flatMap((value) => {
+    const event = parseConsent(value);
+    return event && (!purpose || event.purpose === purpose) ? [event] : [];
+  });
+}
+
 function parseRequest(raw: unknown): PrivacyRequest | null {
   if (typeof raw !== "string" || !raw) return null;
   try {
