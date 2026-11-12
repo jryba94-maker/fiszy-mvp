@@ -1328,6 +1328,7 @@ local ok, current = pcall(cjson.decode, raw)
 if not ok or type(current) ~= "table" or current.revision ~= tonumber(ARGV[1]) then
   return 0
 end
+if redis.call("EXISTS", KEYS[2]) == 1 or redis.call("ZCARD", KEYS[5]) > 0 then return -2 end
 if redis.call("EXISTS", KEYS[3]) == 1 then return -1 end
 redis.call("SET", KEYS[1], ARGV[2])
 redis.call("SET", KEYS[2], ARGV[3])

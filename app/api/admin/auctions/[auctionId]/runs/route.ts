@@ -13,9 +13,7 @@ import {
   type AuctionWinner,
   listAuctionRunIds,
   readAuctionRunHistoryDetails,
-  releaseAuctionWinner,
   readAuctionRecord,
-  readAuctionWinner,
   readOptionalAuctionConfig,
   scheduleAuctionRunIfRevision,
 } from "../../../../../../lib/auction-storage";
@@ -27,17 +25,11 @@ import {
   isSameOriginAdminMutation,
 } from "../../../../../../lib/admin-auth";
 import { recordSuccessfulAdminAudit } from "../../../../../../lib/admin-audit";
-import {
-  expirePaymentSession,
-  isPaymentProviderConfigured,
-  retrievePaymentSession,
-} from "../../../../../../lib/payment-provider";
 import { errorDetails, logEvent } from "../../../../../../lib/observability";
 
 export const dynamic = "force-dynamic";
 
 const START_DELAY_MS = 60_000;
-const PURCHASE_CHECKOUT_WINDOW_MS = 31 * 60 * 1000;
 
 type AuctionContext = { params: Promise<{ auctionId: string }> };
 
@@ -92,20 +84,6 @@ function orderSummary(order: AuctionOrder | null) {
     : null;
 }
 
-function pendingPaymentExpiresAt(winner: {
-  claimedAt: string;
-  paymentExpiresAt?: string;
-}) {
-  const explicit = winner.paymentExpiresAt
-    ? Date.parse(winner.paymentExpiresAt)
-    : Number.NaN;
-  if (Number.isFinite(explicit)) return explicit;
-
-  const claimedAt = Date.parse(winner.claimedAt);
-  return Number.isFinite(claimedAt)
-    ? claimedAt + PURCHASE_CHECKOUT_WINDOW_MS
-    : Number.NaN;
-}
 
 export async function GET(request: NextRequest, context: AuctionContext) {
   if (!isAdminConfigured()) {
@@ -227,77 +205,8 @@ export async function POST(
       return NextResponse.json({ outcome: "auction_archived" }, { status: 409 });
     }
 
-    if (currentConfig) {
-      let winner = await readAuctionWinner(currentConfig.runId, auctionId);
-      if (winner?.paymentStatus === "pending") {
-        const expiresAt = pendingPaymentExpiresAt(winner);
-        if (!Number.isFinite(expiresAt) || expiresAt > Date.now()) {
-          return NextResponse.json({ outcome: "pending_payment" }, { status: 409 });
-        }
-
-        if (winner.paymentSessionId) {
-          if (!isPaymentProviderConfigured()) {
-            return NextResponse.json(
-              { outcome: "pending_payment_recovery_unavailable" },
-              { status: 409 },
-            );
-          }
-
-          const session = await retrievePaymentSession(winner.paymentSessionId);
-          if (session.state === "paid") {
-            return NextResponse.json(
-              { outcome: "pending_payment_reconciliation" },
-              { status: 409 },
-            );
-          }
-          if (session.state === "open") {
-            const expired = await expirePaymentSession(winner.paymentSessionId);
-            if (expired.state !== "expired") {
-              return NextResponse.json(
-                { outcome: "pending_payment" },
-                { status: 409 },
-              );
-            }
-          } else if (session.state !== "expired") {
-            return NextResponse.json(
-              { outcome: "pending_payment" },
-              { status: 409 },
-            );
-          }
-        }
-
-        const released = await releaseAuctionWinner(
-          currentConfig.runId,
-          winner.bidderId,
-          winner.paymentSessionId,
-          auctionId,
-          winner.claimedAt,
-        );
-        if (released !== 1) {
-          winner = await readAuctionWinner(currentConfig.runId, auctionId);
-          if (winner) {
-            return NextResponse.json(
-              { outcome: "auction_changed" },
-              { status: 409 },
-            );
-          }
-        } else {
-          logEvent("stale_winner_recovered", {
-            auctionId,
-            runId: currentConfig.runId,
-          }, "warning");
-          winner = null;
-        }
-      }
-      if (!winner) {
-        const timed = getTimedAuctionState(Date.now(), currentConfig);
-        if (timed.status !== "ended") {
-          return NextResponse.json(
-            { outcome: "auction_in_progress" },
-            { status: 409 },
-          );
-        }
-      }
+    if (currentConfig || record.currentRunId) {
+      return NextResponse.json({ outcome: "auction_already_scheduled" }, { status: 409 });
     }
 
     const startsAt =
@@ -343,6 +252,9 @@ export async function POST(
       nextRecord,
       config,
     );
+    if (result === -2) {
+      return NextResponse.json({ outcome: "auction_already_scheduled" }, { status: 409 });
+    }
     if (result === 0) {
       return NextResponse.json(
         { outcome: "auction_changed" },

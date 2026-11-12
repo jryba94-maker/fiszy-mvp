@@ -53,7 +53,7 @@ const ADMIN_SECTIONS: Array<{ id: AdminSection; label: string; caption: string }
   { id: "catalog", label: "Produkty", caption: "Katalog i szablony" },
   { id: "auctions", label: "Aukcje", caption: "Lista i edycja" },
   { id: "orders", label: "Zamówienia", caption: "Realizacja" },
-  { id: "history", label: "Rundy", caption: "Uczestnicy" },
+  { id: "history", label: "Historia aukcji", caption: "Wpłaty i uczestnicy" },
   { id: "legal", label: "Dokumenty", caption: "Wersje i archiwum" },
   { id: "users", label: "Użytkownicy", caption: "Pomoc i lista e-mail" },
   { id: "audit", label: "Dziennik", caption: "Zmiany i zdarzenia" },
@@ -326,7 +326,7 @@ export default function AdminPage() {
     if (auction.recordState === "archived") return;
 
     const confirmed = window.confirm(
-      `Zaplanować rundę „${auction.productName}” na ${new Date(startsAt).toLocaleString("pl-PL")}?\n\n` +
+      `Zaplanować aukcję „${auction.productName}” na ${new Date(startsAt).toLocaleString("pl-PL")}?\n\n` +
       `Wpisowe: ${auction.entryFee} zł · cena startowa: ${auction.startPrice} zł · czas: ${auction.durationMinutes} min.\n` +
       "Po zapisaniu użytkownicy będą mogli opłacać wejście do chwili startu.",
     );
@@ -341,7 +341,7 @@ export default function AdminPage() {
         tone: result.legacy ? "info" : "success",
         message: result.legacy
           ? "Runda została uruchomiona przez zgodny endpoint MVP."
-          : result.message ?? "Nowa runda została zaplanowana.",
+          : result.message ?? "Aukcja została zaplanowana.",
       });
       await loadDashboard();
     } catch (error) {

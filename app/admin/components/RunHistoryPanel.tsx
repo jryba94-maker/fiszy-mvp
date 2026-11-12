@@ -1,5 +1,6 @@
 "use client";
 
+import { auctionRunPath } from "../../../lib/auction";
 import { useMemo, useRef, useState } from "react";
 import {
   ApiError,
@@ -208,7 +209,7 @@ export function RunHistoryPanel({
       <div className={styles.sectionHeader}>
         <div>
           <p className={styles.eyebrow}>Historia</p>
-          <h2 id="runs-heading">Rundy i uczestnicy</h2>
+          <h2 id="runs-heading">Historia aukcji i uczestnicy</h2>
         </div>
         {selectedAuctionId ? (
           <div className={styles.cardActions}>
@@ -246,13 +247,13 @@ export function RunHistoryPanel({
           </label>
         </div>
         <p>
-          Dane są pobierane dopiero po wybraniu aukcji. Rozwiń rundę, aby zobaczyć uczestników.
+          Dane są pobierane dopiero po wybraniu aukcji. Rozwiń wybrane wydarzenie, aby zobaczyć uczestników.
         </p>
       </div>
 
       {error ? <p className={styles.errorNotice} role="alert">{error}</p> : null}
       {loading && runs.length === 0 ? (
-        <p className={styles.inlineStatus} role="status">Ładuję rundy…</p>
+        <p className={styles.inlineStatus} role="status">Ładuję historię…</p>
       ) : null}
 
       {runs.length > 0 ? (
@@ -266,6 +267,7 @@ export function RunHistoryPanel({
                   <div>
                     <span className={styles.orderId}>{run.runId}</span>
                     <h3>{formatDateTime(run.startsAt)}</h3>
+                    <a href={auctionRunPath(run.auctionId, run.runId)}>Otwórz aukcję</a>
                   </div>
                   <span className={`${styles.statusPill} ${styles[`status_${run.status ?? "published"}`]}`}>
                     <span aria-hidden="true" />
@@ -279,8 +281,8 @@ export function RunHistoryPanel({
                     <dd>{formatDateTime(run.endsAt)}</dd>
                   </div>
                   <div>
-                    <dt>Uczestnicy</dt>
-                    <dd>{run.participantCount ?? participantState?.items.length ?? "—"}</dd>
+                    <dt>Opłacone wejścia</dt>
+                    <dd>{run.participantCount ?? "—"}</dd>
                   </div>
                   <div>
                     <dt>Cena sprzedaży</dt>
@@ -355,7 +357,7 @@ export function RunHistoryPanel({
       ) : selectedAuctionId && !loading && !error ? (
         <div className={styles.emptyState}>
           <strong>Brak zapisanych rund</strong>
-          <span>Rundy pojawią się po ich zaplanowaniu lub uruchomieniu.</span>
+          <span>Zaplanowane aukcje pojawią się tutaj.</span>
         </div>
       ) : !selectedAuctionId ? (
         <div className={styles.emptyState}>

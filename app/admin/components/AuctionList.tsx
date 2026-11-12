@@ -248,23 +248,21 @@ export function AuctionList({
                   </button>
                   {auction.recordState === "published" && (auction.status === "waiting" || auction.status === "live") && auction.runId && auction.revision !== null ? (
                     <button className={styles.secondaryButton} type="button" disabled={busy} onClick={() => onCancelRun(auction)}>
-                      Anuluj rundę
+                      Anuluj aukcję
                     </button>
                   ) : null}
-                  <button
-                    className={styles.cardPrimaryButton}
-                    type="button"
-                    onClick={() => openSchedule(auction.auctionId)}
-                    disabled={active || archived || busy}
-                    aria-busy={busy}
-                    aria-describedby={active || archived ? disabledReasonId : undefined}
-                  >
-                    {busy
-                      ? "PRACUJĘ…"
-                      : auction.runId
-                        ? "URUCHOM KOLEJNĄ RUNDĘ"
-                        : "ZAPLANUJ PIERWSZĄ RUNDĘ"}
-                  </button>
+                  {!auction.runId ? (
+                    <button
+                      className={styles.cardPrimaryButton}
+                      type="button"
+                      onClick={() => openSchedule(auction.auctionId)}
+                      disabled={active || archived || busy}
+                      aria-busy={busy}
+                      aria-describedby={active || archived ? disabledReasonId : undefined}
+                    >
+                      {busy ? "PRACUJĘ…" : "ZAPLANUJ AUKCJĘ"}
+                    </button>
+                  ) : null}
                 </div>
 
                 {schedulingId === auction.auctionId ? (
@@ -276,7 +274,7 @@ export function AuctionList({
                     }}
                   >
                     <label className={styles.field} htmlFor={`run-start-${auction.auctionId}`}>
-                      <span>Data i godzina rozpoczęcia rundy</span>
+                      <span>Data i godzina rozpoczęcia aukcji</span>
                       <input
                         id={`run-start-${auction.auctionId}`}
                         className={styles.input}
@@ -296,7 +294,7 @@ export function AuctionList({
                         Anuluj
                       </button>
                       <button className={styles.cardPrimaryButton} type="submit">
-                        ZAPLANUJ RUNDĘ
+                        POTWIERDŹ TERMIN
                       </button>
                     </div>
                   </form>

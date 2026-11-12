@@ -180,6 +180,8 @@ function apiErrorMessage(status: number, payload: JsonRecord) {
       return "Ta zmiana statusu realizacji nie jest dozwolona.";
     case "auction_not_ready":
       return "Przed publikacją uzupełnij zdjęcie, parametry aukcji i udokumentowaną najniższą cenę z 30 dni.";
+    case "auction_already_scheduled":
+      return "Ta aukcja ma już swój termin lub historię. Użyj opcji Duplikuj, aby wystawić produkt ponownie.";
     case "pending_payment":
       return "Zwycięzca nadal finalizuje zakup.";
     case "storage_error":
@@ -686,24 +688,11 @@ export async function startAuctionRun(
     ...(auction.revision !== null ? { expectedRevision: auction.revision } : {}),
   };
 
-  try {
-    const { payload } = await request(
-      `/api/admin/auctions/${encodeURIComponent(auction.auctionId)}/runs`,
-      {
-        method: "POST",
-        body: JSON.stringify(body),
-      },
-    );
-    return { legacy: false, message: asString(asRecord(payload).message) ?? undefined };
-  } catch (error) {
-    if (!(error instanceof ApiError) || error.status !== 404) throw error;
-
-    await request("/api/admin/auction/start", {
-      method: "POST",
-      body: JSON.stringify(body),
-    });
-    return { legacy: true };
-  }
+  const { payload } = await request(
+    `/api/admin/auctions/${encodeURIComponent(auction.auctionId)}/runs`,
+    { method: "POST", body: JSON.stringify(body) },
+  );
+  return { legacy: false, message: asString(asRecord(payload).message) ?? undefined };
 }
 
 export async function updateOrderFulfillment(
