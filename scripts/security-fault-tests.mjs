@@ -497,8 +497,8 @@ test("stale pending winner cannot be replaced by rescheduling an existing auctio
     );
     assert.equal(response.status, 409, JSON.stringify(await response.clone().json()));
     assert.equal((await response.json()).outcome, "auction_already_scheduled");
-    assert.equal(releases, 1);
-    assert.equal(schedules, 1);
+    assert.equal(releases, 0);
+    assert.equal(schedules, 0);
 
     winner = {
       bidderId: "stale-winner-bidder",
@@ -516,8 +516,8 @@ test("stale pending winner cannot be replaced by rescheduling an existing auctio
     );
     assert.equal(legacyResponse.status, 409);
     assert.equal((await legacyResponse.json()).outcome, "auction_already_scheduled");
-    assert.equal(releases, 2);
-    assert.equal(schedules, 2);
+    assert.equal(releases, 0);
+    assert.equal(schedules, 0);
   } finally {
     globalThis.fetch = previousFetch;
     Date.now = originalNow;
