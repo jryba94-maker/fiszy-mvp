@@ -301,6 +301,7 @@ export async function processMessageOutbox(input: { limit?: number; now?: number
   const now = input.now ?? Date.now();
   if (!Number.isInteger(limit) || limit < 1 || limit > 50) return null;
   const recent = await listOutboxMessages({ limit: 50 });
+  const readyIds: string[] = [];
   for (const message of recent?.messages ?? []) {
     const dueAt = Date.parse(message.nextAttemptAt);
     if (message.state !== "queued" || !Number.isFinite(dueAt) || dueAt > now) continue;
@@ -320,6 +321,7 @@ return redis.call("ZADD", KEYS[2], "NX", ARGV[3], ARGV[1])
       message.nextAttemptAt,
       dueAt,
     ]);
+    readyIds.push(message.messageId);
   }
   const ids = (await redisCommand<string[]>([
     "ZRANGEBYSCORE",
@@ -332,7 +334,8 @@ return redis.call("ZADD", KEYS[2], "NX", ARGV[3], ARGV[1])
   ])) ?? [];
   const stats = { processed: 0, delivered: 0, retried: 0, dead: 0, errors: 0 };
   let skippedClaims = 0;
-  for (const messageId of ids) {
+  for (const messageId of new Set([...readyIds.reverse(), ...ids])) {
+    if (stats.processed >= limit) break;
     if (!MESSAGE_ID_PATTERN.test(messageId)) continue;
     const message = await claimMessage(messageId, now);
     if (!message) {
