@@ -21,7 +21,8 @@ export async function POST(request: NextRequest) {
     const encoded = fields.get("transactions")!;
     if (!/^[A-Za-z0-9+/]+={0,2}$/.test(encoded)) throw new Error("Invalid ITN encoding.");
     transactions = verifyAutopayTransactions(Buffer.from(encoded, "base64").toString("utf8"));
-  } catch {
+  } catch (error) {
+    logEvent("autopay_itn_rejected", errorDetails(error), "warning");
     return NextResponse.json({ outcome: "invalid_notification" }, { status: 400 });
   }
   try {
