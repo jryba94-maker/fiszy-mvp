@@ -475,11 +475,11 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
   let actionLabel = "ŁADOWANIE…";
   if (auction) {
     if (!isAuthLoaded) actionLabel = "SPRAWDZAMY KONTO…";
+    else if (entryPaymentPending) actionLabel = "POTWIERDZAMY OPŁATĘ ZA WEJŚCIE";
     else if (checkingEntry) actionLabel = "SPRAWDZAMY TWOJE WEJŚCIE…";
     else if (needsSignIn) actionLabel = "ZALOGUJ SIĘ, ABY DOŁĄCZYĆ";
     else if (isEntering) actionLabel = "PRZECHODZĘ DO PŁATNOŚCI…";
     else if (isBuying) actionLabel = "REZERWUJĘ…";
-    else if (entryPaymentPending) actionLabel = "POTWIERDZAMY OPŁATĘ ZA WEJŚCIE";
     else if (canEnter) actionLabel = "CHCĘ WZIĄĆ UDZIAŁ";
     else if (isPaying) actionLabel = "DOKOŃCZ PŁATNOŚĆ";
     else if (isQueued) actionLabel = `JESTEŚ ${buyerQueue?.position}. W KOLEJCE`;
@@ -800,7 +800,7 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
               <strong>Bezpieczne płatności</strong>
               <span>Opłatę za wejście i zakup obsługuje Autopay na szyfrowanej stronie płatności.</span>
             </div>
-            <Image src="/blik-banki-800x132.png" width={200} height={33} alt="BLIK – banki" />
+            <Image src="/blik-banki-800x132.png" width={320} height={53} alt="BLIK – banki" />
           </div>
         </section>
       </div>
