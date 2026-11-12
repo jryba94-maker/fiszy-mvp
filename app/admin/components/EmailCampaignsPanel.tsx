@@ -3,13 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import styles from "../AdminDashboard.module.css";
 
-type Content = { name: string; subject: string; text: string; ctaLabel: string; ctaUrl: string; segment: "all" | "recent" };
+type Content = { name: string; subject: string; text: string; imageUrl: string; ctaLabel: string; ctaUrl: string; segment: "all" | "recent" };
 type Campaign = Content & {
   id: string; revision: number; state: "draft" | "queued" | "paused" | "completed" | "cancelled";
   scheduledAt: string | null; audience: number; processed: number; accepted: number; skipped: number; failed: number;
 };
 
-const EMPTY: Content = { name: "", subject: "", text: "", ctaLabel: "", ctaUrl: "", segment: "all" };
+const EMPTY: Content = { name: "", subject: "", text: "", imageUrl: "", ctaLabel: "", ctaUrl: "", segment: "all" };
 const STATES = { draft: "Szkic", queued: "W kolejce", paused: "Wstrzymana", completed: "Zakończona", cancelled: "Anulowana" };
 const ERRORS: Record<string, string> = {
   invalid_content: "Uzupełnij nazwę, temat i treść. Przycisk wymaga etykiety i linku na stronie Fiszy.",
@@ -21,6 +21,8 @@ const ERRORS: Record<string, string> = {
   email_not_configured: "Brakuje konfiguracji do wysyłki kampanii w tym środowisku.",
   test_not_configured: "Adres kontrolny lub wysyłka nie są skonfigurowane.",
   test_recipient_unsubscribed: "Adres kontrolny został wypisany z kampanii.",
+  invalid_image: "Wgraj plik JPG, PNG, WEBP lub GIF o wielkości do 5 MB.",
+  upload_failed: "Nie udało się wgrać grafiki. Spróbuj ponownie za chwilę.",
   forbidden: "Brak uprawnień do tej operacji.",
 };
 const time = new Intl.DateTimeFormat("pl-PL", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Warsaw" });
@@ -36,6 +38,7 @@ export function EmailCampaignsPanel({ canWrite, onSessionExpired }: { canWrite: 
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [imageUploading, setImageUploading] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [stopping, setStopping] = useState(false);
   const stopRequested = useRef(false);
@@ -85,6 +88,25 @@ export function EmailCampaignsPanel({ canWrite, onSessionExpired }: { canWrite: 
     setForm((previous) => ({ ...previous, [field]: value }));
     setDirty(true);
     if (field === "segment") setEstimate(null);
+  }
+
+  async function uploadImage(file: File | null) {
+    if (!file || imageUploading) return;
+    setImageUploading(true);
+    setError("");
+    try {
+      const body = new FormData();
+      body.set("image", file);
+      const response = await fetch("/api/admin/campaigns/upload", { method: "POST", credentials: "same-origin", body });
+      if (response.status === 401) return onSessionExpired();
+      const result = await response.json() as { outcome?: string; url?: string };
+      if (!response.ok || !result.url) throw new Error(ERRORS[result.outcome ?? ""] ?? "Nie udało się wgrać grafiki.");
+      update("imageUrl", result.url);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Nie udało się wgrać grafiki.");
+    } finally {
+      setImageUploading(false);
+    }
   }
 
   function remember(item: Campaign) {
@@ -175,6 +197,14 @@ export function EmailCampaignsPanel({ canWrite, onSessionExpired }: { canWrite: 
               <label className={styles.field}>Nazwa wewnętrzna<input className={styles.input} required maxLength={100} value={form.name} onChange={(e) => update("name", e.target.value)} /></label>
               <label className={styles.field}>Temat wiadomości<input className={styles.input} required maxLength={150} value={form.subject} onChange={(e) => update("subject", e.target.value)} /></label>
               <label className={styles.field}>Treść<textarea className={styles.input} required rows={9} maxLength={12000} value={form.text} onChange={(e) => update("text", e.target.value)} /></label>
+              <label className={styles.field}>Grafika wiadomości
+                <input className={styles.input} type="file" accept="image/jpeg,image/png,image/webp,image/gif" disabled={imageUploading} onChange={(event) => void uploadImage(event.target.files?.[0] ?? null)} />
+                <small>{imageUploading ? "Wgrywam grafikę…" : "JPG, PNG, WEBP lub GIF, maks. 5 MB."}</small>
+              </label>
+              {form.imageUrl ? <div className={styles.imageControl}>
+                <img src={form.imageUrl} alt="Wgrana grafika kampanii" />
+                <button type="button" className={styles.secondaryButton} disabled={imageUploading} onClick={() => update("imageUrl", "")}>Usuń grafikę</button>
+              </div> : null}
               <label className={styles.field}>Segment<select className={styles.input} value={form.segment} onChange={(e) => update("segment", e.target.value)}><option value="all">Wszystkie konta ze zgodą marketingową</option><option value="recent">Konta ze zgodą z ostatnich 30 dni od utworzenia profilu</option></select></label>
               <label className={styles.field}>Tekst przycisku<input className={styles.input} maxLength={80} value={form.ctaLabel} onChange={(e) => update("ctaLabel", e.target.value)} /></label>
               <label className={styles.field}>Link na Fiszy<input className={styles.input} maxLength={450} placeholder="/aukcje" value={form.ctaUrl} onChange={(e) => update("ctaUrl", e.target.value)} /></label>
@@ -196,13 +226,16 @@ export function EmailCampaignsPanel({ canWrite, onSessionExpired }: { canWrite: 
           </div> : null}
         </div>
       </div>
-      {selected || editable ? <details className={styles.adminSubpanel} open>
-        <summary className={styles.subpanelTitle}>Podgląd wiadomości</summary>
-        <p>Temat: <strong>{form.subject || "—"}</strong></p>
-        <p style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{form.text || "Wpisz treść wiadomości."}</p>
-        {form.ctaLabel ? <p>{form.ctaLabel} · {form.ctaUrl}</p> : null}
-        <small>Wypisz się z marketingu Fiszy</small>
-      </details> : null}
+      {selected || editable ? <section className={`${styles.adminSubpanel} ${styles.emailPreviewPanel}`} aria-label="Podgląd wiadomości">
+        <div className={styles.previewTopline}><div><p className={styles.eyebrow}>Podgląd wiadomości</p><h3>{form.subject || "Temat wiadomości"}</h3></div><span>Desktop</span></div>
+        <article className={styles.emailPreview}>
+          <p className={styles.previewBrand}>Fiszy<span>.</span></p>
+          {form.imageUrl ? <img className={styles.previewImage} src={form.imageUrl} alt="Grafika kampanii" /> : null}
+          <div className={styles.previewBody}>{form.text || "Wpisz treść wiadomości."}</div>
+          {form.ctaLabel && form.ctaUrl ? <span className={styles.previewButton}>{form.ctaLabel}</span> : null}
+          <p className={styles.previewUnsubscribe}>Wypisz się z marketingu Fiszy</p>
+        </article>
+      </section> : null}
       {selected && selected.state !== "draft" ? <div className={styles.adminSubpanel}>
         <h3>Raport wysyłki</h3>
         <p>{STATES[selected.state]}{selected.scheduledAt ? ` · od ${time.format(new Date(selected.scheduledAt))} (Warszawa)` : ""}</p>

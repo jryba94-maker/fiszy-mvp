@@ -1622,6 +1622,36 @@
 .compactOperation span, .compactOperation time { margin-top: 4px; color: var(--admin-muted); font-size: .7rem; }
 .successNotice { border: 1px solid color-mix(in srgb, var(--admin-sold) 45%, transparent); border-radius: 12px; padding: 11px 13px; color: var(--admin-sold); }
 
+.imageControl {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  border: 1px solid var(--admin-border);
+  border-radius: 14px;
+  background: var(--admin-surface-soft);
+}
+
+.imageControl img {
+  width: 76px;
+  height: 56px;
+  border-radius: 9px;
+  object-fit: cover;
+}
+
+.emailPreviewPanel { margin-top: 12px; }
+.previewTopline { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+.previewTopline h3 { margin: 0; font-size: 1rem; }
+.previewTopline > span { color: var(--admin-muted); font-size: .72rem; font-weight: 800; }
+.emailPreview { width: min(100%, 560px); margin: 0 auto; padding: clamp(22px, 5vw, 32px); border: 1px solid #ded9e5; border-radius: 18px; background: #fff; color: #17141d; box-shadow: 0 12px 28px rgb(0 0 0 / 8%); }
+.previewBrand { margin: 0 0 24px; font-size: 1.75rem; font-weight: 950; letter-spacing: -.07em; }
+.previewBrand span { color: #7b2cff; }
+.previewImage { display: block; width: 100%; height: auto; margin: 0 0 24px; border-radius: 14px; }
+.previewBody { white-space: pre-wrap; overflow-wrap: anywhere; font-size: .95rem; line-height: 1.65; }
+.previewButton { display: inline-block; margin-top: 24px; padding: 14px 20px; border-radius: 16px; background: #7b2cff; color: #fff; font-size: .86rem; font-weight: 850; }
+.previewUnsubscribe { margin: 32px 0 0; color: #77717f; font-size: .72rem; text-decoration: underline; }
+
 @media (max-width: 780px) {
   .operationsFormGrid,
   .operationsColumns { grid-template-columns: 1fr; }

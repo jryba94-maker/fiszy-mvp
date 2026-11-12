@@ -9,7 +9,7 @@ import { sendCampaignMessage, transactionalEmailConfigured } from "./transaction
 
 type Segment = "all" | "recent";
 type State = "draft" | "queued" | "paused" | "completed" | "cancelled";
-type Content = { name: string; subject: string; text: string; ctaLabel: string; ctaUrl: string; segment: Segment };
+type Content = { name: string; subject: string; text: string; imageUrl: string; ctaLabel: string; ctaUrl: string; segment: Segment };
 type Pending = { fingerprint: string; since: number; attempts: number };
 type Campaign = Content & {
   id: string; revision: number; state: State; createdAt: string; updatedAt: string;
@@ -54,9 +54,10 @@ export function normalizeCampaign(input: unknown): Content | null {
   const name = field(values.name, 100);
   const subject = field(values.subject, 150);
   const text = field(values.text, 12000, true);
+  const rawImageUrl = field(values.imageUrl ?? "", 1_000);
   const ctaLabel = field(values.ctaLabel ?? "", 80);
   const rawUrl = field(values.ctaUrl ?? "", 450);
-  if (!name || !subject || !text || ctaLabel === null || rawUrl === null || Boolean(ctaLabel) !== Boolean(rawUrl)) return null;
+  if (!name || !subject || !text || rawImageUrl === null || ctaLabel === null || rawUrl === null || Boolean(ctaLabel) !== Boolean(rawUrl)) return null;
   if (values.segment !== "all" && values.segment !== "recent") return null;
   let ctaUrl = "";
   if (rawUrl) {
@@ -66,7 +67,15 @@ export function normalizeCampaign(input: unknown): Content | null {
       ctaUrl = url.toString();
     } catch { return null; }
   }
-  return { name, subject, text, ctaLabel, ctaUrl, segment: values.segment };
+  let imageUrl = "";
+  if (rawImageUrl) {
+    try {
+      const url = new URL(rawImageUrl);
+      if (url.protocol !== "https:" || url.username || url.password) return null;
+      imageUrl = url.toString();
+    } catch { return null; }
+  }
+  return { name, subject, text, imageUrl, ctaLabel, ctaUrl, segment: values.segment };
 }
 
 function summary(campaign: Campaign) {
@@ -197,6 +206,7 @@ function send(campaign: Campaign, email: string, fingerprint: string, isTest = f
     to: email,
     subject: isTest ? `[TEST] ${campaign.subject}` : campaign.subject,
     text: campaign.text,
+    imageUrl: campaign.imageUrl,
     ctaLabel: campaign.ctaLabel,
     ctaUrl: campaign.ctaUrl,
     unsubscribeUrl: campaignUnsubscribeUrl(fingerprint),

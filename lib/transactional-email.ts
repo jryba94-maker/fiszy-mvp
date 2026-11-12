@@ -77,6 +77,7 @@ export async function sendCampaignMessage(input: {
   to: string;
   subject: string;
   text: string;
+  imageUrl: string;
   ctaLabel: string;
   ctaUrl: string;
   unsubscribeUrl: string;
@@ -86,6 +87,9 @@ export async function sendCampaignMessage(input: {
   const from = configuredSender();
   const to = validRecipient(input.to);
   if (!from || !to) throw new Error("Campaign email is not configured.");
+  const image = input.imageUrl
+    ? `<img src="${escapeHtml(input.imageUrl)}" alt="" width="560" style="display:block;width:100%;height:auto;border:0;border-radius:16px;margin:0 0 24px" />`
+    : "";
   const cta = input.ctaUrl ? `<p><a href="${escapeHtml(input.ctaUrl)}" style="display:inline-block;padding:14px 20px;background:#7b2cff;border-radius:16px;color:#fff;text-decoration:none">${escapeHtml(input.ctaLabel)}</a></p>` : "";
   const textCta = input.ctaUrl ? `
 
@@ -99,7 +103,7 @@ ${input.ctaLabel}: ${input.ctaUrl}` : "";
     text: `${input.text}${textCta}
 
 Wypisz się z marketingu Fiszy: ${input.unsubscribeUrl}`,
-    html: `<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;padding:32px 20px"><p style="font-size:28px;font-weight:bold">Fiszy<span style="color:#7b2cff">.</span></p><div style="white-space:pre-line;line-height:1.6">${escapeHtml(input.text)}</div>${cta}<p style="margin-top:32px"><a href="${escapeHtml(input.unsubscribeUrl)}">Wypisz się z marketingu Fiszy</a></p></div>`,
+    html: `<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;padding:32px 20px"><p style="font-size:28px;font-weight:bold">Fiszy<span style="color:#7b2cff">.</span></p>${image}<div style="white-space:pre-line;line-height:1.6">${escapeHtml(input.text)}</div>${cta}<p style="margin-top:32px"><a href="${escapeHtml(input.unsubscribeUrl)}">Wypisz się z marketingu Fiszy</a></p></div>`,
     headers: {
       "List-Unsubscribe": `<${input.unsubscribeUrl}>`,
       "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
