@@ -1205,7 +1205,7 @@ return 1
   ]);
 }
 
-function cancelledRunKey(auctionId: string, runId: string) {
+export function cancelledRunKey(auctionId: string, runId: string) {
   return `${auctionRunConfigKey(runId, auctionId)}:cancelled`;
 }
 

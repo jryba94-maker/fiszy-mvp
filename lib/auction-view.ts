@@ -8,10 +8,13 @@ import {
   getTimedAuctionState,
   legacyAuctionRecord,
   normalizeAuctionId,
+  normalizeRunId,
 } from "./auction";
 import {
   type AuctionWinner,
   auctionConfigKey,
+  cancelledRunKey,
+  readAuctionRunConfig,
   auctionRecordKey,
   listAuctionIds,
   parseStoredAuctionConfig,
@@ -45,7 +48,20 @@ const pollingSnapshots = createCoalescedRead<{ base: AuctionBase; runtime: Aucti
 
 // Only the public polling endpoint uses this short snapshot. Purchase, entry,
 // queue and administration checks always read authoritative storage directly.
-export async function readPublicAuctionForPolling(auctionIdValue: string) {
+export async function readPublicAuctionForPolling(auctionIdValue: string, runIdValue?: string): Promise<PublicAuction | null> {
+  if (runIdValue !== undefined) {
+    const auctionId = normalizeAuctionId(auctionIdValue);
+    const runId = normalizeRunId(runIdValue);
+    if (!auctionId || !runId) return null;
+    const current = await readPublicAuctionForPolling(auctionId);
+    if (current?.runId === runId) return current;
+    if (await redisCommand<string>(["GET", cancelledRunKey(auctionId, runId)])) return null;
+    const config = await readAuctionRunConfig(runId, auctionId);
+    if (!config || getAuctionEndsAt(config).getTime() > Date.now()) return null;
+    const base = { auctionId, record: null, config };
+    const [runtime] = await readAuctionRuntimes([base]);
+    return toPublicAuction(base, runtime, Date.now());
+  }
   const auctionId = normalizeAuctionId(auctionIdValue);
   if (!auctionId) return null;
   const snapshot = await pollingSnapshots(`${process.env.VERCEL_ENV ?? "local"}:${auctionId}`, async () => {

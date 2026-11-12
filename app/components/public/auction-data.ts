@@ -298,13 +298,15 @@ export async function fetchLegacyAuction(signal?: AbortSignal) {
 export async function fetchAuctionDetail(
   auctionId: string,
   signal?: AbortSignal,
+  runId?: string,
 ) {
-  const response = await fetch(`/api/auctions/${encodeURIComponent(auctionId)}`, {
+  const query = runId === undefined ? "" : `?run=${encodeURIComponent(runId)}`;
+  const response = await fetch(`/api/auctions/${encodeURIComponent(auctionId)}${query}`, {
     cache: "no-store",
     signal,
   });
 
-  if (response.status === 404 && auctionId === LEGACY_AUCTION_ID) {
+  if (response.status === 404 && runId === undefined && auctionId === LEGACY_AUCTION_ID) {
     return fetchLegacyAuction(signal);
   }
 

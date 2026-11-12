@@ -29,9 +29,13 @@ export async function generateMetadata({
 
 export default async function AuctionPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ auctionId: string }>;
+  searchParams: Promise<{ run?: string | string[] }>;
 }) {
   const { auctionId } = await params;
-  return <AuctionExperience auctionId={auctionId} />;
+  const { run } = await searchParams;
+  const runId = Array.isArray(run) ? "" : run;
+  return <AuctionExperience key={JSON.stringify([auctionId, runId])} auctionId={auctionId} runId={runId} />;
 }

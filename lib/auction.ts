@@ -125,6 +125,10 @@ export function normalizeAuctionId(value: unknown) {
   return AUCTION_ID_PATTERN.test(auctionId) ? auctionId : null;
 }
 
+export function auctionRunPath(auctionId: string, runId: string) {
+  return `/aukcje/${encodeURIComponent(auctionId)}?run=${encodeURIComponent(runId)}`;
+}
+
 export function normalizeRunId(value: unknown) {
   if (typeof value !== "string") return null;
   const runId = value.trim();

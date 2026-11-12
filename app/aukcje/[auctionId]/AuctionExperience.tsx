@@ -135,7 +135,7 @@ function outcomeMessage(outcome: string, action: "entry" | "buy") {
     : "Nie udało się rozpocząć płatności za produkt. Spróbuj ponownie.";
 }
 
-export function AuctionExperience({ auctionId }: { auctionId: string }) {
+export function AuctionExperience({ auctionId, runId }: { auctionId: string; runId?: string }) {
   const [auction, setAuction] = useState<PublicAuction | null>(null);
   const [serverOffset, setServerOffset] = useState(0);
   const [clock, setClock] = useState(() => Date.now());
@@ -173,7 +173,7 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
       requestInFlight = true;
       const requestStartedAt = Date.now();
       try {
-        const next = await fetchAuctionDetail(auctionId, controller.signal);
+        const next = await fetchAuctionDetail(auctionId, controller.signal, runId);
         if (!active) return;
         const requestFinishedAt = Date.now();
         const requestMidpoint = Math.round((requestStartedAt + requestFinishedAt) / 2);
@@ -209,7 +209,7 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
       window.clearInterval(poller);
       document.removeEventListener("visibilitychange", refreshIfVisible);
     };
-  }, [auctionId, pollingDelay, reloadKey]);
+  }, [auctionId, runId, pollingDelay, reloadKey]);
 
   useEffect(() => {
     const tick = () => {

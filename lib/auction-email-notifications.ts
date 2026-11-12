@@ -1,3 +1,4 @@
+import { auctionRunPath } from "./auction";
 import { createHash } from "node:crypto";
 import type { AuctionConfig } from "./auction";
 import { listRunParticipants, type AuctionWinner } from "./auction-storage";
@@ -48,7 +49,7 @@ export async function queueEntryAndReminderEmails(input: {
 }) {
   const recipient = await recipientForParticipant(input.participantId, input.recipient);
   if (!recipient) return { queued: 0 };
-  const auctionUrl = absoluteSiteUrl(`/aukcje/${encodeURIComponent(input.auctionId)}`);
+  const auctionUrl = absoluteSiteUrl(auctionRunPath(input.auctionId, input.config.runId));
   let queued = 0;
   const confirmation = await enqueueTransactionalMessage({
     dedupeKey: `entry.confirmation.v1.${ref(`${input.auctionId}\0${input.config.runId}\0${recipient.accountId}`)}`,
@@ -105,7 +106,7 @@ export async function queueWinnerEmail(input: {
     title: "Twoja kolej na zakup",
     text: `${input.product}\nTwoja zapisana cena: ${money(input.price)}${input.paymentExpiresAt ? `\nDokończ zakup do ${dateTime(input.paymentExpiresAt)}.` : ""}\n\nOpłacenie zakupu kończy aukcję.`,
     actionLabel: "Dokończ zakup",
-    actionUrl: absoluteSiteUrl(`/aukcje/${encodeURIComponent(input.auctionId)}`),
+    actionUrl: absoluteSiteUrl(auctionRunPath(input.auctionId, input.runId)),
   });
   return { queued: result.created };
 }

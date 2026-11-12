@@ -1,3 +1,4 @@
+import { auctionRunPath } from "../../../lib/auction";
 import Link from "next/link";
 import { type PublicAuction } from "./auction-data";
 import { SafeAuctionImage } from "./SafeAuctionImage";
@@ -57,7 +58,7 @@ export function AuctionCard({ auction, watched = false, watchBusy = false, onWat
         </div>
         <Link
           className={styles.cardLink}
-          href={`/aukcje/${encodeURIComponent(auction.auctionId)}`}
+          href={auctionRunPath(auction.auctionId, auction.runId)}
           aria-label={`Zobacz aukcję: ${auction.product}`}
         >
           <span>Zobacz aukcję</span>

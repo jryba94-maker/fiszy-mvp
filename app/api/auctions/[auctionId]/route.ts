@@ -5,7 +5,7 @@ import { readPublicAuctionForPolling } from "../../../../lib/auction-view";
 export const dynamic = "force-dynamic";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ auctionId: string }> },
 ) {
   const started = performance.now();
@@ -16,7 +16,7 @@ export async function GET(
   }
 
   try {
-    const auction = await readPublicAuctionForPolling(auctionId);
+    const auction = await readPublicAuctionForPolling(auctionId, new URL(request.url).searchParams.get("run") ?? undefined);
     if (!auction) {
       return NextResponse.json({ outcome: "not_found" }, { status: 404 });
     }
