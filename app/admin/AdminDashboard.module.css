@@ -1652,11 +1652,30 @@
 .previewButton { display: inline-block; margin-top: 24px; padding: 14px 20px; border-radius: 16px; background: #7b2cff; color: #fff; font-size: .86rem; font-weight: 850; }
 .previewUnsubscribe { margin: 32px 0 0; color: #77717f; font-size: .72rem; text-decoration: underline; }
 
+.consentPanel { display: grid; gap: 14px; margin-bottom: 18px; }
+.consentKpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.consentKpis > div { padding: 16px; border: 1px solid var(--admin-border); border-radius: 16px; background: var(--admin-surface-soft); }
+.consentKpis span, .consentKpis strong { display: block; }
+.consentKpis span { color: var(--admin-muted); font-size: .72rem; font-weight: 800; }
+.consentKpis strong { margin-top: 6px; font-size: 1.8rem; }
+.consentChart { display: flex; align-items: end; height: 150px; gap: 4px; margin-top: 16px; padding-top: 12px; border-bottom: 1px solid var(--admin-border); }
+.consentChart > div { display: grid; min-width: 0; flex: 1; height: 100%; grid-template-rows: 1fr auto; align-items: end; gap: 6px; }
+.consentChart i { display: block; min-height: 3px; border-radius: 5px 5px 0 0; background: #7b2cff; }
+.consentChart small { overflow: hidden; color: var(--admin-muted); font-size: .6rem; text-overflow: clip; white-space: nowrap; }
+.consentRows { display: grid; gap: 8px; margin-top: 14px; }
+.consentRow { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--admin-border); border-radius: 14px; }
+.consentRow strong, .consentRow small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.consentRow small { margin-top: 4px; color: var(--admin-muted); font-size: .72rem; }
+.consentHistory { grid-column: 1 / -1; border-top: 1px solid var(--admin-border); padding-top: 8px; color: var(--admin-muted); font-size: .78rem; }
+.consentHistory p { margin: 5px 0; }
+
 @media (max-width: 780px) {
   .operationsFormGrid,
   .operationsColumns { grid-template-columns: 1fr; }
   .operationsKpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .compactOperation { align-items: flex-start; flex-direction: column; }
+  .consentKpis { grid-template-columns: 1fr; }
+  .consentRow { grid-template-columns: 1fr; align-items: start; }
 }
 
 .waitlistPanel { grid-column: 1 / -1; }

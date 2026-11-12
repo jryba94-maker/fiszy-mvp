@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import styles from "../AdminDashboard.module.css";
+import { MarketingConsentPanel } from "./MarketingConsentPanel";
 
-type Content = { name: string; subject: string; text: string; imageUrl: string; ctaLabel: string; ctaUrl: string; segment: "all" | "recent" };
+type Content = { name: string; subject: string; text: string; imageUrl: string; ctaLabel: string; ctaUrl: string; segment: "all" | "recent" | "waitlist" };
 type Campaign = Content & {
   id: string; revision: number; state: "draft" | "queued" | "paused" | "completed" | "cancelled";
   scheduledAt: string | null; audience: number; processed: number; accepted: number; skipped: number; failed: number;
@@ -162,6 +163,7 @@ export function EmailCampaignsPanel({ canWrite, onSessionExpired }: { canWrite: 
 
   return (
     <section className={styles.panelSection} aria-labelledby="campaign-heading" aria-busy={busy}>
+      <MarketingConsentPanel onSessionExpired={onSessionExpired} />
       <div className={styles.sectionHeader}>
         <div><p className={styles.eyebrow}>Marketing</p><h2 id="campaign-heading">Kampanie e-mail</h2></div>
         <div className={styles.cardActions}>
@@ -205,7 +207,7 @@ export function EmailCampaignsPanel({ canWrite, onSessionExpired }: { canWrite: 
                 <img src={form.imageUrl} alt="Wgrana grafika kampanii" />
                 <button type="button" className={styles.secondaryButton} disabled={imageUploading} onClick={() => update("imageUrl", "")}>Usuń grafikę</button>
               </div> : null}
-              <label className={styles.field}>Segment<select className={styles.input} value={form.segment} onChange={(e) => update("segment", e.target.value)}><option value="all">Wszystkie konta ze zgodą marketingową</option><option value="recent">Konta ze zgodą z ostatnich 30 dni od utworzenia profilu</option></select></label>
+              <label className={styles.field}>Segment<select className={styles.input} value={form.segment} onChange={(e) => update("segment", e.target.value)}><option value="all">Wszystkie konta ze zgodą marketingową</option><option value="recent">Nowe konta ze zgodą z ostatnich 30 dni</option><option value="waitlist">Lista zainteresowanych pierwszą aukcją</option></select></label>
               <label className={styles.field}>Tekst przycisku<input className={styles.input} maxLength={80} value={form.ctaLabel} onChange={(e) => update("ctaLabel", e.target.value)} /></label>
               <label className={styles.field}>Link na Fiszy<input className={styles.input} maxLength={450} placeholder="/aukcje" value={form.ctaUrl} onChange={(e) => update("ctaUrl", e.target.value)} /></label>
             </fieldset>
