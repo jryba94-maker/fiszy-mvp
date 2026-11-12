@@ -224,7 +224,10 @@ async function claimMessage(messageId: string, now: number) {
   const key = messageKey(messageId);
   const raw = await redisCommand<string>(["GET", key]);
   const current = parseOutboxMessage(raw);
-  if (!raw || !current || !["queued", "retry", "sending"].includes(current.state)) return null;
+  if (!current || !raw || !["queued", "retry", "sending"].includes(current.state)) {
+    console.warn(JSON.stringify({ event: "outbox_claim_skipped", messageId, reason: raw === null ? "missing_record" : !current ? "invalid_record" : "ineligible_state", state: current?.state }));
+    return null;
+  }
   const claimed: OutboxMessage = {
     ...current,
     state: "sending",
@@ -252,7 +255,11 @@ return 1
     RETENTION_SECONDS,
     now + 60_000,
   ]);
-  return result === 1 ? claimed : null;
+  if (result !== 1) {
+    console.warn(JSON.stringify({ event: "outbox_claim_skipped", messageId, reason: "reservation_rejected", state: current.state }));
+    return null;
+  }
+  return claimed;
 }
 
 async function settleMessage(message: OutboxMessage, delivered: boolean, now: number, providerMessageId: string | null = null, errorCode = "provider_error") {
