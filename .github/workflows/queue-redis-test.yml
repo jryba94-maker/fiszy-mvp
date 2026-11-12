@@ -1,5 +1,7 @@
 name: Auction queue Redis test
 on:
+  pull_request:
+    branches: [main]
   push:
     branches: [test/auction-queue-redis]
 permissions:
