@@ -6,6 +6,6 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 180;
 
 export function POST(request: NextRequest) {
-  const receivedAt = Date.now();
+  const receivedAt = Number(request.headers.get("x-fiszy-buy-received-at")) || Date.now();
   return handleBuyPost(request, LEGACY_AUCTION_ID, receivedAt);
 }

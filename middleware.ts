@@ -15,6 +15,11 @@ export default clerkMiddleware((_auth, request: NextRequest) => {
     destination.host = CANONICAL_HOST;
     return NextResponse.redirect(destination, 308);
   }
+  if (request.method === "POST" && /^\/api\/(?:auction\/buy|auctions\/[^/]+\/runs\/[^/]+\/buy)\/?$/.test(request.nextUrl.pathname)) {
+    const headers = new Headers(request.headers);
+    headers.set("x-fiszy-buy-received-at", String(Date.now()));
+    return NextResponse.next({ request: { headers } });
+  }
   return NextResponse.next();
 });
 
