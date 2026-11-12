@@ -284,18 +284,15 @@ test("scheduled transactional messages pass through the durable outbox exactly o
         due.set(args[0], Number(args[2]));
         result = [1, args[0]];
       }
-    } else if (command[0] === "EVAL" && String(command[1]).includes('current.state = "sending"')) {
+    } else if (command[0] === "EVAL" && String(command[1]).includes('~= ARGV[3] then return 0')) {
       const keys = command.slice(3, 5);
       const args = command.slice(5);
-      const current = JSON.parse(values.get(keys[0]));
-      current.state = "sending";
-      current.attempts += 1;
-      current.nextAttemptAt = args[2];
-      current.updatedAt = args[3];
-      const encoded = JSON.stringify(current);
-      values.set(keys[0], encoded);
-      due.set(args[0], Number(args[5]));
-      result = encoded;
+      result = 0;
+      if (values.get(keys[0]) === args[2] && due.get(args[0]) <= Number(args[1])) {
+        values.set(keys[0], args[3]);
+        due.set(args[0], Number(args[5]));
+        result = 1;
+      }
     } else if (command[0] === "EVAL" && String(command[1]).includes('current.state ~= "sending"')) {
       const keys = command.slice(3, 6);
       const args = command.slice(6);

@@ -221,37 +221,38 @@ return {1, ARGV[1]}
 }
 
 async function claimMessage(messageId: string, now: number) {
-  const result = await redisCommand<string>([
+  const key = messageKey(messageId);
+  const raw = await redisCommand<string>(["GET", key]);
+  const current = parseOutboxMessage(raw);
+  if (!raw || !current || !["queued", "retry", "sending"].includes(current.state)) return null;
+  const claimed: OutboxMessage = {
+    ...current,
+    state: "sending",
+    attempts: current.attempts + 1,
+    nextAttemptAt: new Date(now + 60_000).toISOString(),
+    updatedAt: new Date(now).toISOString(),
+  };
+  const result = await redisCommand<number>([
     "EVAL",
     `
-local raw = redis.call("GET", KEYS[1])
-if not raw then redis.call("ZREM", KEYS[2], ARGV[1]); return nil end
-local ok, current = pcall(cjson.decode, raw)
-if not ok or type(current) ~= "table" then return nil end
-local state = tostring(current.state)
+if redis.call("GET", KEYS[1]) ~= ARGV[3] then return 0 end
 local due = redis.call("ZSCORE", KEYS[2], ARGV[1])
-if not due or tonumber(due) > tonumber(ARGV[2]) then return nil end
-if state ~= "queued" and state ~= "retry" and state ~= "sending" then return nil end
-current.state = "sending"
-current.attempts = tonumber(current.attempts or 0) + 1
-current.nextAttemptAt = ARGV[3]
-current.updatedAt = ARGV[4]
-local encoded = cjson.encode(current)
-redis.call("SET", KEYS[1], encoded, "EX", ARGV[5])
+if not due or tonumber(due) > tonumber(ARGV[2]) then return 0 end
+redis.call("SET", KEYS[1], ARGV[4], "EX", ARGV[5])
 redis.call("ZADD", KEYS[2], ARGV[6], ARGV[1])
-return encoded
+return 1
 `,
     2,
-    messageKey(messageId),
+    key,
     dueIndexKey(),
     messageId,
     now,
-    new Date(now + 60_000).toISOString(),
-    new Date(now).toISOString(),
+    raw,
+    JSON.stringify(claimed),
     RETENTION_SECONDS,
     now + 60_000,
   ]);
-  return parseOutboxMessage(result);
+  return result === 1 ? claimed : null;
 }
 
 async function settleMessage(message: OutboxMessage, delivered: boolean, now: number, providerMessageId: string | null = null, errorCode = "provider_error") {
