@@ -300,6 +300,27 @@ export async function processMessageOutbox(input: { limit?: number; now?: number
   const limit = input.limit ?? 20;
   const now = input.now ?? Date.now();
   if (!Number.isInteger(limit) || limit < 1 || limit > 50) return null;
+  const recent = await listOutboxMessages({ limit: 50 });
+  for (const message of recent?.messages ?? []) {
+    const dueAt = Date.parse(message.nextAttemptAt);
+    if (message.state !== "queued" || !Number.isFinite(dueAt) || dueAt > now) continue;
+    await redisCommand([
+      "EVAL",
+      `
+local raw = redis.call("GET", KEYS[1])
+if not raw then return 0 end
+local ok, current = pcall(cjson.decode, raw)
+if not ok or type(current) ~= "table" or current.state ~= "queued" or current.nextAttemptAt ~= ARGV[2] then return 0 end
+return redis.call("ZADD", KEYS[2], "NX", ARGV[3], ARGV[1])
+`,
+      2,
+      messageKey(message.messageId),
+      dueIndexKey(),
+      message.messageId,
+      message.nextAttemptAt,
+      dueAt,
+    ]);
+  }
   const ids = (await redisCommand<string[]>([
     "ZRANGEBYSCORE",
     dueIndexKey(),
