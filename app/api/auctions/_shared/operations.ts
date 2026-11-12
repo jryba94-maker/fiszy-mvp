@@ -335,23 +335,37 @@ export async function handleBuyPost(
   receivedAt: number,
   expectedRunId?: string | null,
 ) {
+  let roundEndsAt: number | null = null;
+  let queueResult: number | null = null;
+  const respond = (payload: { outcome: string; [key: string]: unknown }, init?: ResponseInit) => {
+    logEvent("auction_buy_result", {
+      auctionId: auctionIdValue,
+      runId: expectedRunId,
+      receivedAt,
+      roundEndsAt,
+      queueResult,
+      outcome: payload.outcome,
+      httpStatus: init?.status ?? 200,
+    });
+    return NextResponse.json(payload, init);
+  };
   const bidderRequest = await parseBidderBody(request);
   if (!bidderRequest) {
-    return NextResponse.json({ outcome: "invalid_request" }, { status: 400 });
+    return respond({ outcome: "invalid_request" }, { status: 400 });
   }
   const bidder = await authenticatedBidder();
   if (!bidder) {
-    return NextResponse.json({ outcome: "sign_in_required" }, { status: 401 });
+    return respond({ outcome: "sign_in_required" }, { status: 401 });
   }
-  if (bidder.blocked === null) return NextResponse.json({ outcome: "storage_error" }, { status: 503 });
-  if (bidder.blocked) return NextResponse.json({ outcome: "account_blocked" }, { status: 403 });
+  if (bidder.blocked === null) return respond({ outcome: "storage_error" }, { status: 503 });
+  if (bidder.blocked) return respond({ outcome: "account_blocked" }, { status: 403 });
   const { bidderId } = bidder;
   const { expectedPrice } = bidderRequest;
   if (!await requireAdultConfirmation(bidder, bidderRequest.ageConfirmed)) {
-    return NextResponse.json({ outcome: "age_confirmation_required" }, { status: 403 });
+    return respond({ outcome: "age_confirmation_required" }, { status: 403 });
   }
   if (!isPaymentProviderConfigured()) {
-    return NextResponse.json(
+    return respond(
       { outcome: "stripe_not_configured" },
       { status: 503 },
     );
@@ -360,15 +374,16 @@ export async function handleBuyPost(
   try {
     const active = await activeRun(auctionIdValue, expectedRunId);
     if (!active) {
-      return NextResponse.json({ outcome: "not_found" }, { status: 404 });
+      return respond({ outcome: "not_found" }, { status: 404 });
     }
     if (!active.runMatches) {
-      return NextResponse.json(
+      return respond(
         { outcome: "run_changed", runId: active.config.runId },
         { status: 409 },
       );
     }
 
+    roundEndsAt = getAuctionEndsAt(active.config).getTime();
     const timedState = getTimedAuctionState(receivedAt, active.config);
 
     const entry = await readAuctionEntry(
@@ -377,7 +392,7 @@ export async function handleBuyPost(
       active.auctionId,
     );
     if (!entry) {
-      return NextResponse.json(
+      return respond(
         {
           outcome: "entry_required",
           auctionId: active.auctionId,
@@ -396,9 +411,9 @@ export async function handleBuyPost(
     const checkoutResponse = async (claimedWinner: AuctionWinner, checkoutUrl: string) => {
       if (Date.now() >= purchaseDeadline(claimedWinner)) {
         const latest = await readAuctionWinner(active.config.runId, active.auctionId);
-        if (latest?.bidderId === bidderId && latest.paymentProcessingAt) return NextResponse.json({ outcome: "payment_processing" });
+        if (latest?.bidderId === bidderId && latest.paymentProcessingAt) return respond({ outcome: "payment_processing" });
         await advanceAuctionQueue(active.auctionId, active.config.runId);
-        return NextResponse.json({ outcome: "payment_expired" }, { status: 409 });
+        return respond({ outcome: "payment_expired" }, { status: 409 });
       }
       // Email delivery must not hold up the customer's payment redirect.
       after(async () => {
@@ -420,7 +435,7 @@ export async function handleBuyPost(
           logEvent("auction_winner_email_failed", errorDetails(emailError), "warning");
         }
       });
-      return NextResponse.json({
+      return respond({
         outcome: "checkout",
         auctionId: active.auctionId,
         runId: active.config.runId,
@@ -500,12 +515,12 @@ export async function handleBuyPost(
     const finishWinnerCheckout = async (claimedWinner: AuctionWinner) => {
       if (Date.now() >= purchaseDeadline(claimedWinner)) {
         await advanceAuctionQueue(active.auctionId, active.config.runId);
-        return NextResponse.json({ outcome: "payment_expired" }, { status: 409 });
+        return respond({ outcome: "payment_expired" }, { status: 409 });
       }
       const claimedAtMs = Date.parse(claimedWinner.claimedAt);
       if (!Number.isFinite(claimedAtMs)) {
         await releaseExactClaim(claimedWinner);
-        return NextResponse.json({ outcome: "storage_error" }, { status: 503 });
+        return respond({ outcome: "storage_error" }, { status: 503 });
       }
       const expiresAt =
         Math.floor(claimedAtMs / 1000) + PURCHASE_CHECKOUT_WINDOW_SECONDS;
@@ -528,7 +543,7 @@ export async function handleBuyPost(
       } catch (error) {
         try {
           const recovered = await waitForAttachedCheckout(claimedWinner);
-          if (recovered?.bidderId === claimedWinner.bidderId && recovered.claimedAt === claimedWinner.claimedAt && recovered.paymentProcessingAt && !recovered.paymentCheckoutUrl) return NextResponse.json({ outcome: "payment_processing" });
+          if (recovered?.bidderId === claimedWinner.bidderId && recovered.claimedAt === claimedWinner.claimedAt && recovered.paymentProcessingAt && !recovered.paymentCheckoutUrl) return respond({ outcome: "payment_processing" });
           if (
             recovered?.bidderId === claimedWinner.bidderId &&
             recovered.claimedAt === claimedWinner.claimedAt &&
@@ -540,7 +555,7 @@ export async function handleBuyPost(
           console.error("Unable to recover winner after Stripe failure.", recoveryError);
         }
         console.error("Unable to create winner Checkout Session.", error);
-        return NextResponse.json({ outcome: "payment_error" }, { status: 503 });
+        return respond({ outcome: "payment_error" }, { status: 503 });
       }
 
       let attached: number | null;
@@ -559,13 +574,13 @@ export async function handleBuyPost(
         console.error("Checkout attachment returned an ambiguous error.", error);
         const recoveredResponse = await recoverAttachment(session, claimedWinner);
         if (recoveredResponse) return recoveredResponse;
-        return NextResponse.json({ outcome: "storage_error" }, { status: 503 });
+        return respond({ outcome: "storage_error" }, { status: 503 });
       }
 
       if (attached !== 1) {
         const recoveredResponse = await recoverAttachment(session, claimedWinner);
         if (recoveredResponse) return recoveredResponse;
-        return NextResponse.json({ outcome: "storage_error" }, { status: 503 });
+        return respond({ outcome: "storage_error" }, { status: 503 });
       }
 
       return checkoutResponse(claimedWinner, session.checkoutUrl!);
@@ -580,9 +595,9 @@ export async function handleBuyPost(
       currentWinner?.bidderId === bidderId &&
       currentWinner.paymentStatus === "pending"
     ) {
-      if (currentWinner.paymentProcessingAt && Date.now() >= purchaseDeadline(currentWinner)) return NextResponse.json({ outcome: "payment_processing" });
+      if (currentWinner.paymentProcessingAt && Date.now() >= purchaseDeadline(currentWinner)) return respond({ outcome: "payment_processing" });
       if (Date.now() >= purchaseDeadline(currentWinner)) {
-        return NextResponse.json({ outcome: "payment_expired" }, { status: 409 });
+        return respond({ outcome: "payment_expired" }, { status: 409 });
       }
       return currentWinner.paymentCheckoutUrl
         ? checkoutResponse(currentWinner, currentWinner.paymentCheckoutUrl)
@@ -590,23 +605,22 @@ export async function handleBuyPost(
     }
 
     const queueStatus = await readAuctionQueueStatus(active.config.runId, bidderId, active.auctionId);
-    if (queueStatus.state === "queued") return NextResponse.json({ outcome: "queued", ...queueStatus });
-    if (queueStatus.state === "closed") return NextResponse.json({ outcome: "sold" }, { status: 409 });
+    if (queueStatus.state === "queued") return respond({ outcome: "queued", ...queueStatus });
+    if (queueStatus.state === "closed") return respond({ outcome: "sold" }, { status: 409 });
     if (timedState.status !== "live") {
-      return NextResponse.json({ outcome: "not_live", status: timedState.status, currentPrice: timedState.currentPrice }, { status: 409 });
+      return respond({ outcome: "not_live", status: timedState.status, currentPrice: timedState.currentPrice }, { status: 409 });
     }
     if (configuredPaymentProvider() === "autopay") await autopayCustomer(bidderId, true);
     if (expectedPrice !== undefined && (expectedPrice < timedState.currentPrice || !isAuctionPricePoint(expectedPrice, active.config))) {
-      return NextResponse.json({ outcome: "price_changed", currentPrice: timedState.currentPrice }, { status: 409 });
+      return respond({ outcome: "price_changed", currentPrice: timedState.currentPrice }, { status: 409 });
     }
 
-    let result: number | null;
     try {
-      result = await enqueueAuctionPurchase(
+      queueResult = await enqueueAuctionPurchase(
         active.config.runId,
         bidderId,
         new Date(active.config.startsAt).getTime(),
-        getAuctionEndsAt(active.config).getTime(),
+        roundEndsAt,
         receivedAt,
         purchase,
         active.auctionId,
@@ -628,7 +642,7 @@ export async function handleBuyPost(
           return finishWinnerCheckout(recovered);
         }
         if (recovered) {
-          return NextResponse.json(
+          return respond(
             {
               outcome: "lost",
               auctionId: active.auctionId,
@@ -641,21 +655,21 @@ export async function handleBuyPost(
       } catch (recoveryError) {
         console.error("Unable to recover ambiguous winner claim.", recoveryError);
       }
-      return NextResponse.json({ outcome: "storage_error" }, { status: 503 });
+      return respond({ outcome: "storage_error" }, { status: 503 });
     }
 
-    if (result === 1) {
+    if (queueResult === 1) {
       const winner = await readAuctionWinner(active.config.runId, active.auctionId);
       if (!winner || winner.bidderId !== bidderId) {
-        return NextResponse.json({ outcome: "storage_error" }, { status: 503 });
+        return respond({ outcome: "storage_error" }, { status: 503 });
       }
       await recordBusinessEventSafely({ event: "winner_claimed" });
       return finishWinnerCheckout(winner);
     }
 
-    if (result === 2) {
+    if (queueResult === 2) {
       const status = await readAuctionQueueStatus(active.config.runId, bidderId, active.auctionId);
-      return NextResponse.json({
+      return respond({
         outcome: "queued",
         auctionId: active.auctionId,
         runId: active.config.runId,
@@ -663,10 +677,10 @@ export async function handleBuyPost(
       });
     }
 
-    if (result === -4) return NextResponse.json({ outcome: "turn_expired" }, { status: 409 });
+    if (queueResult === -4) return respond({ outcome: "turn_expired" }, { status: 409 });
 
-    if (result === -2) {
-      return NextResponse.json(
+    if (queueResult === -2) {
+      return respond(
         {
           outcome: "entry_required",
           auctionId: active.auctionId,
@@ -675,14 +689,14 @@ export async function handleBuyPost(
         { status: 403 },
       );
     }
-    if (result === -1) {
-      return NextResponse.json(
+    if (queueResult === -1) {
+      return respond(
         { outcome: "not_live", status: "ended" },
         { status: 409 },
       );
     }
-    if (result === -3) {
-      return NextResponse.json({ outcome: "storage_error" }, { status: 503 });
+    if (queueResult === -3) {
+      return respond({ outcome: "storage_error" }, { status: 503 });
     }
 
     const existingWinner = await readAuctionWinner(
@@ -698,7 +712,7 @@ export async function handleBuyPost(
         : finishWinnerCheckout(existingWinner);
     }
 
-    return NextResponse.json(
+    return respond(
       {
         outcome: "lost",
         auctionId: active.auctionId,
@@ -708,9 +722,9 @@ export async function handleBuyPost(
       { status: 409 },
     );
   } catch (error) {
-    if (error instanceof AutopayCustomerError) return NextResponse.json({ outcome: "customer_details_required" }, { status: 400 });
+    if (error instanceof AutopayCustomerError) return respond({ outcome: "customer_details_required" }, { status: 400 });
     console.error("Unable to claim auction in Redis.", error);
-    return NextResponse.json({ outcome: "storage_error" }, { status: 503 });
+    return respond({ outcome: "storage_error" }, { status: 503 });
   }
 }
 
