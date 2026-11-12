@@ -47,6 +47,7 @@ const ALLOWED_FULFILLMENT_TRANSITIONS: Record<
 };
 
 type OrdersPanelProps = {
+  initialSearch?: string;
   orders: AdminOrder[];
   busyOrderId: string | null;
   updateError: { orderId: string; message: string } | null;
@@ -343,12 +344,13 @@ function OrderCard({
 }
 
 export function OrdersPanel({
+  initialSearch = "",
   orders,
   busyOrderId,
   updateError,
   onUpdateFulfillment,
 }: OrdersPanelProps) {
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(initialSearch);
   const [statusFilter, setStatusFilter] = useState<"all" | FulfillmentStatus>("all");
   const deferredSearch = useDeferredValue(searchQuery);
   const priorityCounts = useMemo(() => ({

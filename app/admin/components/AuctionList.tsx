@@ -32,6 +32,7 @@ type AuctionListProps = {
   busyAuctionId: string | null;
   onFilterChange: (filter: AuctionFilter) => void;
   onSearchChange: (query: string) => void;
+  onOrder?: (runId: string) => void;
   onDetails?: (auctionId: string) => void;
   onEdit: (auction: AdminAuction) => void;
   onDuplicate: (auction: AdminAuction) => void;
@@ -57,6 +58,7 @@ export function AuctionList({
   busyAuctionId,
   onFilterChange,
   onSearchChange,
+  onOrder,
   onDetails,
   onEdit,
   onDuplicate,
@@ -195,6 +197,7 @@ export function AuctionList({
 
                 <p>{formatDateTime(auction.startsAt)} · Opłacone wejścia: {auction.paidEntryCount ?? "—"}{auction.status === "sold" ? ` · Sprzedano za ${formatMoney(auction.currentPrice ?? 0)}` : ""}</p>
                 <div className={styles.cardActions}>
+                  {onOrder && auction.status === "sold" && auction.runId ? <button className={styles.secondaryButton} type="button" onClick={() => onOrder(auction.runId!)}>Zamówienie</button> : null}
                   {onDetails && auction.runId ? <button className={styles.secondaryButton} type="button" onClick={() => onDetails(auction.auctionId)}>Szczegóły</button> : null}
                   {auction.runId ? <button className={styles.secondaryButton} type="button" onClick={async () => {
                     try {

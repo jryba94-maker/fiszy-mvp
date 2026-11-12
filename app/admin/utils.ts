@@ -122,6 +122,7 @@ export function matchesOrderSearch(order: AdminOrder, query: string) {
   if (!normalized) return true;
   return [
     order.orderId,
+    order.runId,
     order.product,
     order.customer.name,
     order.customer.email,

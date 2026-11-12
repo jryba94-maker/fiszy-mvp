@@ -5,11 +5,12 @@ import { evaluateOperationsStatus } from "../../../lib/operations-status";
 import styles from "../AdminDashboard.module.css";
 
 type Funnel = { totals: Record<string, number>; conversion: Record<string, number>; campaigns: Array<{ label: string; signups: number }> };
-type Message = { messageId: string; template: string; state: string; attempts: number; recipient: string; updatedAt: string; deliveryStatus?: string | null; providerMessageId?: string | null; lastErrorCode?: string | null };
+type Message = { messageId: string; template: string; state: string; attempts: number; recipient: string; updatedAt: string; deliveryStatus?: string | null };
 type ServiceCase = { caseId: string; kind: string; subject: string; description: string; orderId: string | null; expectation: string | null; status: string; contactEmail: string; responseDueAt: string; revision: number; adminResponse: string | null; resolution: string | null; refundStatus: string };
 type PrivacyRequest = { requestId: string; kind: string; status: string; dueAt: string; revision: number };
 
-type Props = { onSessionExpired: () => void };
+type Props = { onSessionExpired: () => void; view?: "overview" | "cases" | "privacy" };
+type AutopayIssues = { stalePayments: unknown[]; refundsRequiringAttention: unknown[] };
 
 const CASE_STATUS_LABELS: Record<string, string> = {
   submitted: "Nowe",
@@ -56,7 +57,8 @@ async function loadAllPages<T>(
   throw new Error("operations_page_limit");
 }
 
-export function BusinessOperationsPanel({ onSessionExpired }: Props) {
+export function BusinessOperationsPanel({ onSessionExpired, view = "overview" }: Props) {
+  const [autopay, setAutopay] = useState<AutopayIssues | null>(null);
   const [funnel, setFunnel] = useState<Funnel | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [cases, setCases] = useState<ServiceCase[]>([]);
@@ -72,32 +74,34 @@ export function BusinessOperationsPanel({ onSessionExpired }: Props) {
     setError("");
     setLoading(true);
     try {
-      const [analytics, operations, serviceCases, privacyRequests] = await Promise.all([
-        api<{ funnel: Funnel }>("/api/admin/analytics?days=30"),
-        loadAllPages<Message>("/api/admin/operations", (payload) => {
+      const [analytics, operations, serviceCases, privacyRequests, paymentIssues] = await Promise.all([
+        view === "overview" ? api<{ funnel: Funnel }>("/api/admin/analytics?days=30") : null,
+        view === "overview" ? loadAllPages<Message>("/api/admin/operations", (payload) => {
           const outbox = (payload as { outbox: { messages: Message[]; nextCursor: string | null } }).outbox;
           return { items: outbox.messages, nextCursor: outbox.nextCursor };
-        }),
-        loadAllPages<ServiceCase>("/api/admin/cases", (payload) => {
+        }) : null,
+        view !== "privacy" ? loadAllPages<ServiceCase>("/api/admin/cases", (payload) => {
           const page = payload as { cases: ServiceCase[]; nextCursor: string | null };
           return { items: page.cases, nextCursor: page.nextCursor };
-        }),
-        loadAllPages<PrivacyRequest>("/api/admin/privacy", (payload) => {
+        }) : null,
+        view !== "cases" ? loadAllPages<PrivacyRequest>("/api/admin/privacy", (payload) => {
           const page = payload as { requests: PrivacyRequest[]; nextCursor: string | null };
           return { items: page.requests, nextCursor: page.nextCursor };
-        }),
+        }) : null,
+        view === "overview" ? api<AutopayIssues>("/api/admin/payments/autopay").catch(() => null) : null,
       ]);
-      setFunnel(analytics.funnel);
-      setMessages(operations);
-      setCases(serviceCases);
-      setPrivacy(privacyRequests);
+      setFunnel(analytics?.funnel ?? null);
+      setAutopay(paymentIssues);
+      setMessages(operations ?? []);
+      setCases(serviceCases ?? []);
+      setPrivacy(privacyRequests ?? []);
     } catch (caught) {
       if ((caught as { status?: number }).status === 401) onSessionExpired();
       else setError("Nie udało się pobrać pełnego obrazu operacji.");
     } finally {
       setLoading(false);
     }
-  }, [onSessionExpired]);
+  }, [onSessionExpired, view]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -159,9 +163,10 @@ export function BusinessOperationsPanel({ onSessionExpired }: Props) {
 
   return (
     <section className={styles.panelSection} aria-labelledby="operations-heading" aria-busy={loading}>
-      <div className={styles.sectionHeader}><div><p className={styles.eyebrow}>Automatyzacja i kontrola</p><h2 id="operations-heading">Centrum operacyjne</h2></div><button className={styles.cardPrimaryButton} type="button" disabled={busy} onClick={() => void reconcile()}>{busy ? "Sprawdzam…" : "Uruchom kontrolę"}</button></div>
+      {view === "overview" ? <div className={styles.sectionHeader}><div><p className={styles.eyebrow}>Automatyzacja i kontrola</p><h2 id="operations-heading">Centrum operacyjne</h2></div><button className={styles.cardPrimaryButton} type="button" disabled={busy} onClick={() => void reconcile()}>{busy ? "Sprawdzam…" : "Uruchom kontrolę"}</button></div> : <h2 id="operations-heading">{view === "cases" ? "Sprawy klientów" : "Wnioski RODO"}</h2>}
       {error ? <p className={styles.errorNotice} role="alert">{error}</p> : null}
       {notice ? <p className={styles.successNotice} role="status">{notice}</p> : null}
+      {view === "overview" ? <>
       <div className={`${styles.operationsPriority} ${styles[`operationsPriority_${operationsStatus.priority}`]}`} role="status">
         <div>
           <p className={styles.eyebrow}>Skrzynka priorytetów</p>
@@ -180,15 +185,17 @@ export function BusinessOperationsPanel({ onSessionExpired }: Props) {
         <div><strong>{funnel?.totals.winner_claimed ?? 0}</strong><span>decyzje zwycięskie</span></div>
         <div><strong>{funnel?.totals.order_paid ?? 0}</strong><span>opłacone zamówienia</span></div>
       </div>
-      <div className={styles.operationsColumns}>
-        <details className={styles.adminSubpanel} open={operationsStatus.overdueCases > 0}><summary className={styles.subpanelTitle}><h3>Sprawy klientów</h3><span>{cases.length}</span></summary><div className={styles.operationsList}>{cases.map((item) => {
+      {autopay && (autopay.stalePayments.length > 0 || autopay.refundsRequiringAttention.length > 0) ? <p role="status" className={styles.errorNotice}>Autopay: {autopay.stalePayments.length} płatności po terminie · {autopay.refundsRequiringAttention.length} zwrotów do sprawdzenia.</p> : null}
+      </> : null}
+      {view !== "overview" ? <div className={styles.operationsColumns}>
+        {view === "cases" ? <details className={styles.adminSubpanel} open><summary className={styles.subpanelTitle}><h3>Sprawy klientów</h3><span>{cases.length}</span></summary><div className={styles.operationsList}>{cases.map((item) => {
           const draft = caseEdits[item.caseId] ?? { status: item.status, adminResponse: item.adminResponse ?? "", resolution: item.resolution ?? "", refundStatus: item.refundStatus };
           const updateDraft = (patch: Partial<typeof draft>) => setCaseEdits((current) => ({ ...current, [item.caseId]: { ...draft, ...patch } }));
           return <article className={styles.operationCase} key={item.caseId}><div><strong>{item.subject}</strong><span>{item.caseId} · {item.kind} · termin {new Date(item.responseDueAt).toLocaleDateString("pl-PL")}</span><span>{item.contactEmail}{item.orderId ? ` · zamówienie ${item.orderId}` : ""}</span><p>{item.description}</p>{item.expectation ? <p><strong>Oczekiwanie:</strong> {item.expectation}</p> : null}</div><div className={styles.operationsFormGrid}><label className={styles.field}><span>Status</span><select className={styles.input} value={draft.status} onChange={(event) => updateDraft({ status: event.target.value })}>{allowedCaseStatuses(item.status).map((status) => <option key={status} value={status}>{CASE_STATUS_LABELS[status] ?? status}</option>)}</select></label><label className={styles.field}><span>Zwrot środków</span><select className={styles.input} value={draft.refundStatus} onChange={(event) => updateDraft({ refundStatus: event.target.value })}><option value="not_applicable">Nie dotyczy</option><option value="pending">Do wykonania</option><option value="completed">Wykonany</option></select></label></div><label className={styles.field}><span>Odpowiedź dla klienta</span><textarea className={styles.input} rows={3} maxLength={3000} value={draft.adminResponse} onChange={(event) => updateDraft({ adminResponse: event.target.value })} /></label><label className={styles.field}><span>Rozwiązanie wewnętrzne</span><textarea className={styles.input} rows={2} maxLength={2000} value={draft.resolution} onChange={(event) => updateDraft({ resolution: event.target.value })} /></label><div className={styles.cardActions}><button type="button" className={styles.cardPrimaryButton} disabled={busy} onClick={() => void updateCase(item)}>Zapisz sprawę</button></div></article>;
-        })}</div>{!loading && !cases.length ? <p className={styles.emptyState}>Brak spraw klientów.</p> : null}</details>
-        <details className={styles.adminSubpanel} open={operationsStatus.overduePrivacyRequests > 0}><summary className={styles.subpanelTitle}><h3>Wnioski RODO</h3><span>{privacy.length}</span></summary><div className={styles.operationsList}>{privacy.map((item) => <article className={styles.compactOperation} key={item.requestId}><div><strong>{item.kind}</strong><span>{item.status} · termin {new Date(item.dueAt).toLocaleDateString("pl-PL")}</span></div><div className={styles.cardActions}>{item.status === "requested" ? <button type="button" className={styles.secondaryButton} disabled={busy} onClick={() => void updatePrivacy(item, "verified")}>Zweryfikuj</button> : null}{item.status === "verified" ? <button type="button" className={styles.secondaryButton} disabled={busy} onClick={() => void updatePrivacy(item, "processing")}>Przetwarzaj</button> : null}</div></article>)}</div>{!privacy.length ? <p className={styles.emptyState}>Brak nowych wniosków.</p> : null}</details>
-      </div>
-      <details className={styles.adminSubpanel} open={operationsStatus.deadMessages > 0}><summary className={styles.subpanelTitle}><h3>Kolejka wiadomości</h3><span>{messages.length}</span></summary><div className={styles.operationsList}>{messages.slice(0, 100).map((message) => <div className={styles.compactOperation} key={message.messageId}><div><strong>{message.template}</strong><span>{message.state} · dostarczenie: {message.deliveryStatus ?? "oczekuje"} · próby: {message.attempts}</span>{message.providerMessageId && <span>ID Resend: <code>{message.providerMessageId}</code></span>}{message.lastErrorCode && <span>Błąd ostatniej próby: <code>{message.lastErrorCode}</code></span>}</div><div className={styles.cardActions}><time dateTime={message.updatedAt}>{new Date(message.updatedAt).toLocaleString("pl-PL")}</time>{message.state === "dead" ? <button type="button" className={styles.secondaryButton} disabled={busy} onClick={() => void retryMessage(message)}>Ponów bezpiecznie</button> : null}</div></div>)}</div>{!loading && !messages.length ? <p className={styles.emptyState}>Kolejka jest pusta.</p> : null}</details>
+        })}</div>{!loading && !cases.length ? <p className={styles.emptyState}>Brak spraw klientów.</p> : null}</details> : null}
+        {view === "privacy" ? <details className={styles.adminSubpanel} open><summary className={styles.subpanelTitle}><h3>Wnioski RODO</h3><span>{privacy.length}</span></summary><div className={styles.operationsList}>{privacy.map((item) => <article className={styles.compactOperation} key={item.requestId}><div><strong>{item.kind}</strong><span>{item.status} · termin {new Date(item.dueAt).toLocaleDateString("pl-PL")}</span></div><div className={styles.cardActions}>{item.status === "requested" ? <button type="button" className={styles.secondaryButton} disabled={busy} onClick={() => void updatePrivacy(item, "verified")}>Zweryfikuj</button> : null}{item.status === "verified" ? <button type="button" className={styles.secondaryButton} disabled={busy} onClick={() => void updatePrivacy(item, "processing")}>Przetwarzaj</button> : null}</div></article>)}</div>{!privacy.length ? <p className={styles.emptyState}>Brak nowych wniosków.</p> : null}</details> : null}
+      </div> : null}
+      {view === "overview" ? <details className={styles.adminSubpanel} open={operationsStatus.deadMessages > 0}><summary className={styles.subpanelTitle}><h3>Kolejka wiadomości</h3><span>{messages.length}</span></summary><div className={styles.operationsList}>{messages.slice(0, 100).map((message) => <div className={styles.compactOperation} key={message.messageId}><div><strong>{message.template}</strong><span>{message.state} · dostarczenie: {message.deliveryStatus ?? "oczekuje"} · próby: {message.attempts}</span></div><div className={styles.cardActions}><time dateTime={message.updatedAt}>{new Date(message.updatedAt).toLocaleString("pl-PL")}</time>{message.state === "dead" ? <button type="button" className={styles.secondaryButton} disabled={busy} onClick={() => void retryMessage(message)}>Ponów bezpiecznie</button> : null}</div></div>)}</div>{!loading && !messages.length ? <p className={styles.emptyState}>Kolejka jest pusta.</p> : null}</details> : null}
     </section>
   );
 }
