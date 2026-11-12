@@ -799,9 +799,8 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
             <div>
               <strong>Bezpieczne płatności</strong>
               <span>Opłatę za wejście i zakup obsługuje Autopay na szyfrowanej stronie płatności.</span>
-              <span className={styles.paymentMethods}>Wejście · metody dostępne w Autopay<br />Zakup produktu · BLIK</span>
             </div>
-            <Image src="/autopay-white.svg" width={107} height={27} alt="Autopay" />
+            <Image src="/blik-banki-800x132.png" width={200} height={33} alt="BLIK – banki" />
           </div>
         </section>
       </div>
