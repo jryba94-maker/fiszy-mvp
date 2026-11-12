@@ -56,7 +56,7 @@ export async function queueEntryAndReminderEmails(input: {
     recipient: recipient.email,
     template: "entry_confirmation",
     title: "Masz wejście na aukcję",
-    text: `${input.config.productName}\nAukcja: ${input.auctionId}, ${input.config.runId}\nOpłata za wejście: ${money(input.config.entryFee)}\nStart: ${dateTime(input.config.startsAt)}${input.consent ? `\n\nWarunki usługi w chwili zakupu:\n${input.consent.contract}\n\nTwoje oświadczenie (${input.consent.acceptedAt}, ${input.consent.version}):\n${input.consent.text}` : ""}`,
+    text: `${input.config.productName}\nOpłata za wejście: ${money(input.config.entryFee)}\nStart: ${dateTime(input.config.startsAt)}${input.consent ? `\n\nWarunki usługi w chwili zakupu:\n${input.consent.contract.replace(/ (?=(?:Usługa|Prawo odstąpienia|Odstąpienie i reklamacje|Regulamin i zasady|Mechanika):|Płatności online w Fiszy)/g, "\n\n")}\n\nTwoje oświadczenie (${dateTime(input.consent.acceptedAt)}, ${input.consent.version}):\n${input.consent.text}` : ""}`,
     actionLabel: "Zobacz aukcję",
     actionUrl: auctionUrl,
   });
@@ -103,7 +103,7 @@ export async function queueWinnerEmail(input: {
     recipient: recipient.email,
     template: "auction_win",
     title: "Twoja kolej na zakup",
-    text: `${input.product}\nTwoja zapisana cena: ${money(input.price)}${input.paymentExpiresAt ? `\nDokończ zakup do ${dateTime(input.paymentExpiresAt)}.` : ""}\nOpłacenie zakupu kończy aukcję.`,
+    text: `${input.product}\nTwoja zapisana cena: ${money(input.price)}${input.paymentExpiresAt ? `\nDokończ zakup do ${dateTime(input.paymentExpiresAt)}.` : ""}\n\nOpłacenie zakupu kończy aukcję.`,
     actionLabel: "Dokończ zakup",
     actionUrl: absoluteSiteUrl(`/aukcje/${encodeURIComponent(input.auctionId)}`),
   });
