@@ -8,6 +8,7 @@ export async function POST(
   request: NextRequest,
   context: { params: Promise<{ auctionId: string; runId: string }> },
 ) {
+  const receivedAt = Date.now();
   const { auctionId, runId } = await context.params;
-  return handleBuyPost(request, auctionId, runId);
+  return handleBuyPost(request, auctionId, receivedAt, runId);
 }

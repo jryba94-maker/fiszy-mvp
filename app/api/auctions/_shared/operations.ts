@@ -332,6 +332,7 @@ export async function handleEntryPost(
 export async function handleBuyPost(
   request: NextRequest,
   auctionIdValue: string,
+  receivedAt: number,
   expectedRunId?: string | null,
 ) {
   const bidderRequest = await parseBidderBody(request);
@@ -368,8 +369,7 @@ export async function handleBuyPost(
       );
     }
 
-    const now = Date.now();
-    const timedState = getTimedAuctionState(now, active.config);
+    const timedState = getTimedAuctionState(receivedAt, active.config);
 
     const entry = await readAuctionEntry(
       active.config.runId,
@@ -390,7 +390,7 @@ export async function handleBuyPost(
     const purchase = {
       bidderId,
       price: timedState.currentPrice,
-      clickedAt: new Date(now).toISOString(),
+      clickedAt: new Date(receivedAt).toISOString(),
     };
 
     const checkoutResponse = async (claimedWinner: AuctionWinner, checkoutUrl: string) => {
@@ -607,7 +607,7 @@ export async function handleBuyPost(
         bidderId,
         new Date(active.config.startsAt).getTime(),
         getAuctionEndsAt(active.config).getTime(),
-        now,
+        receivedAt,
         purchase,
         active.auctionId,
       );
