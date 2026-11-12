@@ -331,10 +331,14 @@ return redis.call("ZADD", KEYS[2], "NX", ARGV[3], ARGV[1])
     limit,
   ])) ?? [];
   const stats = { processed: 0, delivered: 0, retried: 0, dead: 0, errors: 0 };
+  let skippedClaims = 0;
   for (const messageId of ids) {
     if (!MESSAGE_ID_PATTERN.test(messageId)) continue;
     const message = await claimMessage(messageId, now);
-    if (!message) continue;
+    if (!message) {
+      skippedClaims += 1;
+      continue;
+    }
     stats.processed += 1;
     try {
       const providerMessageId = await sendTransactionalMessage({
@@ -350,6 +354,7 @@ return redis.call("ZADD", KEYS[2], "NX", ARGV[3], ARGV[1])
       const settled = await settleMessage(message, true, Date.now(), providerMessageId);
       if (!settled) throw new Error("Message settlement conflicted.");
       stats.delivered += 1;
+      console.info(JSON.stringify({ event: "outbox_resend_accepted", messageId, template: message.template, providerMessageId }));
     } catch (error) {
       const detail = error instanceof Error ? error.message : "";
       const status = /^Transactional email provider returned ([1-5][0-9]{2})\.$/.exec(detail)?.[1];
@@ -359,11 +364,13 @@ return redis.call("ZADD", KEYS[2], "NX", ARGV[3], ARGV[1])
         : error instanceof Error && error.name === "TimeoutError" ? "provider_timeout"
         : "provider_error";
       const settled = await settleMessage(message, false, Date.now(), null, code);
+      console.warn(JSON.stringify({ event: "outbox_send_failed", messageId, template: message.template, code }));
       if (settled?.state === "dead") stats.dead += 1;
       else if (settled?.state === "retry") stats.retried += 1;
       else stats.errors += 1;
     }
   }
+  console.info(JSON.stringify({ event: "outbox_batch", visible: recent?.messages.length ?? 0, due: ids.length, skippedClaims, ...stats }));
   return stats;
 }
 
