@@ -29,7 +29,6 @@ import { KpiGrid } from "./components/KpiGrid";
 import { LandingTrafficPanel } from "./components/LandingTrafficPanel";
 import { LegalHistoryPanel } from "./components/LegalHistoryPanel";
 import { EmailCampaignsPanel } from "./components/EmailCampaignsPanel";
-import { MarketingAgentsPanel } from "./components/MarketingAgentsPanel";
 import { OrdersPanel } from "./components/OrdersPanel";
 import { PortalOperationsPanel } from "./components/PortalOperationsPanel";
 import { RunHistoryPanel } from "./components/RunHistoryPanel";
@@ -44,14 +43,13 @@ import type {
 } from "./types";
 
 type SessionStatus = "checking" | "signed_out" | "authenticated" | "unconfigured";
-type AdminSection = "overview" | "traffic" | "catalog" | "auctions" | "orders" | "history" | "legal" | "users" | "operations" | "marketing" | "audit" | "campaigns";
+type AdminSection = "overview" | "traffic" | "catalog" | "auctions" | "orders" | "history" | "legal" | "users" | "operations" | "audit" | "campaigns";
 
 const ADMIN_SECTIONS: Array<{ id: AdminSection; label: string; caption: string }> = [
   { id: "overview", label: "Pulpit", caption: "Wyniki i system" },
   { id: "traffic", label: "Ruch", caption: "Landing i źródła" },
   { id: "operations", label: "Operacje", caption: "Priorytety i automaty" },
   { id: "campaigns", label: "Kampanie e-mail", caption: "Segmenty i wysyłka" },
-  { id: "marketing", label: "Marketing", caption: "Agenci i testy" },
   { id: "catalog", label: "Produkty", caption: "Katalog i szablony" },
   { id: "auctions", label: "Aukcje", caption: "Lista i edycja" },
   { id: "orders", label: "Zamówienia", caption: "Realizacja" },
@@ -69,7 +67,7 @@ function sectionAllowed(section: AdminSection, permissions: string[]) {
   if (section === "legal") return permissions.includes("audit:read");
   if (section === "traffic") return permissions.includes("audit:read");
   if (section === "operations") return permissions.includes("audit:read") && permissions.includes("users:write");
-  if (section === "marketing" || section === "campaigns") return permissions.includes("audit:read");
+  if (section === "campaigns") return permissions.includes("audit:read");
   return true;
 }
 
@@ -627,8 +625,6 @@ export default function AdminPage() {
       {activeSection === "operations" ? <div className={styles.sectionStack}><BusinessOperationsPanel onSessionExpired={handleExpiredSession} /></div> : null}
 
       {activeSection === "campaigns" ? <div className={styles.sectionStack}><EmailCampaignsPanel onSessionExpired={handleExpiredSession} canWrite={adminPermissions.includes("marketing:write")} /></div> : null}
-
-      {activeSection === "marketing" ? <div className={styles.sectionStack}><MarketingAgentsPanel onSessionExpired={handleExpiredSession} /></div> : null}
 
       <footer className={styles.footer}>
         <span>Fiszy / panel operacyjny</span>
