@@ -82,16 +82,6 @@ function formatCountdown(target: string | null, serverNow: number) {
   return days > 0 ? `${days} dni ${time}` : time;
 }
 
-function startDateLabel(value: string) {
-  return new Intl.DateTimeFormat("pl-PL", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(value));
-}
-
 function timerAt(
   auction: PublicAuction | null,
   displayStatus: AuctionStatus,
@@ -408,11 +398,9 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
     : 0;
 
   let auctionMessage = "";
-  if (auction) {
+  if (auction && (!auction.storageReady || displayStatus !== "waiting")) {
     if (!auction.storageReady) {
       auctionMessage = "Mechanizm zakupu jest chwilowo niedostępny.";
-    } else if (displayStatus === "waiting") {
-      auctionMessage = `Wejście jest otwarte do startu o ${startDateLabel(auction.startsAt)}.`;
     } else if (!isAuthLoaded) {
       auctionMessage = "Sprawdzamy stan Twojego konta…";
     } else if (!isSignedIn && displayStatus === "live") {
@@ -658,9 +646,9 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
 
   const actionNote = (hasCurrentEntry || checkingEntry)
     ? null
-    : `Jednorazowe wejście do tej aukcji: ${auction.entryFee} zł`;
+    : `Wejście: ${auction.entryFee} zł.`;
   const offerNote = auction.postAuctionOffer.enabled && (canEnter || needsSignIn)
-    ? `Nie kupisz? Po aukcji dostaniesz na konto ${auction.entryFee} zł rabatu na ten produkt (ważny ${auction.postAuctionOffer.validityDays} ${auction.postAuctionOffer.validityDays === 1 ? "dzień" : "dni"}).`
+    ? ` Jeśli nie kupisz produktu na aukcji, po jej zakończeniu dostaniesz na konto ${auction.entryFee} zł rabatu na ten produkt, ważnego przez ${auction.postAuctionOffer.validityDays} ${auction.postAuctionOffer.validityDays === 1 ? "dzień" : "dni"}.`
     : null;
   const consentBusy = isEntering || isBuying;
   const consentFeedback = consentAction === "entry" ? entryFeedback : purchaseFeedback;
@@ -792,7 +780,7 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
                 id="desktop-action-note"
               >
                 {actionNote}
-                {offerNote ? <span className={styles.joinOfferNote}>{offerNote}</span> : null}
+                {offerNote}
               </p> : null}
             </div>
           </div>
@@ -835,7 +823,7 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
           id="mobile-action-note"
         >
           {actionNote}
-          {offerNote ? <span className={styles.joinOfferNote}>{offerNote}</span> : null}
+          {offerNote}
         </p>
         ) : null}
       </div>
