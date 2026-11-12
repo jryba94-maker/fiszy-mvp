@@ -43,12 +43,12 @@ import type {
 } from "./types";
 
 type SessionStatus = "checking" | "signed_out" | "authenticated" | "unconfigured";
-type AdminSection = "overview" | "traffic" | "catalog" | "auctions" | "orders" | "history" | "legal" | "users" | "operations" | "audit" | "campaigns";
+type AdminSection = "waitlist" | "overview" | "traffic" | "catalog" | "auctions" | "orders" | "history" | "legal" | "users" | "audit" | "campaigns";
 
 const ADMIN_SECTIONS: Array<{ id: AdminSection; label: string; caption: string }> = [
   { id: "overview", label: "Pulpit", caption: "Wyniki i system" },
+  { id: "waitlist", label: "Zapisy e-mail", caption: "" },
   { id: "traffic", label: "Ruch", caption: "Landing i źródła" },
-  { id: "operations", label: "Operacje", caption: "Priorytety i automaty" },
   { id: "campaigns", label: "Kampanie e-mail", caption: "Segmenty i wysyłka" },
   { id: "catalog", label: "Produkty", caption: "Katalog i szablony" },
   { id: "auctions", label: "Aukcje", caption: "Lista i edycja" },
@@ -59,14 +59,22 @@ const ADMIN_SECTIONS: Array<{ id: AdminSection; label: string; caption: string }
   { id: "audit", label: "Dziennik", caption: "Zmiany i zdarzenia" },
 ];
 
+const ADMIN_GROUPS: { label: string; sections: AdminSection[] }[] = [
+  { label: "Pulpit", sections: ["overview"] },
+  { label: "Aukcje", sections: ["auctions", "catalog", "history"] },
+  { label: "Zamówienia", sections: ["orders"] },
+  { label: "Klienci", sections: ["users"] },
+  { label: "Marketing", sections: ["traffic", "campaigns", "waitlist"] },
+  { label: "System", sections: ["legal", "audit"] },
+];
+
 function sectionAllowed(section: AdminSection, permissions: string[]) {
   if (section === "catalog" || section === "auctions") return permissions.includes("auctions:write");
   if (section === "orders") return permissions.includes("orders:write");
-  if (section === "history" || section === "users") return permissions.includes("users:read");
+  if (section === "history" || section === "users" || section === "waitlist") return permissions.includes("users:read");
   if (section === "audit") return permissions.includes("audit:read");
   if (section === "legal") return permissions.includes("audit:read");
   if (section === "traffic") return permissions.includes("audit:read");
-  if (section === "operations") return permissions.includes("audit:read") && permissions.includes("users:write");
   if (section === "campaigns") return permissions.includes("audit:read");
   return true;
 }
@@ -110,8 +118,9 @@ export default function AdminPage() {
   const [lastUpdated, setLastUpdated] = useState<number | null>(null);
   const [notice, setNotice] = useState<Notice>(null);
   const [legacyMode, setLegacyMode] = useState(false);
+  const [detailAuctionId, setDetailAuctionId] = useState("");
   const [activeSection, setActiveSection] = useState<AdminSection>("overview");
-  const loadingRef = useRef(false);
+  const loadingSections = useRef(new Set<AdminSection>());
   const busyOrderRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -155,25 +164,25 @@ export default function AdminPage() {
   }, []);
 
   const loadDashboard = useCallback(async (silent = false) => {
-    if (loadingRef.current) return;
-    loadingRef.current = true;
+    if (loadingSections.current.has(activeSection)) return;
+    loadingSections.current.add(activeSection);
     if (!silent) setDashboardLoading(true);
 
     try {
       const [auctionResult, orderResult, healthResult] = await Promise.allSettled([
-        loadAuctions(),
-        loadOrders(),
-        loadHealth(),
+        ["overview", "auctions", "history", "catalog"].includes(activeSection) ? loadAuctions() : null,
+        ["overview", "orders"].includes(activeSection) ? loadOrders() : null,
+        activeSection === "overview" ? loadHealth() : null,
       ]);
       const failures: string[] = [];
       let anySuccess = false;
       let usedLegacy = false;
 
-      if (auctionResult.status === "fulfilled") {
+      if (auctionResult.status === "fulfilled" && auctionResult.value) {
         setAuctions(auctionResult.value.auctions);
         usedLegacy ||= auctionResult.value.legacy;
         anySuccess = true;
-      } else {
+      } else if (auctionResult.status === "rejected") {
         if (isUnauthorized(auctionResult.reason)) {
           handleExpiredSession();
           return;
@@ -181,11 +190,11 @@ export default function AdminPage() {
         failures.push(`Aukcje: ${errorMessage(auctionResult.reason)}`);
       }
 
-      if (orderResult.status === "fulfilled") {
+      if (orderResult.status === "fulfilled" && orderResult.value) {
         setOrders(orderResult.value.orders);
         usedLegacy ||= orderResult.value.legacy;
         anySuccess = true;
-      } else {
+      } else if (orderResult.status === "rejected") {
         if (isUnauthorized(orderResult.reason)) {
           handleExpiredSession();
           return;
@@ -193,10 +202,10 @@ export default function AdminPage() {
         failures.push(`Zamówienia: ${errorMessage(orderResult.reason)}`);
       }
 
-      if (healthResult.status === "fulfilled") {
+      if (healthResult.status === "fulfilled" && healthResult.value) {
         setHealth(healthResult.value);
         anySuccess = true;
-      } else {
+      } else if (healthResult.status === "rejected") {
         if (isUnauthorized(healthResult.reason)) {
           handleExpiredSession();
           return;
@@ -208,21 +217,21 @@ export default function AdminPage() {
       setDashboardError(failures.join(" "));
       if (anySuccess) setLastUpdated(Date.now());
     } finally {
-      loadingRef.current = false;
+      loadingSections.current.delete(activeSection);
       if (!silent) setDashboardLoading(false);
     }
-  }, [handleExpiredSession]);
+  }, [activeSection, handleExpiredSession]);
 
   useEffect(() => {
     if (sessionStatus !== "authenticated") return;
     void loadDashboard();
 
     const timer = window.setInterval(() => {
-      if (document.visibilityState === "visible") void loadDashboard(true);
+      if (document.visibilityState === "visible" && ["overview", "auctions", "orders"].includes(activeSection)) void loadDashboard(true);
     }, 30_000);
 
     return () => window.clearInterval(timer);
-  }, [sessionStatus, loadDashboard]);
+  }, [sessionStatus, loadDashboard, activeSection]);
 
   const handleLogin = async (secret: string) => {
     setLoginBusy(true);
@@ -507,23 +516,30 @@ export default function AdminPage() {
         <aside className={styles.sidebar} aria-label="Sekcje panelu administratora">
           <div className={styles.sidebarBrand}>Fiszy<span>.</span></div>
           <nav className={styles.sidebarNav}>
-            {visibleAdminSections.map((section) => (
-              <button
-                key={section.id}
-                type="button"
-                className={styles.sidebarLink}
-                aria-current={activeSection === section.id ? "page" : undefined}
-                onClick={() => setActiveSection(section.id)}
-              >
-                <span>{section.label}</span>
-                <small>{section.caption}</small>
-              </button>
-            ))}
+            {ADMIN_GROUPS.map((group) => {
+              const first = group.sections.find((id) => visibleAdminSections.some((section) => section.id === id));
+              if (!first) return null;
+              return <button key={group.label} type="button" className={styles.sidebarLink}
+                aria-current={group.sections.includes(activeSection) ? "page" : undefined}
+                onClick={() => { setDetailAuctionId(""); setActiveSection(first); }}>
+                {group.label}
+              </button>;
+            })}
           </nav>
           <a className={styles.sidebarPublicLink} href="/aukcje">Otwórz portal ↗</a>
         </aside>
 
         <div className={styles.dashboardContent}>
+          <nav className={styles.adminSectionNav} aria-label="Widoki sekcji">
+            {visibleAdminSections.filter((section) => ADMIN_GROUPS.find((group) =>
+              group.sections.includes(activeSection))?.sections.includes(section.id)).map((section) => (
+              <button key={section.id} type="button" className={styles.secondaryButton}
+                aria-current={activeSection === section.id ? "page" : undefined}
+                onClick={() => { setDetailAuctionId(""); setActiveSection(section.id); }}>
+                {section.label}
+              </button>
+            ))}
+          </nav>
       <AdminHeader
         environment={health?.environment ?? "panel"}
         role={adminRole}
@@ -567,6 +583,7 @@ export default function AdminPage() {
         <div className={styles.sectionStack}>
           <KpiGrid auctions={auctions} orders={orders} />
           <HealthPanel health={health} auctions={auctions} />
+          {adminPermissions.includes("audit:read") && adminPermissions.includes("users:write") ? <BusinessOperationsPanel onSessionExpired={handleExpiredSession} /> : null}
         </div>
       ) : null}
 
@@ -587,6 +604,7 @@ export default function AdminPage() {
         busyAuctionId={busyAuctionId}
         onFilterChange={setFilter}
         onSearchChange={setAuctionSearch}
+        onDetails={sectionAllowed("history", adminPermissions) ? (id) => { setDetailAuctionId(id); setActiveSection("history"); } : undefined}
         onEdit={handleEdit}
         onDuplicate={(auction) => void handleDuplicate(auction)}
         onStart={(auction, startsAt) => void handleStartRun(auction, startsAt)}
@@ -612,6 +630,8 @@ export default function AdminPage() {
       ) : null}
 
       {activeSection === "history" ? <div className={styles.sectionStack}><RunHistoryPanel
+        key={detailAuctionId}
+        initialAuctionId={detailAuctionId}
         auctions={auctions}
         onSessionExpired={handleExpiredSession}
       /></div> : null}
@@ -620,11 +640,12 @@ export default function AdminPage() {
 
       {activeSection === "audit" ? <div className={styles.sectionStack}><AuditPanel onSessionExpired={handleExpiredSession} /></div> : null}
 
+      {activeSection === "waitlist" ? <div className={styles.sectionStack}><PortalOperationsPanel key="waitlist" view="waitlist" onSessionExpired={handleExpiredSession} /></div> : null}
+
       {activeSection === "users" ? <div className={styles.sectionStack}><PortalOperationsPanel onSessionExpired={handleExpiredSession} /></div> : null}
 
-      {activeSection === "operations" ? <div className={styles.sectionStack}><BusinessOperationsPanel onSessionExpired={handleExpiredSession} /></div> : null}
-
       {activeSection === "campaigns" ? <div className={styles.sectionStack}><EmailCampaignsPanel onSessionExpired={handleExpiredSession} canWrite={adminPermissions.includes("marketing:write")} /></div> : null}
+
 
       <footer className={styles.footer}>
         <span>Fiszy / panel operacyjny</span>

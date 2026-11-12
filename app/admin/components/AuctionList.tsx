@@ -1,6 +1,7 @@
 "use client";
 
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { auctionRunPath } from "../../../lib/auction";
 import type { AdminAuction, AuctionFilter } from "../types";
 import {
   STATUS_LABELS,
@@ -31,6 +32,7 @@ type AuctionListProps = {
   busyAuctionId: string | null;
   onFilterChange: (filter: AuctionFilter) => void;
   onSearchChange: (query: string) => void;
+  onDetails?: (auctionId: string) => void;
   onEdit: (auction: AdminAuction) => void;
   onDuplicate: (auction: AdminAuction) => void;
   onStart: (auction: AdminAuction, startsAt: string) => void;
@@ -55,12 +57,14 @@ export function AuctionList({
   busyAuctionId,
   onFilterChange,
   onSearchChange,
+  onDetails,
   onEdit,
   onDuplicate,
   onStart,
   onArchiveToggle,
   onCancelRun,
 }: AuctionListProps) {
+  const [copyNotice, setCopyNotice] = useState<{ id: string; message: string } | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [schedulingId, setSchedulingId] = useState<string | null>(null);
   const [scheduledStart, setScheduledStart] = useState("");
@@ -178,16 +182,9 @@ export function AuctionList({
                   <div className={styles.auctionIdentity}>
                     <div className={styles.auctionStatusLine}>
                       <div className={styles.statusGroup}>
-                        <span className={`${styles.statusPill} ${styles[`status_${auction.recordState}`]}`}>
-                          <span aria-hidden="true" />
-                          {STATUS_LABELS[auction.recordState]}
+                        <span className={`${styles.statusPill} ${styles[`status_${auction.recordState === "published" ? auction.status ?? "published" : auction.recordState}`]}`}>
+                          {STATUS_LABELS[auction.recordState === "published" ? auction.status ?? "published" : auction.recordState]}
                         </span>
-                        {auction.status ? (
-                          <span className={`${styles.statusPill} ${styles[`status_${auction.status}`]}`}>
-                            <span aria-hidden="true" />
-                            {STATUS_LABELS[auction.status]}
-                          </span>
-                        ) : null}
                       </div>
                       <span className={styles.slug}>/{auction.slug}</span>
                     </div>
@@ -196,30 +193,19 @@ export function AuctionList({
                   </div>
                 </div>
 
-                <dl className={styles.auctionStats}>
-                  <div>
-                    <dt>Zakres ceny</dt>
-                    <dd>{formatMoney(auction.startPrice)} → {formatMoney(auction.floorPrice)}</dd>
-                  </div>
-                  <div>
-                    <dt>Aktualna</dt>
-                    <dd>{auction.currentPrice !== null ? formatMoney(auction.currentPrice) : "—"}</dd>
-                  </div>
-                  <div>
-                    <dt>Czas</dt>
-                    <dd>{auction.durationMinutes || "—"} min</dd>
-                  </div>
-                  <div>
-                    <dt>Wejście</dt>
-                    <dd>{formatMoney(auction.entryFee)}</dd>
-                  </div>
-                  <div>
-                    <dt>Start</dt>
-                    <dd>{formatDateTime(auction.startsAt)}</dd>
-                  </div>
-                </dl>
-
+                <p>{formatDateTime(auction.startsAt)} · Opłacone wejścia: {auction.paidEntryCount ?? "—"}{auction.status === "sold" ? ` · Sprzedano za ${formatMoney(auction.currentPrice ?? 0)}` : ""}</p>
                 <div className={styles.cardActions}>
+                  {onDetails && auction.runId ? <button className={styles.secondaryButton} type="button" onClick={() => onDetails(auction.auctionId)}>Szczegóły</button> : null}
+                  {auction.runId ? <button className={styles.secondaryButton} type="button" onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(new URL(auctionRunPath(auction.auctionId, auction.runId!), window.location.origin).href);
+                      setCopyNotice({ id: auction.auctionId, message: "Link skopiowany." });
+                    } catch {
+                      setCopyNotice({ id: auction.auctionId, message: "Nie udało się skopiować linku." });
+                    }
+                  }}>Kopiuj link</button> : null}
+                  {copyNotice?.id === auction.auctionId ? <small role="status">{copyNotice.message}</small> : null}
+                  <details><summary>Więcej</summary><div className={styles.cardActions}>
                   <button
                     className={styles.secondaryButton}
                     type="button"
@@ -251,6 +237,7 @@ export function AuctionList({
                       Anuluj aukcję
                     </button>
                   ) : null}
+                  </div></details>
                   {!auction.runId ? (
                     <button
                       className={styles.cardPrimaryButton}

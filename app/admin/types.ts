@@ -19,6 +19,7 @@ export type AuctionDisplayStatus =
   | AuctionRunStatus;
 
 export type AdminAuction = {
+  paidEntryCount?: number | null;
   auctionId: string;
   slug: string;
   revision: number | null;

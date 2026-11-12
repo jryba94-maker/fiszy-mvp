@@ -191,7 +191,7 @@ function runParticipantsIndexKey(auctionId: string, runId: string) {
   return `${prefix()}:auction:${checkedAuctionId(auctionId)}:run:${checkedRunId(runId)}:index:v1:participants`;
 }
 
-function runParticipantCountKey(auctionId: string, runId: string) {
+export function runParticipantCountKey(auctionId: string, runId: string) {
   return `${prefix()}:auction:${checkedAuctionId(auctionId)}:run:${checkedRunId(runId)}:participants:v1:count`;
 }
 

@@ -275,6 +275,7 @@ function normalizeAuction(value: unknown, index: number): AdminAuction {
 
   return {
     auctionId,
+    paidEntryCount: firstInteger(root.paidEntryCount),
     slug,
     revision: firstInteger(root.revision, record.revision),
     recordState,

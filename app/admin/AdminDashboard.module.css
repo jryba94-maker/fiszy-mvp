@@ -2568,3 +2568,14 @@
 }
 
 .orderIdCopy:hover { text-decoration: underline; }
+
+.adminSectionNav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.adminSectionNav [aria-current="page"] {
+  border-color: var(--admin-accent, #a78bfa);
+}

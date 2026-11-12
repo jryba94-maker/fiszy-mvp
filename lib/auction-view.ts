@@ -20,6 +20,7 @@ import {
   parseStoredAuctionConfig,
   parseStoredAuctionRecord,
   winnerKey,
+  runParticipantCountKey,
 } from "./auction-storage";
 import {
   type AuctionOrder,
@@ -31,6 +32,7 @@ import { createCoalescedRead } from "./coalesced-read";
 export type AdminAuctionView = {
   record: AuctionRecord;
   auction: PublicAuction | null;
+  paidEntryCount?: number | null;
 };
 
 type AuctionBase = {
@@ -297,9 +299,19 @@ export async function listAdminAuctions(input: {
   const publicByAuctionId = new Map(
     hydrated.map(({ auctionId, auction }) => [auctionId, auction]),
   );
+  const scheduled = bases.filter((base) => base.config);
+  const counts = scheduled.length ? await redisCommand<Array<string | null>>([
+    "MGET", ...scheduled.map(({ auctionId, config }) => runParticipantCountKey(auctionId, config!.runId)),
+  ]) : [];
+  const countByAuctionId = new Map(scheduled.map(({ auctionId }, index) => {
+    const raw = counts?.[index];
+    const count = raw == null ? null : Number(raw);
+    return [auctionId, count !== null && Number.isSafeInteger(count) && count >= 0 ? count : null] as const;
+  }));
   const auctions = bases.map(({ auctionId, record }) => ({
     record,
     auction: publicByAuctionId.get(auctionId) ?? null,
+    paidEntryCount: countByAuctionId.get(auctionId) ?? null,
   })) satisfies AdminAuctionView[];
 
   return { auctions, nextCursor: page.nextCursor };

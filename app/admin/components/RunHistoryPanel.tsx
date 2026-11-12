@@ -1,7 +1,7 @@
 "use client";
 
 import { auctionRunPath } from "../../../lib/auction";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ApiError,
   loadAuctionRunsPage,
@@ -25,6 +25,7 @@ type ParticipantsState = {
 
 type RunHistoryPanelProps = {
   auctions: AdminAuction[];
+  initialAuctionId?: string;
   onSessionExpired: () => void;
 };
 
@@ -44,6 +45,7 @@ function csvCell(value: string | number | null) {
 
 export function RunHistoryPanel({
   auctions,
+  initialAuctionId = "",
   onSessionExpired,
 }: RunHistoryPanelProps) {
   const [selectedAuctionId, setSelectedAuctionId] = useState("");
@@ -127,6 +129,10 @@ export function RunHistoryPanel({
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (initialAuctionId) selectAuction(initialAuctionId);
+  }, [initialAuctionId]);
 
   const fetchParticipants = async (
     run: AdminAuctionRun,
