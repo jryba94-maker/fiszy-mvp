@@ -15,11 +15,12 @@ export type AdminPermission =
   | "users:read"
   | "users:write"
   | "support:write"
-  | "audit:read";
+  | "audit:read"
+  | "marketing:write";
 
 const ROLE_PERMISSIONS: Record<AdminRole, AdminPermission[]> = {
-  owner: ["auctions:write", "orders:write", "users:read", "users:write", "support:write", "audit:read"],
-  operator: ["auctions:write", "orders:write", "users:read", "support:write", "audit:read"],
+  owner: ["auctions:write", "orders:write", "users:read", "users:write", "support:write", "audit:read", "marketing:write"],
+  operator: ["auctions:write", "orders:write", "users:read", "support:write", "audit:read", "marketing:write"],
   support: ["users:read", "support:write"],
   viewer: ["users:read", "audit:read"],
 };

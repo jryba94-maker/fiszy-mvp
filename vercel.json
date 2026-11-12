@@ -5,6 +5,10 @@
       "schedule": "0 7 * * *"
     },
     {
+      "path": "/api/cron/campaigns",
+      "schedule": "30 7 * * *"
+    },
+    {
       "path": "/api/cron/operations",
       "schedule": "15 7 * * *"
     }
