@@ -170,8 +170,8 @@ export async function sendTransactionalMessage(input: {
       reply_to: sellerDetails().email,
       ...(scheduledAt ? { scheduled_at: scheduledAt } : {}),
       subject: `${title} · Fiszy`,
-      text: `${title}\n\n${message}${actionText}`,
-      html: `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:40px 24px;color:#111114"><p style="font-size:28px;font-weight:700;margin:0 0 24px">Fiszy<span style="color:#7b2cff">.</span></p><h1 style="font-size:30px;line-height:1.15;margin:0 0 20px">${escapeHtml(title)}</h1><p style="font-size:17px;line-height:1.6;white-space:pre-line;margin:0">${escapeHtml(message)}</p>${actionHtml}<p style="font-size:12px;line-height:1.5;color:#6d6875;margin:36px 0 0">Wiadomość transakcyjna Fiszy · ${escapeHtml(input.template)}</p></div>`,
+      text: `${title}\n\n${message}${actionText}\n\nWiadomość transakcyjna Fiszy.pl`,
+      html: `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:40px 24px;color:#111114"><p style="font-size:28px;font-weight:700;margin:0 0 24px">Fiszy<span style="color:#7b2cff">.</span></p><h1 style="font-size:30px;line-height:1.15;margin:0 0 20px">${escapeHtml(title)}</h1>${message.split(/\r?\n\s*\r?\n/).map((paragraph) => `<p style="font-size:15px;line-height:1.6;margin:0 0 16px">${escapeHtml(paragraph).replace(/\r?\n/g, "<br>")}</p>`).join("")}${actionHtml}<p style="font-size:12px;line-height:1.5;color:#6d6875;margin:36px 0 0">Wiadomość transakcyjna Fiszy.pl</p></div>`,
     },
     input.idempotencyKey,
   );
