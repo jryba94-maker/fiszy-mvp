@@ -1368,78 +1368,6 @@ return 1
   ]);
 }
 
-export async function writeAuctionConfigIfCurrent(
-  expectedRunId: string,
-  config: AuctionConfig,
-  auctionId: string = AUCTION_ID,
-) {
-  const normalizedAuctionId = checkedAuctionId(auctionId);
-  const serialized = JSON.stringify(config);
-  const script = `
-local raw = redis.call("GET", KEYS[1])
-
-if raw then
-  local ok, current = pcall(cjson.decode, raw)
-  if not ok or type(current) ~= "table" or not current.runId then return -1 end
-  if current.runId ~= ARGV[1] then return 0 end
-elseif ARGV[1] ~= ARGV[2] or ARGV[5] ~= ARGV[6] then
-  return 0
-end
-
-if redis.call("EXISTS", KEYS[2]) == 1 then return -1 end
-
-redis.call("SET", KEYS[2], ARGV[3])
-redis.call("SET", KEYS[1], ARGV[3])
-redis.call("ZADD", KEYS[3], ARGV[4], ARGV[7])
-redis.call("ZADD", KEYS[4], ARGV[4], ARGV[8])
-redis.call("ZADD", KEYS[5], ARGV[4], ARGV[5])
-redis.call("SET", KEYS[7], 0)
-redis.call("SET", KEYS[8], 0)
-
-local recordRaw = redis.call("GET", KEYS[6])
-if recordRaw then
-  local recordOk, record = pcall(cjson.decode, recordRaw)
-  local configOk, nextConfig = pcall(cjson.decode, ARGV[3])
-  if recordOk and configOk and type(record) == "table" and type(nextConfig) == "table" then
-    record.currentRunId = nextConfig.runId
-    record.productName = nextConfig.productName
-    record.productImageUrl = nextConfig.productImageUrl or cjson.null
-    record.regularPrice = nextConfig.regularPrice
-    record.startPrice = nextConfig.startPrice
-    record.floorPrice = nextConfig.floorPrice
-    record.durationMinutes = nextConfig.durationMinutes
-    record.state = "published"
-    record.updatedAt = nextConfig.startsAt
-    record.revision = (tonumber(record.revision) or 0) + 1
-    redis.call("SET", KEYS[6], cjson.encode(record))
-  end
-end
-return 1
-`;
-
-  return redisCommand<number>([
-    "EVAL",
-    script,
-    8,
-    auctionConfigKey(normalizedAuctionId),
-    auctionRunConfigKey(config.runId, normalizedAuctionId),
-    runsIndexKey(),
-    auctionRunsIndexKey(normalizedAuctionId),
-    catalogIndexKey(),
-    auctionRecordKey(normalizedAuctionId),
-    runParticipantCountKey(normalizedAuctionId, config.runId),
-    runParticipantVersionKey(normalizedAuctionId, config.runId),
-    expectedRunId,
-    defaultAuctionConfig().runId,
-    serialized,
-    new Date(config.startsAt).getTime(),
-    normalizedAuctionId,
-    LEGACY_AUCTION_ID,
-    runReference(normalizedAuctionId, config.runId),
-    config.runId,
-  ]);
-}
-
 export async function readAuctionRunConfig(
   runId: string,
   auctionId: string = AUCTION_ID,
@@ -1591,7 +1519,7 @@ return 2
     `${queueEntryKey(runId, bidderId, auctionId)}:attempted`,
     runId, bidderId, nowMs, startsAtMs, endsAtMs, JSON.stringify(entry),
     `${prefix()}:auction:${checkedAuctionId(auctionId)}:run:${checkedRunId(runId)}:purchase-queue:`,
-    new Date(nowMs).toISOString(),
+    new Date().toISOString(),
   ]);
 }
 

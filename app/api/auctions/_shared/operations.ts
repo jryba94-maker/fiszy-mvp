@@ -610,10 +610,11 @@ export async function handleBuyPost(
     if (timedState.status !== "live") {
       return respond({ outcome: "not_live", status: timedState.status, currentPrice: timedState.currentPrice }, { status: 409 });
     }
-    if (configuredPaymentProvider() === "autopay") await autopayCustomer(bidderId, true);
     if (expectedPrice !== undefined && (expectedPrice < timedState.currentPrice || !isAuctionPricePoint(expectedPrice, active.config))) {
       return respond({ outcome: "price_changed", currentPrice: timedState.currentPrice }, { status: 409 });
     }
+
+    if (configuredPaymentProvider() === "autopay") await autopayCustomer(bidderId, true);
 
     try {
       queueResult = await enqueueAuctionPurchase(

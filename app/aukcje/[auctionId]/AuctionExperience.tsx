@@ -201,7 +201,7 @@ export function AuctionExperience({ auctionId, runId }: { auctionId: string; run
     const refreshIfVisible = () => {
       if (document.visibilityState === "visible") void load();
     };
-    const poller = window.setInterval(refreshIfVisible, pollingDelay);
+    const poller = window.setInterval(refreshIfVisible, pollingDelay + Math.floor(Math.random() * 250));
     document.addEventListener("visibilitychange", refreshIfVisible);
     return () => {
       active = false;
@@ -463,7 +463,7 @@ export function AuctionExperience({ auctionId, runId }: { auctionId: string; run
       } finally { inFlight = false; }
     };
     void poll();
-    const timer = window.setInterval(() => void poll(), queuePollingDelay);
+    const timer = window.setInterval(() => void poll(), queuePollingDelay + Math.floor(Math.random() * 250));
     document.addEventListener("visibilitychange", poll);
     return () => { controller.abort(); window.clearInterval(timer); document.removeEventListener("visibilitychange", poll); };
   }, [auction?.runId, auctionId, queueScope, hasCurrentEntry, displayStatus, ageConfirmed, queuePollingDelay]);
