@@ -163,15 +163,29 @@ export async function sendTransactionalMessage(input: {
   const actionHtml = actionLabel && actionUrl
     ? `<p style="margin:28px 0 0"><a href="${escapeHtml(actionUrl)}" style="display:inline-block;background:#7b2cff;color:#fff;text-decoration:none;font-weight:700;padding:14px 20px;border-radius:999px">${escapeHtml(actionLabel)}</a></p>`
     : "";
+  const paragraphs = message.split(/\r?\n\s*\r?\n/);
+  const renderParagraph = (paragraph: string) => `<p style="font-size:15px;line-height:1.6;margin:0 0 16px">${escapeHtml(paragraph).replace(/\r?\n/g, "<br>")}</p>`;
+  const [summary, ...details] = paragraphs;
+  const attachTerms = input.template === "entry_confirmation" && details.length > 0 &&
+    details[0].startsWith("Warunki usługi w chwili zakupu:");
+  const attachmentNote = "Warunki zakupu i Twoje oświadczenie są w załączniku.";
+  const bodyHtml = attachTerms
+    ? renderParagraph(summary) + actionHtml + renderParagraph(attachmentNote)
+    : paragraphs.map(renderParagraph).join("") + actionHtml;
+  const bodyText = attachTerms ? summary + actionText + "\n\n" + attachmentNote : message + actionText;
   return sendEmail(
     {
       from,
       to: [to],
       reply_to: sellerDetails().email,
       ...(scheduledAt ? { scheduled_at: scheduledAt } : {}),
+      ...(attachTerms ? { attachments: [{
+        filename: "potwierdzenie-wejscia-fiszy.txt",
+        content: Buffer.from(`\uFEFF${title}\n\n${message}`, "utf8").toString("base64"),
+      }] } : {}),
       subject: `${title} · Fiszy`,
-      text: `${title}\n\n${message}${actionText}\n\nWiadomość transakcyjna Fiszy.pl`,
-      html: `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:40px 24px;color:#111114"><p style="font-size:28px;font-weight:700;margin:0 0 24px">Fiszy<span style="color:#7b2cff">.</span></p><h1 style="font-size:30px;line-height:1.15;margin:0 0 20px">${escapeHtml(title)}</h1>${message.split(/\r?\n\s*\r?\n/).map((paragraph) => `<p style="font-size:15px;line-height:1.6;margin:0 0 16px">${escapeHtml(paragraph).replace(/\r?\n/g, "<br>")}</p>`).join("")}${actionHtml}<p style="font-size:12px;line-height:1.5;color:#6d6875;margin:36px 0 0">Wiadomość transakcyjna Fiszy.pl</p></div>`,
+      text: `${title}\n\n${bodyText}\n\nWiadomość transakcyjna Fiszy.pl`,
+      html: `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:40px 24px;color:#111114"><p style="font-size:28px;font-weight:700;margin:0 0 24px">Fiszy<span style="color:#7b2cff">.</span></p><h1 style="font-size:30px;line-height:1.15;margin:0 0 20px">${escapeHtml(title)}</h1>${bodyHtml}<p style="font-size:12px;line-height:1.5;color:#6d6875;margin:36px 0 0">Wiadomość transakcyjna Fiszy.pl</p></div>`,
     },
     input.idempotencyKey,
   );
