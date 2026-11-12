@@ -727,7 +727,7 @@ export function AuctionExperience({ auctionId }: { auctionId: string }) {
               <span className={styles.sync}>Nie musisz odświeżać strony — czas i cena aktualizują się automatycznie.</span>
             </div>
 
-            <p className={styles.message} aria-live="polite">{auctionMessage}</p>
+            {auctionMessage ? <p className={styles.message} aria-live="polite">{auctionMessage}</p> : null}
             {buyerQueue && buyerQueue.state !== "idle" ? (
               <section className={styles.buyerQueue} aria-label="Twoja kolejka zakupu">
                 <h2>{isProcessing ? (paymentClosing ? "Potwierdzamy zamknięcie płatności" : "Twoja kolej na zakup") : isPaying ? "Twoja kolej na zakup" : isQueued ? `Jesteś ${buyerQueue.position}. w kolejce` : queueExpired ? "Twój czas na płatność minął" : "Produkt został opłacony"}</h2>
