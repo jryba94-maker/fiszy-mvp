@@ -27,7 +27,8 @@
     "build": "next build",
     "start": "next start",
     "test:autopay:unit": "node --no-warnings --loader ./scripts/typescript-loader.mjs --test scripts/autopay-unit-tests.mjs",
-    "test:autopay:integration": "node --no-warnings --loader ./scripts/typescript-loader.mjs scripts/autopay-integration-tests.mjs"
+    "test:autopay:integration": "node --no-warnings --loader ./scripts/typescript-loader.mjs scripts/autopay-integration-tests.mjs",
+    "test:campaigns:integration": "node --no-warnings --loader ./scripts/typescript-loader.mjs scripts/campaign-integration-tests.mjs"
   },
   "dependencies": {
     "@clerk/localizations": "^4.15.6",
