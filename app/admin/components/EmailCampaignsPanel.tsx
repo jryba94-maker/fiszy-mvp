@@ -29,6 +29,13 @@ const PRESS_CONTACTS = [
   ["Portal Kielecki","portalkielecki.pl@gmail.com"],
   ["Metro Poznań","redakcja@metropoznan.pl"],
   ["wSzczecinie.pl","wiadomosci@wszczecinie.pl"],
+  ["Lublin24.pl","redakcja@lublin24.pl"],
+  ["Twój Kurier Olsztyński","redakcja@tko.pl"],
+  ["Gdańsk Strefa Prestiżu","redakcja@gdanskstrefa.com"],
+  ["gorzowianin.com","redakcja@gorzowianin.com"],
+  ["Rzeszow24.pl","redakcja@rzeszow24.pl"],
+  ["Krakowski Raport","cc@krakowskiraport.pl"],
+  ["Radio Zielona Góra","poczta@rzg.pl"],
 ] as const;
 
 const EMPTY: Content = { name: "", subject: "", text: "", imageUrl: "", ctaLabel: "", ctaUrl: "", segment: "all" };
@@ -238,7 +245,7 @@ export function EmailCampaignsPanel({ canWrite, onSessionExpired }: { canWrite: 
                 <img src={form.imageUrl} alt="Wgrana grafika kampanii" />
                 <button type="button" className={styles.secondaryButton} disabled={imageUploading} onClick={() => update("imageUrl", "")}>Usuń grafikę</button>
               </div> : null}
-              <label className={styles.field}>Segment<select className={styles.input} value={form.segment} onChange={(e) => update("segment", e.target.value)}><option value="all">Wszystkie konta ze zgodą marketingową</option><option value="recent">Nowe konta ze zgodą z ostatnich 30 dni</option><option value="waitlist">Lista zainteresowanych pierwszą aukcją</option><option value="press">Portale informacyjne (18 redakcji)</option></select></label>
+              <label className={styles.field}>Segment<select className={styles.input} value={form.segment} onChange={(e) => update("segment", e.target.value)}><option value="all">Wszystkie konta ze zgodą marketingową</option><option value="recent">Nowe konta ze zgodą z ostatnich 30 dni</option><option value="waitlist">Lista zainteresowanych pierwszą aukcją</option><option value="press">Portale informacyjne ({PRESS_CONTACTS.length} redakcji)</option></select></label>
               <label className={styles.field}>Tekst przycisku<input className={styles.input} maxLength={80} value={form.ctaLabel} onChange={(e) => update("ctaLabel", e.target.value)} /></label>
               <label className={styles.field}>Link na Fiszy<input className={styles.input} maxLength={450} placeholder="/aukcje" value={form.ctaUrl} onChange={(e) => update("ctaUrl", e.target.value)} /></label>
             </fieldset>
