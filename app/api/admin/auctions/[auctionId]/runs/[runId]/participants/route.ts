@@ -1,3 +1,4 @@
+import { accountIdFromParticipantId, readClerkAccountEmail } from "../../../../../../../../lib/account-email";
 import { NextRequest, NextResponse } from "next/server";
 import {
   normalizeAuctionId,
@@ -10,6 +11,7 @@ import {
   readAuctionRunHistoryOutcomes,
 } from "../../../../../../../../lib/auction-storage";
 import {
+  hasAdminPermission,
   hasValidAdminRequest,
   isAdminConfigured,
 } from "../../../../../../../../lib/admin-auth";
@@ -72,14 +74,20 @@ export async function GET(request: NextRequest, context: Context) {
     if (!outcome) throw new Error("Auction run history outcome is missing.");
     const { winner, order } = outcome;
     const winnerId = winner?.bidderId ?? order?.bidderId ?? null;
-    const participants = page.participants.map((participant) => ({
-      participantId: participant.participantId,
-      entryStatus: outcome.cancelledAt && participant.entryStatus === "granted" && participant.entryFee > 0 ? "refund_required" : participant.entryStatus,
-      fee: participant.entryFee,
-      paymentReference: participant.entryPaymentReference ?? (participant.entryPaymentSessionId || null),
-      grantedAt: participant.grantedAt ?? null,
-      refundedAt: participant.refundedAt ?? null,
-      isWinner: participant.participantId === winnerId,
+    const canReadEmails = hasAdminPermission(request, "users:read");
+    const participants = await Promise.all(page.participants.map(async (participant) => {
+      const accountId = canReadEmails ? accountIdFromParticipantId(participant.participantId) : null;
+      const email = accountId ? await readClerkAccountEmail(accountId).catch(() => null) : null;
+      return {
+        email,
+        participantId: participant.participantId,
+        entryStatus: outcome.cancelledAt && participant.entryStatus === "granted" && participant.entryFee > 0 ? "refund_required" : participant.entryStatus,
+        fee: participant.entryFee,
+        paymentReference: participant.entryPaymentReference ?? (participant.entryPaymentSessionId || null),
+        grantedAt: participant.grantedAt ?? null,
+        refundedAt: participant.refundedAt ?? null,
+        isWinner: participant.participantId === winnerId,
+      };
     }));
 
     return NextResponse.json(

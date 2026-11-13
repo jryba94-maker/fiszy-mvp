@@ -782,6 +782,7 @@ function normalizeParticipant(value: unknown, index: number): AdminParticipant {
     : "unknown";
 
   return {
+    email: asString(root.email),
     participantId:
       firstString(root.participantId, root.bidderId, root.id) ?? `uczestnik-${index + 1}`,
     auctionId: firstString(root.auctionId),

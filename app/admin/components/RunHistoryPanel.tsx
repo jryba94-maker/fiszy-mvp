@@ -321,6 +321,7 @@ export function RunHistoryPanel({
                           <li key={participant.participantId}>
                             <div>
                               <code>{participant.participantId}</code>
+                              {participant.email ? <span style={{ overflowWrap: "anywhere" }}>{participant.email}</span> : null}
                               {participant.isWinner ? <strong>Zwycięzca</strong> : null}
                             </div>
                             <span>

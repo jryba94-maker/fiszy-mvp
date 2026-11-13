@@ -131,6 +131,7 @@ export type AdminAuctionRun = {
 
 export type AdminParticipant = {
   participantId: string;
+  email: string | null;
   auctionId: string | null;
   runId: string | null;
   entryStatus: "granted" | "refunded" | "refund_required" | "unknown";
