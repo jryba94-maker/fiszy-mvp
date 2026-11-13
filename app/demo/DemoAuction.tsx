@@ -5,6 +5,9 @@ import Link from "next/link";
 import { landingAttribution, landingSourceLabel } from "../../lib/landing-attribution";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import styles from "./demo.module.css";
+import auctionStyles from "../aukcje/[auctionId]/page.module.css";
+import { PublicHeader } from "../components/public/PublicHeader";
+import { SafeAuctionImage } from "../components/public/SafeAuctionImage";
 import { DEMO_TURN_MS, demoAuctionStep, demoPrice, newDemoAuction } from "../../lib/demo-auction";
 
 const COUNTDOWN_SECONDS = 5;
@@ -14,7 +17,7 @@ type DemoProduct = {
   id: string;
   name: string;
   price: number;
-  image: string;
+  image: string | null;
 };
 
 const DEMO_PRODUCTS: DemoProduct[] = [
@@ -79,7 +82,14 @@ function demoSessionId() {
   } catch { return crypto.randomUUID(); }
 }
 
-export function DemoAuction() {
+type DemoAuctionProps = {
+  initialProduct?: DemoProduct;
+  auctionHref: string;
+  auctionLabel: string;
+  auctionDetails?: string;
+};
+
+export function DemoAuction({ initialProduct = DEMO_PRODUCTS[0], auctionHref, auctionLabel, auctionDetails }: DemoAuctionProps) {
   const [simulation, setSimulation] = useState(() => newDemoAuction(Date.now()));
   const ownIndex = simulation.buyers.findIndex(buyer => buyer.id === "you");
   const state: DemoState = simulation.outcome ?? (simulation.now < simulation.startedAt ? "countdown" : ownIndex === 0 ? "payment" : ownIndex > 0 ? "queued" : "live");
@@ -91,7 +101,7 @@ export function DemoAuction() {
   const [consent, setConsent] = useState(false);
   const [signupState, setSignupState] = useState<"idle" | "submitting" | "success" | "error">("idle");
   const [signupMessage, setSignupMessage] = useState("");
-  const productRef = useRef<DemoProduct>(DEMO_PRODUCTS[0]);
+  const productRef = useRef(initialProduct);
   const finishedRef = useRef(false);
   const trafficSessionRef = useRef("");
   const trafficSourceRef = useRef("direct");
@@ -160,7 +170,7 @@ export function DemoAuction() {
     if (simulation.outcome && !finishedRef.current) {
       finishedRef.current = true;
       track("demo_auction_finished", { outcome: simulation.outcome });
-      if (trafficSessionRef.current) for (const event of ["demo_finished", "first_auction_cta"]) void fetch("/api/analytics/landing", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "event", event, sessionId: trafficSessionRef.current, source: trafficSourceRef.current }), keepalive: true }).catch(() => undefined);
+      if (trafficSessionRef.current) void fetch("/api/analytics/landing", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "event", event: "demo_finished", sessionId: trafficSessionRef.current, source: trafficSourceRef.current }), keepalive: true }).catch(() => undefined);
     }
   }, [simulation]);
 
@@ -173,13 +183,29 @@ export function DemoAuction() {
   const remaining = state === "countdown"
     ? COUNTDOWN_SECONDS - elapsed
     : 0;
-  const progress = Math.min(100, (liveElapsed / 120) * 100);
+  const floorPrice = demoPrice(product.price, Number.POSITIVE_INFINITY);
+  const progress = (product.price - demoPrice(product.price, liveElapsed * 1000))
+    / Math.max(1, product.price - floorPrice) * 100;
+
+  const trackAuctionClick = () => {
+    if (!trafficSessionRef.current) return;
+    void fetch("/api/analytics/landing", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "event", event: "first_auction_cta",
+        sessionId: trafficSessionRef.current, source: trafficSourceRef.current,
+      }),
+      keepalive: true,
+    }).catch(() => undefined);
+  };
 
   const shareResult = async () => {
-    const resultText = state === "won"
+    const resultText = "Wynik demo Fiszy. " + (state === "won"
       ? `Nie wygrywa ten, kto czeka najdłużej. Wylicytowałem ${product.name} za ${price} zł. To nie była tylko cena. To była decyzja. Tak wygląda decyzja na Fiszy. Przywracamy emocje zakupów.`
-      : `Nie wygrywa ten, kto czeka najdłużej. Zatrzymałem się przy ${price} zł. Tak wygląda decyzja na Fiszy. Przywracamy emocje zakupów.`;
+      : `Nie wygrywa ten, kto czeka najdłużej. Zatrzymałem się przy ${price} zł. Tak wygląda decyzja na Fiszy. Przywracamy emocje zakupów.`);
     const productImage = await new Promise<HTMLImageElement | null>((resolve) => {
+      if (!product.image || !product.image.startsWith("/") || product.image.startsWith("//")) return resolve(null);
       const image = new Image();
       image.onload = () => resolve(image);
       image.onerror = () => resolve(null);
@@ -241,7 +267,7 @@ export function DemoAuction() {
 
       context.fillStyle = "#eae4f5";
       context.font = "700 50px Arial, sans-serif";
-      context.fillText(product.name, 540, 1285);
+      context.fillText(product.name, 540, 1285, 900);
 
       context.fillStyle = "rgba(255,255,255,.18)";
       context.fillRect(182, 1370, 716, 2);
@@ -253,7 +279,7 @@ export function DemoAuction() {
 
       context.fillStyle = "#c9adff";
       context.font = "700 38px Arial, sans-serif";
-      context.fillText("Tak wygląda decyzja na Fiszy.", 540, 1730);
+      context.fillText("WYNIK DEMO FISZY", 540, 1730);
       context.fillStyle = "#ffffff";
       context.font = "800 34px Arial, sans-serif";
       context.fillText("PRZYWRACAMY EMOCJE ZAKUPÓW", 540, 1815);
@@ -344,123 +370,130 @@ export function DemoAuction() {
         : `Ktoś był szybszy i kupił ${product.name} za ${price} zł.`;
 
   return (
-    <main className={styles.page}>
-      <header className={styles.header}>
-        <Link className={styles.logo} href="/" aria-label="Fiszy — strona główna">Fiszy<span>.</span></Link>
-        <span className={styles.demoBadge}>Demo aukcji</span>
-      </header>
-
-      <section className={styles.shell} aria-labelledby="demo-title">
-        <div className={styles.visual} aria-hidden="true">
-          <div className={styles.halo} />
-          <img className={styles.productImage} src={product.image} alt="" />
-          <p>{product.name}</p>
-        </div>
-
-        <div className={styles.panel}>
-          <div className={styles.topline}>
-            <span className={`${styles.status} ${state === "live" ? styles.statusLive : ""}`}><i /> {status}</span>
-            <span className={styles.regularPrice}>cena regularna {product.price} zł</span>
-          </div>
-          <p className={styles.eyebrow}>Jedna decyzja. Jedna cena.</p>
-          <h1 id="demo-title">{product.name}</h1>
-
-          <div className={styles.priceBlock}>
-            <span>{ownBuyer ? "Twoja zapisana cena" : "Aktualna cena"}</span>
-            <strong aria-live="polite">{price} zł</strong>
-            <div className={styles.progress} aria-hidden="true"><i style={{ width: `${progress}%` }} /></div>
-          </div>
-
-          {state === "countdown" ? (
-            <div className={styles.clockBox}>
-              <div>
-                <span>{state === "countdown" ? "Start aukcji za" : "Czas aukcji"}</span>
-                <strong>{formatSeconds(state === "countdown" ? Math.ceil(remaining) : 0)}</strong>
-              </div>
-              <p>{state === "countdown" ? "Przygotuj się." : "Tak działa presja momentu."}</p>
+    <main className={auctionStyles.page}>
+      <PublicHeader />
+      <div className={auctionStyles.content}>
+        <Link className={auctionStyles.backLink} href={auctionHref}>← Wróć do aukcji Fiszy</Link>
+        <section className={auctionStyles.auctionShell} aria-labelledby="demo-title">
+          <SafeAuctionImage src={product.image} alt={product.name} priority frameClassName={auctionStyles.visual} />
+          <div className={auctionStyles.panel}>
+            <div className={auctionStyles.topline}>
+              <span className={styles.demoBadge}>Demo · bez płatności</span>
+              <span className={auctionStyles.duration}>{status}</span>
             </div>
-          ) : null}
+            <h1 className={auctionStyles.title} id="demo-title">{product.name}</h1>
 
-          {state === "countdown" || state === "live" ? <p className={styles.message} aria-live="polite">{message}</p> : null}
+            <div className={auctionStyles.priceArea}>
+              <div className={auctionStyles.priceTopline}>
+                <span className={auctionStyles.priceLabel}>{ownBuyer ? "Twoja zapisana cena" : "Cena w demo"}</span>
+                <span>Cena startowa w demo {product.price} zł</span>
+              </div>
+              <span className={auctionStyles.currentPrice} aria-live="off">{price} zł</span>
+              <div className={auctionStyles.progressTrack} aria-hidden="true">
+                <div className={auctionStyles.progressBar} style={{ width: `${progress}%` }} />
+              </div>
+            </div>
 
-          {(state === "queued" || state === "payment") && (
-            <section className={styles.checkout} aria-label="Symulacja kolejki i płatności">
-              <div className={styles.checkoutHeader}><span className={styles.checkoutBadge}>Tryb demo</span><span>Bez opłat</span></div>
-              {state === "queued" ? <>
-                <h2>Jesteś {position}. w kolejce</h2>
-                <p>Cena <b>{price} zł</b> jest Twoja. Gdy osoby przed Tobą nie zapłacą, dostaniesz własne 2 minuty.</p>
-                <div className={styles.turnClock}><span>Czas osoby przed Tobą</span><strong>{formatSeconds(turnRemaining)}</strong></div>
-                <button className={styles.demoSecondary} type="button" onClick={() => setSimulation(current => demoAuctionStep(current, { type: "skip", now: Date.now() }, product.price))}>Pomiń oczekiwanie w demo →</button>
-              </> : <>
-                <h2>Teraz Twój ruch.</h2>
-                <p>Twoja cena jest zarezerwowana. Potwierdź zakup, zanim skończy się czas.</p>
-                <div className={styles.turnClock}><span>Czas na płatność</span><strong role="timer">{formatSeconds(turnRemaining)}</strong></div>
-                <div className={styles.turnProgress} aria-hidden="true"><i style={{width: `${turnRemaining / 120 * 100}%`}} /></div>
-                <form onSubmit={pay}>
-                  <label htmlFor="demo-blik" className={styles.blikLabel}><span>Kod BLIK</span><span>6 cyfr</span></label>
-                  <input id="demo-blik" inputMode="numeric" autoComplete="off" pattern="[0-9]{6}" maxLength={6} value={blikCode} onChange={event => setBlikCode(event.target.value.replace(/\D/g, ""))} placeholder="••• •••" required aria-describedby="demo-blik-hint demo-blik-error" aria-invalid={Boolean(blikError)} />
-                  <small id="demo-blik-hint" className={styles.fieldHint}>Wpisz dowolne 6 cyfr — to tylko demo. Nie używaj kodu z banku.</small>
-                  {blikError && <p id="demo-blik-error" role="status">{blikError}</p>}
-                  <button className={styles.demoPay} type="submit">Potwierdź w demo · {price} zł</button>
+            {(state === "countdown" || state === "live") && (
+              <div className={auctionStyles.clockBox}>
+                <div>
+                  <span className={auctionStyles.clockLabel}>{state === "countdown" ? "Start aukcji za" : "Czas od startu"}</span>
+                  <span className={auctionStyles.clock}>{formatSeconds(state === "countdown" ? remaining : liveElapsed)}</span>
+                </div>
+                <span className={auctionStyles.sync}>Czas i cena aktualizują się automatycznie.</span>
+              </div>
+            )}
+
+            {state === "countdown" || state === "live" ? <p className={auctionStyles.message} aria-live="polite">{message}</p> : null}
+
+            {(state === "queued" || state === "payment") && (
+              <section className={styles.checkout} aria-label="Symulacja kolejki i płatności">
+                <div className={styles.checkoutHeader}><span className={styles.checkoutBadge}>Tryb demo</span><span>Bez opłat</span></div>
+                {state === "queued" ? <>
+                  <h2>Jesteś {position}. w kolejce</h2>
+                  <p>Cena <b>{price} zł</b> jest Twoja. Gdy osoby przed Tobą nie zapłacą, dostaniesz własne 2 minuty.</p>
+                  <div className={styles.turnClock}><span>Czas osoby przed Tobą</span><strong>{formatSeconds(turnRemaining)}</strong></div>
+                  <button className={styles.demoSecondary} type="button" onClick={() => setSimulation(current => demoAuctionStep(current, { type: "skip", now: Date.now() }, product.price))}>Pomiń oczekiwanie w demo →</button>
+                </> : <>
+                  <h2>Teraz Twój ruch.</h2>
+                  <p>Twoja cena jest zarezerwowana. Potwierdź zakup, zanim skończy się czas.</p>
+                  <div className={styles.turnClock}><span>Czas na płatność</span><strong role="timer">{formatSeconds(turnRemaining)}</strong></div>
+                  <div className={styles.turnProgress} aria-hidden="true"><i style={{width: `${turnRemaining / 120 * 100}%`}} /></div>
+                  <form onSubmit={pay}>
+                    <label htmlFor="demo-blik" className={styles.blikLabel}><span>Kod BLIK</span><span>6 cyfr</span></label>
+                    <input id="demo-blik" inputMode="numeric" autoComplete="off" pattern="[0-9]{6}" maxLength={6} value={blikCode} onChange={event => setBlikCode(event.target.value.replace(/\D/g, ""))} placeholder="••• •••" required aria-describedby="demo-blik-hint demo-blik-error" aria-invalid={Boolean(blikError)} />
+                    <small id="demo-blik-hint" className={styles.fieldHint}>Wpisz dowolne 6 cyfr — to tylko demo. Nie używaj kodu z banku.</small>
+                    {blikError && <p id="demo-blik-error" role="status">{blikError}</p>}
+                    <button className={styles.demoPay} type="submit">Potwierdź w demo · {price} zł</button>
+                  </form>
+                </>}
+                <div className={styles.auctionContinues}><span className={styles.liveDot} aria-hidden="true"/><p>Aukcja trwa · <b>{demoPrice(product.price, liveElapsed * 1000)} zł</b><small>Kończy ją dopiero potwierdzona płatność. Twoja cena pozostaje bez zmian.</small></p></div>
+              </section>
+            )}
+            {state === "won" ? (
+              <section className={styles.winnerCard} aria-live="assertive" aria-label={`Wygrałeś ${product.name} za ${price} zł`}>
+                <span className={`${styles.confetti} ${styles.confettiOne}`} aria-hidden="true">✦</span>
+                <span className={`${styles.confetti} ${styles.confettiTwo}`} aria-hidden="true">✦</span>
+                <span className={`${styles.confetti} ${styles.confettiThree}`} aria-hidden="true">●</span>
+                <span className={styles.winnerSpark} aria-hidden="true">✦</span>
+                <p>Płatność w demo potwierdzona</p>
+                <h2>Wygrałeś.</h2>
+                <strong>{product.name} za {price} zł</strong>
+                <span className={styles.winnerNote}>Twoja symulowana płatność zakończyła aukcję.</span>
+                <div className={styles.timingResult}>
+                  <span>Twój timing</span>
+                  <strong>Kliknąłeś przy {price} zł.</strong>
+                  <p>To wynik symulacji, bez rzeczywistego zakupu.</p>
+                  <button type="button" onClick={shareResult}>Udostępnij kartę w Stories</button>
+                </div>
+              </section>
+            ) : state === "live" ? (
+              <>
+                <div className={auctionStyles.desktopAction}>
+                  <button className={auctionStyles.primaryButton} type="button" onClick={buy}>LICYTUJ! — {price} ZŁ</button>
+                </div>
+                <div className={auctionStyles.mobileAction}>
+                  <button className={auctionStyles.primaryButton} type="button" onClick={buy}>LICYTUJ! — {price} ZŁ</button>
+                </div>
+              </>
+            ) : state === "countdown" ? (
+              <button className={auctionStyles.primaryButton} type="button" disabled>ZA CHWILĘ START</button>
+            ) : state === "lost" ? (
+              <section className={`${styles.winnerCard} ${styles.lostCard}`} aria-live="assertive" aria-label={`Ktoś był przed Tobą i kupił ${product.name} za ${price} zł`}>
+                <span className={`${styles.confetti} ${styles.confettiOne}`} aria-hidden="true">✕</span>
+                <span className={`${styles.confetti} ${styles.confettiTwo}`} aria-hidden="true">✕</span>
+                <span className={styles.winnerSpark} aria-hidden="true">!</span>
+                <p>Czas na płatność minął</p>
+                <h2>Twoja tura minęła.</h2>
+                <strong>{product.name} za {price} zł</strong>
+                <span className={styles.winnerNote}>Nie opłaciłeś zakupu w ciągu swoich 2 minut. Kolejka przechodzi dalej.</span>
+                <div className={styles.timingResult}>
+                  <span>Twój timing</span>
+                  <strong>Dotarłeś do {price} zł.</strong>
+                  <p>To wynik symulacji, bez rzeczywistego zakupu.</p>
+                  <button type="button" onClick={shareResult}>Udostępnij kartę w Stories</button>
+                </div>
+                <button className={styles.restartButton} type="button" onClick={restart}>Zagraj jeszcze raz</button>
+              </section>
+            ) : null}
+            {(state === "won" || state === "lost") ? (
+              <section className={`${styles.resultSignup} ${state === "lost" ? styles.resultSignupLost : ""}`} aria-label="Zapis na pierwszą aukcję">
+                <p>{state === "won" ? "Chcesz sprawdzić to naprawdę?" : "Następnym razem decyzja będzie należeć do Ciebie."}</p>
+                <Link className={styles.joinButton} href={auctionHref} onClick={trackAuctionClick}>{auctionLabel}</Link>
+                {auctionDetails && <p className={styles.auctionDetails}>{auctionDetails}</p>}
+                <form className={styles.resultSignupForm} onSubmit={submitSignup}>
+                  <input id="demo-email" type="email" inputMode="email" autoComplete="email" placeholder="Twój e-mail" value={email} onFocus={() => { if (!signupStartedRef.current && trafficSessionRef.current) { signupStartedRef.current = true; void fetch("/api/analytics/landing", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "event", event: "signup_started", sessionId: trafficSessionRef.current, source: trafficSourceRef.current }), keepalive: true }).catch(() => undefined); } }} onChange={(event) => setEmail(event.target.value)} required maxLength={254} disabled={signupState === "submitting" || signupState === "success"} />
+                  <button type="submit" disabled={signupState === "submitting" || signupState === "success"}>{signupState === "submitting" ? "ZAPISUJĘ…" : signupState === "success" ? "JESTEŚ NA LIŚCIE" : "ZAPISZ MNIE NA PIERWSZĄ AUKCJĘ"}</button>
+                  <label><input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} disabled={signupState === "submitting" || signupState === "success"} /> <span>Tylko informacje o pierwszej aukcji. Bez codziennych maili.</span></label>
+                  {signupMessage ? <small className={signupState === "success" ? styles.signupSuccess : styles.signupError} aria-live="polite">{signupMessage}</small> : null}
                 </form>
-              </>}
-              <div className={styles.auctionContinues}><span className={styles.liveDot} aria-hidden="true"/><p>Aukcja trwa · <b>{demoPrice(product.price, liveElapsed * 1000)} zł</b><small>Kończy ją dopiero potwierdzona płatność. Twoja cena pozostaje bez zmian.</small></p></div>
-            </section>
-          )}
-          {state === "won" ? (
-            <section className={styles.winnerCard} aria-live="assertive" aria-label={`Wygrałeś ${product.name} za ${price} zł`}>
-              <span className={`${styles.confetti} ${styles.confettiOne}`} aria-hidden="true">✦</span>
-              <span className={`${styles.confetti} ${styles.confettiTwo}`} aria-hidden="true">✦</span>
-              <span className={`${styles.confetti} ${styles.confettiThree}`} aria-hidden="true">●</span>
-              <span className={styles.winnerSpark} aria-hidden="true">✦</span>
-              <p>Płatność w demo potwierdzona</p>
-              <h2>Wygrałeś.</h2>
-              <strong>{product.name} za {price} zł</strong>
-              <span className={styles.winnerNote}>Twoja symulowana płatność zakończyła aukcję.</span>
-              <div className={styles.timingResult}>
-                <span>Twój timing</span>
-                <strong>Kliknąłeś przy {price} zł.</strong>
-                <p>To wynik symulacji, bez rzeczywistego zakupu.</p>
-                <button type="button" onClick={shareResult}>Udostępnij kartę w Stories</button>
-              </div>
-            </section>
-          ) : state === "live" ? (
-            <button className={styles.buyButton} type="button" onClick={buy}>LICYTUJ! — {price} ZŁ</button>
-          ) : state === "countdown" ? (
-            <button className={styles.buyButton} type="button" disabled>ZA CHWILĘ START</button>
-          ) : state === "lost" ? (
-            <section className={`${styles.winnerCard} ${styles.lostCard}`} aria-live="assertive" aria-label={`Ktoś był przed Tobą i kupił ${product.name} za ${price} zł`}>
-              <span className={`${styles.confetti} ${styles.confettiOne}`} aria-hidden="true">✕</span>
-              <span className={`${styles.confetti} ${styles.confettiTwo}`} aria-hidden="true">✕</span>
-              <span className={styles.winnerSpark} aria-hidden="true">!</span>
-              <p>Czas na płatność minął</p>
-              <h2>Twoja tura minęła.</h2>
-              <strong>{product.name} za {price} zł</strong>
-              <span className={styles.winnerNote}>Nie opłaciłeś zakupu w ciągu swoich 2 minut. Kolejka przechodzi dalej.</span>
-              <div className={styles.timingResult}>
-                <span>Twój timing</span>
-                <strong>Dotarłeś do {price} zł.</strong>
-                <p>To wynik symulacji, bez rzeczywistego zakupu.</p>
-                <button type="button" onClick={shareResult}>Udostępnij kartę w Stories</button>
-              </div>
-              <button className={styles.restartButton} type="button" onClick={restart}>Zagraj jeszcze raz</button>
-            </section>
-          ) : null}
-          {(state === "won" || state === "lost") ? (
-            <section className={`${styles.resultSignup} ${state === "lost" ? styles.resultSignupLost : ""}`} aria-label="Zapis na pierwszą aukcję">
-              <p>{state === "won" ? "Chcesz sprawdzić to naprawdę?" : "Następnym razem decyzja będzie należeć do Ciebie."}</p>
-              <form className={styles.resultSignupForm} onSubmit={submitSignup}>
-                <input id="demo-email" type="email" inputMode="email" autoComplete="email" placeholder="Twój e-mail" value={email} onFocus={() => { if (!signupStartedRef.current && trafficSessionRef.current) { signupStartedRef.current = true; void fetch("/api/analytics/landing", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "event", event: "signup_started", sessionId: trafficSessionRef.current, source: trafficSourceRef.current }), keepalive: true }).catch(() => undefined); } }} onChange={(event) => setEmail(event.target.value)} required maxLength={254} disabled={signupState === "submitting" || signupState === "success"} />
-                <button type="submit" disabled={signupState === "submitting" || signupState === "success"}>{signupState === "submitting" ? "ZAPISUJĘ…" : signupState === "success" ? "JESTEŚ NA LIŚCIE" : "ZAPISZ MNIE NA PIERWSZĄ AUKCJĘ"}</button>
-                <label><input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} disabled={signupState === "submitting" || signupState === "success"} /> <span>Tylko informacje o pierwszej aukcji. Bez codziennych maili.</span></label>
-                {signupMessage ? <small className={signupState === "success" ? styles.signupSuccess : styles.signupError} aria-live="polite">{signupMessage}</small> : null}
-              </form>
-            </section>
-          ) : null}
-          {state === "won" && <button className={styles.restartButton} type="button" onClick={restart}>Spróbuj ponownie</button>}
-          <p className={styles.note}>To symulacja. Niczego tutaj nie kupujesz ani nie płacisz.</p>
-        </div>
-      </section>
+              </section>
+            ) : null}
+            {state === "won" && <button className={styles.restartButton} type="button" onClick={restart}>Spróbuj ponownie</button>}
+            <p className={styles.note}>To symulacja. Niczego tutaj nie kupujesz ani nie płacisz.</p>
+          </div>
+        </section>
+      </div>
     </main>
   );
 }

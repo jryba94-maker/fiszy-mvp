@@ -224,6 +224,7 @@ export function AuctionCatalog() {
 
       <section className={styles.launchIntro} aria-labelledby="hero-title">
         <h1 id="hero-title">Aukcje<span>.</span></h1>
+        <Link className={styles.demoLink} href="/demo?from=catalog">Wypróbuj aukcję za darmo w demo →</Link>
       </section>
 
       <section className={styles.launchAuctions} id="aukcje" aria-label="Lista aukcji">

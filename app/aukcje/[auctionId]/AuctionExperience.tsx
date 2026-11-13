@@ -810,6 +810,9 @@ export function AuctionExperience({ auctionId, runId }: { auctionId: string; run
             </div>
           </div>
         </section>
+        {displayStatus === "waiting" && !hasCurrentEntry && (
+          <Link className={styles.backLink} href="/demo?from=auction">Wypróbuj aukcję za darmo w demo →</Link>
+        )}
 
         <section className={styles.proof} aria-label="Jak działa aukcja i płatność">
           <div className={styles.proofItem}>

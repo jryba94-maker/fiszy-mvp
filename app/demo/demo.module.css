@@ -84,3 +84,14 @@
 .auctionContinues small { display:block; margin-top:4px; font-size:12px; color:#a99bb6; line-height:1.55; }
 .liveDot { width:6px; height:6px; margin-top:8px; flex:none; border-radius:50%; background:#b68af1; box-shadow:0 0 10px #b68af144; }
 @media(prefers-reduced-motion:reduce) { .turnProgress i { transition:none; } }
+
+.resultSignup .auctionDetails {
+  margin: 8px 0 16px;
+  color: #c3bdcc;
+  font-size: .78rem;
+  font-weight: 600;
+}
+
+.resultSignup .joinButton:last-of-type {
+  margin-bottom: 12px;
+}

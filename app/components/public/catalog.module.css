@@ -748,3 +748,12 @@
     white-space: nowrap;
   }
 }
+
+.demoLink {
+  display: inline-block;
+  margin-top: 10px;
+  color: #c5a3ff;
+  font-size: .85rem;
+  font-weight: 700;
+  text-underline-offset: .2em;
+}
