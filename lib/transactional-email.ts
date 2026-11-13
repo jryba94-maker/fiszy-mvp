@@ -165,14 +165,16 @@ export async function sendTransactionalMessage(input: {
     : "";
   const paragraphs = message.split(/\r?\n\s*\r?\n/);
   const renderParagraph = (paragraph: string) => `<p style="font-size:15px;line-height:1.6;margin:0 0 16px">${escapeHtml(paragraph).replace(/\r?\n/g, "<br>")}</p>`;
-  const [summary, ...details] = paragraphs;
-  const attachTerms = input.template === "entry_confirmation" && details.length > 0 &&
-    details[0].startsWith("Warunki usługi w chwili zakupu:");
-  const attachmentNote = "Warunki zakupu i Twoje oświadczenie są w załączniku.";
+  const termsIndex = paragraphs.findIndex(paragraph =>
+    (input.template === "entry_confirmation" && paragraph.startsWith("Warunki usługi w chwili zakupu:")) ||
+    (input.template === "order_confirmation" && paragraph.startsWith("Warunki umowy sprzedaży:")));
+  const attachTerms = termsIndex > 0;
+  const summary = attachTerms ? paragraphs.slice(0, termsIndex) : paragraphs;
+  const attachmentNote = input.template === "entry_confirmation" ? "Warunki udziału i Twoje oświadczenie są w załączniku." : "Potwierdzenie zawarcia umowy sprzedaży znajdziesz w załączniku.";
   const bodyHtml = attachTerms
-    ? renderParagraph(summary) + actionHtml + renderParagraph(attachmentNote)
+    ? summary.map(renderParagraph).join("") + actionHtml + renderParagraph(attachmentNote)
     : paragraphs.map(renderParagraph).join("") + actionHtml;
-  const bodyText = attachTerms ? summary + actionText + "\n\n" + attachmentNote : message + actionText;
+  const bodyText = attachTerms ? summary.join("\n\n") + actionText + "\n\n" + attachmentNote : message + actionText;
   return sendEmail(
     {
       from,
@@ -180,7 +182,7 @@ export async function sendTransactionalMessage(input: {
       reply_to: sellerDetails().email,
       ...(scheduledAt ? { scheduled_at: scheduledAt } : {}),
       ...(attachTerms ? { attachments: [{
-        filename: "potwierdzenie-wejscia-fiszy.txt",
+        filename: input.template === "entry_confirmation" ? "potwierdzenie-wejscia-fiszy.txt" : "potwierdzenie-zamowienia-fiszy.txt",
         content: Buffer.from(`\uFEFF${title}\n\n${message}`, "utf8").toString("base64"),
       }] } : {}),
       subject: `${title} · Fiszy`,

@@ -36,12 +36,13 @@ export async function POST(request: NextRequest) {
       } else if (tx.paymentStatus === "SUCCESS") {
         const firstRemote = await claimAutopayPaidRemote(reference, tx.remoteID);
         if (firstRemote !== tx.remoteID) { await refundAutopayPayment(reference, tx.remoteID); continue; }
+        const confirmedPayment = { ...payment, autopayTransactionId: firstRemote };
         if (intent.kind === "auction_entry") {
-          if (!await handlePaidEntry(payment)) await refundAutopayPayment(reference, tx.remoteID);
+          if (!await handlePaidEntry(confirmedPayment)) await refundAutopayPayment(reference, tx.remoteID);
         }
         else if (intent.kind === "auction_purchase") {
-          if (!await handlePaidPurchase(payment)) await refundAutopayPayment(reference, tx.remoteID);
-        } else if (!await handlePaidDiscountPurchase(payment)) await refundAutopayPayment(reference, tx.remoteID);
+          if (!await handlePaidPurchase(confirmedPayment)) await refundAutopayPayment(reference, tx.remoteID);
+        } else if (!await handlePaidDiscountPurchase(confirmedPayment)) await refundAutopayPayment(reference, tx.remoteID);
       } else {
         await updateAutopayIntent(reference, { failureNotified: true });
         // One failed RemoteID never overrides another pending/successful attempt.

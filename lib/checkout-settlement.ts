@@ -43,7 +43,7 @@ import {
 import { processMessageOutbox } from "./message-outbox";
 import { readEntryServiceConsent } from "./entry-service-consent";
 
-export type SettlementSession = StripeCheckoutSession & { provider?: PaymentProviderName };
+export type SettlementSession = StripeCheckoutSession & { provider?: PaymentProviderName; autopayTransactionId?: string };
 
 function auctionMetadata(session: SettlementSession, kind: string) {
   const metadata = session.metadata;
@@ -192,6 +192,7 @@ export async function handlePaidEntry(session: SettlementSession) {
           recipient: session.customer_details?.email ?? null,
           config: runConfig,
           consent,
+          payment: { provider: session.provider ?? "stripe", transactionId: session.autopayTransactionId, confirmedAt: entry.grantedAt, reference: session.id },
         });
         await processMessageOutbox({ limit: 10 });
       } catch (emailError) {
@@ -329,7 +330,7 @@ export async function handlePaidPurchase(session: SettlementSession, completedAt
     if (saved === 1) await recordBusinessEventSafely({ event: "order_paid" });
     if (saved === 1) {
       try {
-        await queueOrderConfirmationEmail(order);
+        await queueOrderConfirmationEmail(order, { provider: session.provider ?? "stripe", transactionId: session.autopayTransactionId, confirmedAt: order.paidAt, reference: session.id });
         await issueAndQueueRunDiscountEmails({
           auctionId: metadata.auctionId,
           config: runConfig,
@@ -437,7 +438,7 @@ export async function handlePaidDiscountPurchase(session: SettlementSession) {
     if (saved === 1) await recordBusinessEventSafely({ event: "discount_redeemed" });
     if (saved === 1) {
       try {
-        await queueOrderConfirmationEmail(order);
+        await queueOrderConfirmationEmail(order, { provider: session.provider ?? "stripe", transactionId: session.autopayTransactionId, confirmedAt: order.paidAt, reference: session.id });
         await processMessageOutbox({ limit: 10 });
       } catch (emailError) {
         logEvent("discount_order_email_failed", { orderId: order.orderId, ...errorDetails(emailError) }, "warning");

@@ -12,6 +12,8 @@ import { enqueueTransactionalMessage } from "./message-outbox";
 import type { AuctionOrder } from "./order-storage";
 import { readAccountProfile } from "./portal-storage";
 import { absoluteSiteUrl } from "./site";
+import { sellerDetails, sellerIdentification } from "./seller";
+import type { PaymentProviderName } from "./payment-types";
 import type { EntryServiceConsent } from "./entry-service-consent";
 
 function money(value: number) {
@@ -27,6 +29,22 @@ function dateTime(value: string) {
     timeStyle: "short",
     timeZone: "Europe/Warsaw",
   }).format(new Date(value));
+}
+
+type PaymentConfirmation = {
+  provider: PaymentProviderName;
+  transactionId?: string;
+  confirmedAt: string;
+  reference: string;
+};
+
+function paymentConfirmation(payment: PaymentConfirmation) {
+  return [
+    "Status: płatność potwierdzona",
+    `Potwierdzono: ${dateTime(payment.confirmedAt)}`,
+    `Operator płatności: ${{ autopay: "Autopay", stripe: "Stripe", przelewy24: "Przelewy24", test: "Test" }[payment.provider]}`,
+    ...(payment.provider === "autopay" && payment.transactionId ? [`Identyfikator transakcji Autopay: ${payment.transactionId}`] : []),
+  ].join("\n");
 }
 
 function ref(value: string) {
@@ -46,6 +64,7 @@ export async function queueEntryAndReminderEmails(input: {
   recipient?: string | null;
   config: AuctionConfig;
   consent?: EntryServiceConsent | null;
+  payment: PaymentConfirmation;
 }) {
   const recipient = await recipientForParticipant(input.participantId, input.recipient);
   if (!recipient) return { queued: 0 };
@@ -57,7 +76,7 @@ export async function queueEntryAndReminderEmails(input: {
     recipient: recipient.email,
     template: "entry_confirmation",
     title: "Masz wejście na aukcję",
-    text: `${input.config.productName}\nOpłata za wejście: ${money(input.config.entryFee)}\nStart: ${dateTime(input.config.startsAt)}${input.consent ? `\n\nWarunki usługi w chwili zakupu:\n${input.consent.contract.replace(/ (?=(?:Usługa|Prawo odstąpienia|Odstąpienie i reklamacje|Regulamin i zasady|Mechanika):|Płatności online w Fiszy)/g, "\n\n")}\n\nTwoje oświadczenie (${dateTime(input.consent.acceptedAt)}, ${input.consent.version}):\n${input.consent.text}` : ""}`,
+    text: `${input.config.productName}\nOpłata za wejście: ${money(input.config.entryFee)}\nStart: ${dateTime(input.config.startsAt)}\n\nPotwierdzenie płatności\nNumer płatności Fiszy: ${input.payment.reference}\n${paymentConfirmation(input.payment)}\nOpłata obejmuje udział w aukcji. Zakup produktu jest rozliczany osobno.${input.consent ? `\n\nWarunki usługi w chwili zakupu:\n${input.consent.contract.replace(/ (?=(?:Usługa|Prawo odstąpienia|Odstąpienie i reklamacje|Regulamin i zasady|Mechanika):|Płatności online w Fiszy)/g, "\n\n")}\n\nTwoje oświadczenie (${dateTime(input.consent.acceptedAt)}, ${input.consent.version}):\n${input.consent.text}` : ""}`,
     actionLabel: "Zobacz aukcję",
     actionUrl: auctionUrl,
   });
@@ -111,7 +130,7 @@ export async function queueWinnerEmail(input: {
   return { queued: result.created };
 }
 
-export async function queueOrderConfirmationEmail(order: AuctionOrder) {
+export async function queueOrderConfirmationEmail(order: AuctionOrder, payment: PaymentConfirmation) {
   const recipient = await recipientForParticipant(order.bidderId, order.customer.email);
   if (!recipient) return { queued: false };
   const result = await enqueueTransactionalMessage({
@@ -119,8 +138,27 @@ export async function queueOrderConfirmationEmail(order: AuctionOrder) {
     accountId: recipient.accountId,
     recipient: recipient.email,
     template: "order_confirmation",
-    title: "Płatność przyjęta — zamówienie potwierdzone",
-    text: `${order.product}\nKwota: ${money(order.amount)}\nNumer zamówienia: ${order.orderId}`,
+    title: "Zamówienie opłacone",
+    text: [
+      `Płatność za ${order.product} została potwierdzona.`,
+      [
+        "Potwierdzenie płatności",
+        `Numer zamówienia Fiszy: ${order.orderId}`,
+        `Cena produktu: ${money(order.amount)}`,
+        "Dostawa: w cenie",
+        `Razem zapłacono: ${money(order.amount)}`,
+        paymentConfirmation(payment),
+      ].join("\n"),
+      "Dostawa przez InPost na terenie Polski. Numer przesyłki znajdziesz w Moje Fiszy po nadaniu.",
+      [
+        "Warunki umowy sprzedaży:",
+        `Sprzedawca: ${sellerIdentification()}`,
+        "Wysyłka do 3 dni roboczych od potwierdzenia płatności. Przewidywany transport po nadaniu: 1–2 dni robocze.",
+        `Odstąpienie: konsument ma 14 dni od otrzymania produktu na złożenie oświadczenia, z wyjątkami ustawowymi. Oświadczenie możesz wysłać na ${sellerDetails().email}. Adres zwrotu: ${sellerDetails().returnAddress}.`,
+        `Reklamacje przyjmujemy w Moje Fiszy lub pod adresem ${sellerDetails().email}. Odpowiadamy w ciągu 14 dni. Sprzedawca odpowiada za zgodność towaru z umową.`,
+        `Instrukcje i wzory: ${absoluteSiteUrl("/reklamacje")}`,
+      ].join("\n"),
+    ].join("\n\n"),
     actionLabel: "Zobacz zamówienie",
     actionUrl: absoluteSiteUrl("/moje-fiszy#historia"),
   });
