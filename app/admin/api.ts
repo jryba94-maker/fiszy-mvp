@@ -178,8 +178,23 @@ function apiErrorMessage(status: number, payload: JsonRecord) {
       return "Status zamówienia zmienił się w innym oknie. Odśwież dane.";
     case "invalid_transition":
       return "Ta zmiana statusu realizacji nie jest dozwolona.";
-    case "auction_not_ready":
-      return "Przed publikacją uzupełnij zdjęcie, parametry aukcji i udokumentowaną najniższą cenę z 30 dni.";
+    case "auction_not_ready": {
+      const labels: Record<string, string> = {
+        lowest_price_history_missing: "podaj udokumentowaną najniższą cenę z 30 dni albo zaznacz pierwszą ofertę, jeśli produkt faktycznie nie był wcześniej oferowany",
+        product_image_missing: "dodaj zdjęcie produktu",
+        start_price_must_equal_regular_price: "ustaw cenę startową równą regularnej",
+        floor_price_must_equal_one: "ustaw cenę minimalną na 1 zł",
+        entry_fee_invalid: "ustaw opłatę za wejście od 1 zł do kwoty poniżej ceny regularnej",
+        duration_invalid: "ustaw czas trwania od 1 do 120 minut",
+        post_auction_offer_invalid: "uzupełnij rabat po aukcji i jego ważność",
+      };
+      const issues = Array.isArray(payload.issues) ? payload.issues.flatMap((issue) =>
+        typeof issue === "string" && Object.hasOwn(labels, issue) ? [labels[issue]] : [],
+      ) : [];
+      return issues.length
+        ? `Otwórz Edytuj i popraw dane przed zaplanowaniem: ${issues.join(". ")}.`
+        : "Otwórz Edytuj i sprawdź dane wymagane do publikacji.";
+    }
     case "auction_already_scheduled":
       return "Ta aukcja ma już swój termin lub historię. Użyj opcji Duplikuj, aby wystawić produkt ponownie.";
     case "pending_payment":

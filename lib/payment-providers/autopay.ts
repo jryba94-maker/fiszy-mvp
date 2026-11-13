@@ -28,7 +28,7 @@ type CreateInput = { auctionId: string; runId: string; bidderId: string; amount:
 export async function createAutopaySession(kind: AutopayIntent["kind"], input: CreateInput): Promise<PaymentSession> {
   const config = autopayConfiguration();
   if (!config.credentialsConfigured) throw new Error("Autopay is not configured.");
-  const customer = await autopayCustomer(input.bidderId, kind !== "auction_entry");
+  const customer = await autopayCustomer(input.bidderId, true);
   const requestedDeadline = input.expiresAt ? input.expiresAt * 1000 : Date.now() + 15 * 60_000;
   // Entry can be sold weeks before start, but its payment link must stay short.
   const deadline = new Date(kind === "auction_entry" ? Math.min(requestedDeadline, Date.now() + 15 * 60_000) : requestedDeadline);

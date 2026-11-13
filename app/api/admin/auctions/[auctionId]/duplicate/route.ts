@@ -53,6 +53,7 @@ export async function POST(
           postAuctionOffer: sourceRecord.postAuctionOffer,
           entryFee: sourceRecord.entryFee,
           regularPrice: sourceRecord.regularPrice,
+          lowestPrice30DaysBeforeAuction: sourceRecord.lowestPrice30DaysBeforeAuction,
           startPrice: sourceRecord.startPrice,
           floorPrice: sourceRecord.floorPrice,
           durationMinutes: sourceRecord.durationMinutes,
