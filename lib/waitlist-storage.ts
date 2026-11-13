@@ -5,6 +5,8 @@ import { listSortedSetPage } from "./sorted-set-pagination";
 
 export const WAITLIST_CONSENT_VERSION = "first-auction-v1-2026-08-24";
 
+export const EMAIL_MARKETING_CONSENT_VERSION = "email-marketing-v1-2026-11-13";
+
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const SUBSCRIBER_ID_PATTERN = /^[a-f0-9]{64}$/;
 const SOURCE_FIELDS = [
@@ -21,13 +23,14 @@ export type WaitlistSource = Record<(typeof SOURCE_FIELDS)[number], string | nul
 export type WaitlistSignupInput = {
   email: string;
   consent: true;
+  consentVersion?: typeof WAITLIST_CONSENT_VERSION | typeof EMAIL_MARKETING_CONSENT_VERSION;
   source: WaitlistSource;
 };
 
 export type WaitlistRecord = WaitlistSignupInput & {
   schemaVersion: 1;
   subscriberId: string;
-  consentVersion: typeof WAITLIST_CONSENT_VERSION;
+  consentVersion: NonNullable<WaitlistSignupInput["consentVersion"]>;
   status: "active";
   createdAt: string;
 };
@@ -46,7 +49,7 @@ function parseWaitlistRecord(raw: unknown): WaitlistRecord | null {
       !email ||
       candidate.consent !== true ||
       candidate.subscriberId !== id ||
-      candidate.consentVersion !== WAITLIST_CONSENT_VERSION ||
+      (candidate.consentVersion !== WAITLIST_CONSENT_VERSION && candidate.consentVersion !== EMAIL_MARKETING_CONSENT_VERSION) ||
       candidate.status !== "active" ||
       !source ||
       Object.values(source).some((value) => value === undefined) ||
@@ -61,7 +64,7 @@ function parseWaitlistRecord(raw: unknown): WaitlistRecord | null {
       email,
       consent: true,
       source,
-      consentVersion: WAITLIST_CONSENT_VERSION,
+      consentVersion: candidate.consentVersion,
       status: "active",
       createdAt: candidate.createdAt,
     };
@@ -119,6 +122,7 @@ export function normalizeWaitlistSignup(value: unknown): WaitlistSignupInput | n
   return {
     email,
     consent: true,
+    consentVersion: candidate.consentVersion === EMAIL_MARKETING_CONSENT_VERSION ? EMAIL_MARKETING_CONSENT_VERSION : WAITLIST_CONSENT_VERSION,
     source: Object.fromEntries(sourceEntries) as WaitlistSource,
   };
 }
@@ -142,14 +146,17 @@ export async function saveWaitlistSignup(input: WaitlistSignupInput) {
     schemaVersion: 1,
     subscriberId: id,
     ...input,
-    consentVersion: WAITLIST_CONSENT_VERSION,
+    consentVersion: input.consentVersion ?? WAITLIST_CONSENT_VERSION,
     status: "active",
     createdAt,
   };
   const result = await redisCommand<number>([
     "EVAL",
     `
-if redis.call("EXISTS", KEYS[1]) == 1 then return 0 end
+local previous = redis.call("GET", KEYS[1])
+if previous then
+  if ARGV[4] ~= ARGV[6] or cjson.decode(previous).consentVersion ~= ARGV[5] then return 0 end
+end
 redis.call("SET", KEYS[1], ARGV[1])
 redis.call("ZADD", KEYS[2], ARGV[2], ARGV[3])
 return 1
@@ -160,6 +167,9 @@ return 1
     JSON.stringify(record),
     Date.parse(createdAt),
     id,
+    record.consentVersion,
+    WAITLIST_CONSENT_VERSION,
+    EMAIL_MARKETING_CONSENT_VERSION,
   ]);
   return { created: result === 1 };
 }

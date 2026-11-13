@@ -6,7 +6,7 @@ import { listAccountProfiles, readAccountProfile } from "./portal-storage";
 import { redisCommand } from "./redis";
 import { siteUrl } from "./site";
 import { sendCampaignMessage, transactionalEmailConfigured } from "./transactional-email";
-import { listRecentWaitlistSignups, normalizeWaitlistEmail } from "./waitlist-storage";
+import { EMAIL_MARKETING_CONSENT_VERSION, WAITLIST_CONSENT_VERSION, listRecentWaitlistSignups, normalizeWaitlistEmail } from "./waitlist-storage";
 
 type Segment = "all" | "recent" | "waitlist";
 type State = "draft" | "queued" | "paused" | "completed" | "cancelled";
@@ -155,9 +155,17 @@ export async function campaignAudience(segment: Segment) {
   if (segment === "waitlist") {
     const waitlist = await listRecentWaitlistSignups();
     if (waitlist.total > MAX_RECIPIENTS) throw new CampaignError("audience_too_large");
-    return [...new Set(waitlist.signups.map((signup) => `email:${signup.email}`))];
+    return [...new Set(waitlist.signups.filter(signup => signup.consentVersion === WAITLIST_CONSENT_VERSION).map((signup) => `email:${signup.email}`))];
   }
   const ids: string[] = [];
+  const guests = await listRecentWaitlistSignups();
+  if (guests.total > MAX_RECIPIENTS) throw new CampaignError("audience_too_large");
+  const cutoffConsent = Date.now() - 30 * 86400_000;
+  for (const signup of guests.signups) {
+    if (signup.consentVersion !== EMAIL_MARKETING_CONSENT_VERSION) continue;
+    if (segment === "recent" && Date.parse(signup.createdAt) < cutoffConsent) continue;
+    ids.push(`email:${signup.email}`);
+  }
   const cutoff = Date.now() - 30 * 86400_000;
   let cursor: string | null = null;
   for (let page = 0; page < 100; page += 1) {

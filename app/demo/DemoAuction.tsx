@@ -333,7 +333,7 @@ export function DemoAuction({ initialProduct = DEMO_PRODUCTS[0], auctionHref, au
     const normalizedEmail = email.trim();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail) || !consent) {
       setSignupState("error");
-      setSignupMessage(!consent ? "Potwierdź zgodę, aby dołączyć do pierwszej aukcji." : "Wpisz poprawny adres e-mail.");
+      setSignupMessage(!consent ? "Zaznacz zgodę na wiadomości e-mail od Fiszy." : "Wpisz poprawny adres e-mail.");
       return;
     }
     setSignupState("submitting");
@@ -343,12 +343,12 @@ export function DemoAuction({ initialProduct = DEMO_PRODUCTS[0], auctionHref, au
       const response = await fetch("/api/waitlist", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: normalizedEmail, consent: true, source, traffic: { sessionId: trafficSessionRef.current, source: trafficSourceRef.current } }),
+        body: JSON.stringify({ email: normalizedEmail, consent: true, consentVersion: "email-marketing-v1-2026-11-13", source, traffic: { sessionId: trafficSessionRef.current, source: trafficSourceRef.current } }),
       });
       if (!response.ok) throw new Error("signup_failed");
       const result = await response.json().catch(() => null) as { created?: boolean } | null;
       setSignupState("success");
-      setSignupMessage(result?.created === false ? "Ten adres jest już na liście pierwszej aukcji." : "Jesteś na liście. Damy Ci znać przed startem.");
+      setSignupMessage(result?.created === false ? "Ten adres jest już zapisany na wiadomości Fiszy." : "Zapisano na wiadomości Fiszy.");
       track("demo_auction_waitlist_signup", { product: product.id, outcome: state });
     } catch {
       setSignupState("error");
@@ -477,14 +477,14 @@ export function DemoAuction({ initialProduct = DEMO_PRODUCTS[0], auctionHref, au
               </section>
             ) : null}
             {(state === "won" || state === "lost") ? (
-              <section className={`${styles.resultSignup} ${state === "lost" ? styles.resultSignupLost : ""}`} aria-label="Zapis na pierwszą aukcję">
+              <section className={`${styles.resultSignup} ${state === "lost" ? styles.resultSignupLost : ""}`} aria-label="Zapis na wiadomości Fiszy">
                 <p>{state === "won" ? "Chcesz sprawdzić to naprawdę?" : "Następnym razem decyzja będzie należeć do Ciebie."}</p>
                 <Link className={styles.joinButton} href={auctionHref} onClick={trackAuctionClick}>{auctionLabel}</Link>
                 {auctionDetails && <p className={styles.auctionDetails}>{auctionDetails}</p>}
                 <form className={styles.resultSignupForm} onSubmit={submitSignup}>
                   <input id="demo-email" type="email" inputMode="email" autoComplete="email" placeholder="Twój e-mail" value={email} onFocus={() => { if (!signupStartedRef.current && trafficSessionRef.current) { signupStartedRef.current = true; void fetch("/api/analytics/landing", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "event", event: "signup_started", sessionId: trafficSessionRef.current, source: trafficSourceRef.current }), keepalive: true }).catch(() => undefined); } }} onChange={(event) => setEmail(event.target.value)} required maxLength={254} disabled={signupState === "submitting" || signupState === "success"} />
-                  <button type="submit" disabled={signupState === "submitting" || signupState === "success"}>{signupState === "submitting" ? "ZAPISUJĘ…" : signupState === "success" ? "JESTEŚ NA LIŚCIE" : "ZAPISZ MNIE NA PIERWSZĄ AUKCJĘ"}</button>
-                  <label><input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} disabled={signupState === "submitting" || signupState === "success"} /> <span>Tylko informacje o pierwszej aukcji. Bez codziennych maili.</span></label>
+                  <button type="submit" disabled={signupState === "submitting" || signupState === "success"}>{signupState === "submitting" ? "ZAPISUJĘ…" : signupState === "success" ? "JESTEŚ NA LIŚCIE" : "ZAPISZ MNIE NA WIADOMOŚCI FISZY"}</button>
+                  <label><input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} disabled={signupState === "submitting" || signupState === "success"} /> <span>Chcę otrzymywać od Fiszy e-maile o aukcjach, ofertach i nowościach. Zgodę mogę wycofać w każdej chwili. <Link href="/prywatnosc">Polityka prywatności</Link></span></label>
                   {signupMessage ? <small className={signupState === "success" ? styles.signupSuccess : styles.signupError} aria-live="polite">{signupMessage}</small> : null}
                 </form>
               </section>

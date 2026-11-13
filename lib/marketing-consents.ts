@@ -1,7 +1,7 @@
 import { readClerkAccountEmail } from "./account-email";
 import { listAccountProfiles } from "./portal-storage";
 import { listAccountPrivacyConsentEvents, type PrivacyConsentEvent } from "./privacy-storage";
-import { listRecentWaitlistSignups } from "./waitlist-storage";
+import { EMAIL_MARKETING_CONSENT_VERSION, listRecentWaitlistSignups } from "./waitlist-storage";
 
 export type MarketingConsentRow = {
   accountId: string;
@@ -9,7 +9,7 @@ export type MarketingConsentRow = {
   status: "active" | "withdrawn";
   source: string;
   updatedAt: string;
-  history: PrivacyConsentEvent[];
+  history: Array<Omit<PrivacyConsentEvent, "policyVersion"> & { policyVersion: string }>;
 };
 
 export type MarketingConsentDashboard = {
@@ -82,10 +82,10 @@ export async function readMarketingConsentDashboard(days = 30): Promise<Marketin
     } satisfies MarketingConsentRow;
   });
   const waitlist = await listRecentWaitlistSignups();
-  const waitlistRows = waitlist.signups.map((signup) => {
+  const waitlistRows = waitlist.signups.filter(signup => signup.consentVersion === EMAIL_MARKETING_CONSENT_VERSION).map((signup) => {
     const source = [signup.source.utmSource, signup.source.utmCampaign].filter(Boolean).join(" / ") || signup.source.referrerHost || "wejście bezpośrednie";
-    const event: PrivacyConsentEvent = { schemaVersion: 1, eventId: `WAITLIST-${signup.subscriberId.slice(0, 12)}`, accountId: `waitlist:${signup.subscriberId}`, purpose: "marketing", granted: true, policyVersion: "portal-v1-2026-08-25", occurredAt: signup.createdAt };
-    return { accountId: `waitlist:${signup.subscriberId}`, email: signup.email, status: "active" as const, source: `Pierwsza aukcja · ${source}`, updatedAt: signup.createdAt, history: [event] };
+    const event: MarketingConsentRow["history"][number] = { schemaVersion: 1, eventId: `WAITLIST-${signup.subscriberId.slice(0, 12)}`, accountId: `waitlist:${signup.subscriberId}`, purpose: "marketing", granted: true, policyVersion: signup.consentVersion, occurredAt: signup.createdAt };
+    return { accountId: `waitlist:${signup.subscriberId}`, email: signup.email, status: "active" as const, source: `Demo · ${source}`, updatedAt: signup.createdAt, history: [event] };
   });
   const byEmail = new Map<string, MarketingConsentRow>();
   for (const row of [...rows.flatMap((row) => row ? [row] : []), ...waitlistRows]) {

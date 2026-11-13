@@ -7,6 +7,7 @@ import { landingSource, recordLandingEvent, validLandingSession } from "../../..
 import { enqueueTransactionalMessage, processMessageOutbox } from "../../../lib/message-outbox";
 import {
   consumeWaitlistRateLimit,
+  EMAIL_MARKETING_CONSENT_VERSION,
   normalizeWaitlistSignup,
   saveWaitlistSignup,
 } from "../../../lib/waitlist-storage";
@@ -77,7 +78,7 @@ export async function POST(request: NextRequest) {
           .filter(Boolean)
           .join("/") || "direct",
       });
-      try {
+      if (input.consentVersion !== EMAIL_MARKETING_CONSENT_VERSION) try {
         const recipientRef = createHash("sha256").update(input.email).digest("hex");
         await enqueueTransactionalMessage({
           dedupeKey: `waitlist.confirmation.v1.${recipientRef}`,
