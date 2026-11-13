@@ -26,7 +26,14 @@ const PRESS_EMAILS = [
   "redakcja@katowice24.info",
   "portalkielecki.pl@gmail.com",
   "redakcja@metropoznan.pl",
-  "wiadomosci@wszczecinie.pl"
+  "wiadomosci@wszczecinie.pl",
+  "redakcja@lublin24.pl",
+  "redakcja@tko.pl",
+  "redakcja@gdanskstrefa.com",
+  "redakcja@gorzowianin.com",
+  "redakcja@rzeszow24.pl",
+  "cc@krakowskiraport.pl",
+  "poczta@rzg.pl"
 ];
 
 type Segment = "all" | "recent" | "waitlist" | "press";
