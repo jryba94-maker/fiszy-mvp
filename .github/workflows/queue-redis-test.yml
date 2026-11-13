@@ -1,0 +1,30 @@
+name: Auction queue Redis test
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [test/auction-queue-redis]
+permissions:
+  contents: read
+jobs:
+  queue:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      redis:
+        image: redis:7
+        ports: ["6387:6379"]
+        options: --health-cmd "redis-cli ping" --health-interval 2s --health-timeout 3s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run test:queue
+        env:
+          QUEUE_TEST_REDIS_PORT: "6387"
+      - run: npm run test:autopay:integration
+        env:
+          QUEUE_TEST_REDIS_PORT: "6387"
