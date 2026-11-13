@@ -3,6 +3,7 @@
 import { track } from "@vercel/analytics";
 import Link from "next/link";
 import { FormEvent, useEffect, useRef, useState } from "react";
+import { landingSessionId, landingVisitorId } from "../../../lib/browser-traffic";
 import { landingAttribution, landingSourceLabel } from "../../../lib/landing-attribution";
 import { LEGACY_AUCTION_ID } from "../public/auction-data";
 import { latestPendingReturn } from "../public/device-history";
@@ -17,29 +18,6 @@ function analyticsProperties(source: ReturnType<typeof landingAttribution>) {
     campaign: source.utmCampaign ?? "none",
     referrer: source.referrerHost ?? "direct",
   };
-}
-
-function landingVisitorId() {
-  try {
-    const key = "fiszy_landing_visitor_id";
-    const saved = localStorage.getItem(key);
-    if (saved && /^[a-f0-9-]{36}$/i.test(saved)) return saved;
-    const id = crypto.randomUUID();
-    localStorage.setItem(key, id);
-    return id;
-  } catch { return crypto.randomUUID(); }
-}
-
-function landingSessionId() {
-  try {
-    const key = "fiszy_landing_session";
-    const now = Date.now();
-    const saved = JSON.parse(localStorage.getItem(key) || "null") as { id?: unknown; lastSeen?: unknown } | null;
-    const id = saved && typeof saved.lastSeen === "number" && now - saved.lastSeen >= 0 && now - saved.lastSeen < 30 * 60_000 && typeof saved.id === "string" && /^[a-f0-9-]{36}$/i.test(saved.id)
-      ? saved.id : crypto.randomUUID();
-    localStorage.setItem(key, JSON.stringify({ id, lastSeen: now }));
-    return id;
-  } catch { return crypto.randomUUID(); }
 }
 
 function redirectLegacyPaymentReturn() {

@@ -1,3 +1,4 @@
+import { PublicPageView } from "./components/public/PublicPageView";
 import type { Metadata } from "next";
 import { ClerkShell } from "./components/auth/ClerkShell";
 import { AuctionCatalog } from "./components/public/AuctionCatalog";
@@ -12,6 +13,7 @@ export const metadata: Metadata = {
 export default function HomePage() {
   return (
     <ClerkShell pwa>
+      <PublicPageView page="landing" />
       <AuctionCatalog />
     </ClerkShell>
   );

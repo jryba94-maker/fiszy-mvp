@@ -3,6 +3,7 @@
 import { ENTRY_SERVICE_CONSENT_TEXT, ENTRY_SERVICE_CONSENT_VERSION } from "../../../lib/entry-service-terms";
 import Image from "next/image";
 import Link from "next/link";
+import { PublicPageView } from "../../components/public/PublicPageView";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { getAuctionPriceAt } from "../../../lib/auction";
@@ -656,6 +657,7 @@ export function AuctionExperience({ auctionId, runId }: { auctionId: string; run
   return (
     <main className={styles.page}>
       <PublicHeader />
+      <PublicPageView page="auction" />
       <div className={styles.content}>
         <Link className={styles.backLink} href="/aukcje"><span aria-hidden="true">←</span> Wszystkie aukcje</Link>
 

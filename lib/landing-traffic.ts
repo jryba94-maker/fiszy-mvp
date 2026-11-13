@@ -6,7 +6,7 @@ export const LANDING_EVENTS = [
   "signup", "demo_opened", "demo_finished", "first_auction_cta", "signup_started",
 ] as const;
 export type LandingEvent = (typeof LANDING_EVENTS)[number];
-export type LandingPage = "landing" | "demo";
+export type LandingPage = "landing" | "demo" | "auction";
 
 type DailyTraffic = {
   schemaVersion: 2;
@@ -14,6 +14,7 @@ type DailyTraffic = {
   views: number;
   landingViews: number;
   demoViews: number;
+  auctionViews: number;
   legacyViews: number;
   uniqueSessions: number;
   activeSeconds: number;
@@ -35,7 +36,7 @@ function dateInWarsaw(now: number) {
 }
 function emptyEvents() { return Object.fromEntries(LANDING_EVENTS.map((event) => [event, 0])) as Record<LandingEvent, number>; }
 function zeroDay(date: string): DailyTraffic {
-  return { schemaVersion: 2, date, views: 0, landingViews: 0, demoViews: 0, legacyViews: 0, uniqueSessions: 0, activeSeconds: 0, timedSessions: 0, events: emptyEvents(), sources: {}, updatedAt: "" };
+  return { schemaVersion: 2, date, views: 0, landingViews: 0, demoViews: 0, auctionViews: 0, legacyViews: 0, uniqueSessions: 0, activeSeconds: 0, timedSessions: 0, events: emptyEvents(), sources: {}, updatedAt: "" };
 }
 
 export function validLandingSession(value: unknown): value is string {
@@ -48,7 +49,7 @@ export function landingSource(value: unknown) {
 }
 
 export function validLandingPage(value: unknown): value is LandingPage {
-  return value === "landing" || value === "demo";
+  return value === "landing" || value === "demo" || value === "auction";
 }
 
 async function write(input: { sessionId: string; viewId?: unknown; visitorId?: unknown; durationId?: unknown; source: string; kind: "view" | "event" | "duration"; page?: LandingPage; event?: LandingEvent; seconds?: number; now?: number }) {
@@ -89,6 +90,7 @@ if redis.call("SET", KEYS[3], "1", "NX", "EX", ARGV[6]) then
   if ARGV[2] == "view" then
     record.views = tonumber(record.views or 0) + 1
     if ARGV[9] == "landing" then record.landingViews = tonumber(record.landingViews or 0) + 1 end
+    if ARGV[9] == "auction" then record.auctionViews = tonumber(record.auctionViews or 0) + 1 end
     if ARGV[9] == "demo" then record.demoViews = tonumber(record.demoViews or 0) + 1 end
   end
   if ARGV[2] == "view" and ARGV[10] ~= "" then redis.call("SADD", KEYS[4], ARGV[10]); redis.call("EXPIRE", KEYS[4], ARGV[6]) end
@@ -117,7 +119,7 @@ export async function recordLandingDuration(input: { sessionId: string; duration
 function parseDay(raw: unknown): DailyTraffic | null {
   if (typeof raw !== "string" || !raw) return null;
   try {
-    const value = JSON.parse(raw) as { schemaVersion?: number; date?: unknown; views?: unknown; landingViews?: unknown; demoViews?: unknown; legacyViews?: unknown; uniqueSessions?: unknown; activeSeconds?: unknown; timedSessions?: unknown; events?: Record<string, unknown>; sources?: Record<string, unknown>; updatedAt?: unknown };
+    const value = JSON.parse(raw) as { schemaVersion?: number; date?: unknown; views?: unknown; landingViews?: unknown; demoViews?: unknown; auctionViews?: unknown; legacyViews?: unknown; uniqueSessions?: unknown; activeSeconds?: unknown; timedSessions?: unknown; events?: Record<string, unknown>; sources?: Record<string, unknown>; updatedAt?: unknown };
     if ((value.schemaVersion !== 1 && value.schemaVersion !== 2) || typeof value.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value.date)) return null;
     const number = (candidate: unknown) => Number.isSafeInteger(candidate) && Number(candidate) >= 0 ? Number(candidate) : null;
     const views = number(value.views); const uniqueSessions = number(value.uniqueSessions); const activeSeconds = number(value.activeSeconds); const timedSessions = number(value.timedSessions);
@@ -134,6 +136,7 @@ function parseDay(raw: unknown): DailyTraffic | null {
     }
     return {
       schemaVersion: 2, date: value.date, views, uniqueSessions, activeSeconds, timedSessions, events, sources,
+      auctionViews: number(value.auctionViews) ?? 0,
       landingViews: value.schemaVersion === 2 ? number(value.landingViews) ?? 0 : 0,
       demoViews: value.schemaVersion === 2 ? number(value.demoViews) ?? 0 : 0,
       legacyViews: value.schemaVersion === 2 ? number(value.legacyViews) ?? 0 : views,
@@ -148,10 +151,10 @@ export async function readLandingTraffic(days = 30, now = Date.now()) {
   const raw = await redisCommand<Array<string | null>>(["MGET", ...dates.map(dayKey)]);
   const visitorCounts = await redisCommand<number[]>(["EVAL", `local counts = {}; for i=1,#KEYS do counts[i] = redis.call("SCARD", KEYS[i]) end; counts[#KEYS+1] = #redis.call("SUNION", unpack(KEYS)); return counts`, dates.length, ...dates.map(visitorsKey)]);
   const daily = dates.map((date, index) => ({ ...(parseDay(raw?.[index]) ?? zeroDay(date)), uniqueVisitors: visitorCounts?.[index] ?? 0 }));
-  const totals = { views: 0, landingViews: 0, demoViews: 0, legacyViews: 0, uniqueSessions: 0, uniqueVisitors: visitorCounts?.[dates.length] ?? 0, activeSeconds: 0, timedSessions: 0, events: emptyEvents() };
+  const totals = { views: 0, landingViews: 0, demoViews: 0, auctionViews: 0, legacyViews: 0, uniqueSessions: 0, uniqueVisitors: visitorCounts?.[dates.length] ?? 0, activeSeconds: 0, timedSessions: 0, events: emptyEvents() };
   const sourceMap = new Map<string, { views: number; signups: number }>();
   for (const day of daily) {
-    totals.views += day.views; totals.landingViews += day.landingViews; totals.demoViews += day.demoViews; totals.legacyViews += day.legacyViews; totals.uniqueSessions += day.uniqueSessions; totals.activeSeconds += day.activeSeconds; totals.timedSessions += day.timedSessions;
+    totals.views += day.views; totals.landingViews += day.landingViews; totals.demoViews += day.demoViews; totals.auctionViews += day.auctionViews; totals.legacyViews += day.legacyViews; totals.uniqueSessions += day.uniqueSessions; totals.activeSeconds += day.activeSeconds; totals.timedSessions += day.timedSessions;
     for (const event of LANDING_EVENTS) totals.events[event] += day.events[event];
     for (const source of Object.values(day.sources)) { const current = sourceMap.get(source.label) ?? { views: 0, signups: 0 }; current.views += source.views; current.signups += source.signups; sourceMap.set(source.label, current); }
   }
