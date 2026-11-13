@@ -4,11 +4,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import styles from "../AdminDashboard.module.css";
 import { MarketingConsentPanel } from "./MarketingConsentPanel";
 
-type Content = { name: string; subject: string; text: string; imageUrl: string; ctaLabel: string; ctaUrl: string; segment: "all" | "recent" | "waitlist" | "press" };
+type Content = { name: string; subject: string; text: string; imageUrl: string; ctaLabel: string; ctaUrl: string; segment: "all" | "recent" | "waitlist" | "press" | "creators" };
 type Campaign = Content & {
   id: string; revision: number; state: "draft" | "queued" | "paused" | "completed" | "cancelled";
   scheduledAt: string | null; audience: number; processed: number; accepted: number; skipped: number; failed: number;
 };
+
+const CREATOR_CONTACTS = [["GTADISCORD.PL","kontakt@gtadiscord.pl"],["Bachus","bachus@stormmedia.gg"],["Pisicela","pisicelarpgamers@stormmedia.gg"],["Kamilos","kamilos.kontakt@gmail.com"],["Plaga","net4laugh@gmail.com"],["Graczol","graczol@stormmedia.gg"],["Nexos","nexoshunter@gmail.com"],["PlayBox Polska","playboxkontakt@gmail.com"],["Jestem Geek","mateusz@jestemgeek.pl"],["arhn.eu","wspolpraca@arhn.eu"],["Rock i Borys","rckbrs@agencjaslucham.pl"],["PrzemekBestGames","przemekbestgames@stormmedia.gg"],["LUFFA","luffa@stormmedia.gg"],["Mefjuu","mefjuu@stormmedia.gg"],["Młoda","mlodacsgo@gmail.com"],["Forumogadka","kontakt@forumogadka.pl"],["Rozgrywka","kontakt@rozgrywka.online"],["MKwadrat","mkwadratpodcast@gmail.com"],["Polski Dubbing do Gier","polskidubbingdogier@gmail.com"],["PSX Extreme","redakcja@psxextreme.pl"]] as const;
 
 const PRESS_CONTACTS = [
   ["ZiemiaLubuska.pl","redakcja@ziemialubuska.pl"],
@@ -193,6 +195,14 @@ export function EmailCampaignsPanel({ canWrite, onSessionExpired }: { canWrite: 
     <section className={styles.panelSection} aria-labelledby="campaign-heading" aria-busy={busy}>
       <MarketingConsentPanel onSessionExpired={onSessionExpired} />
       <details className={styles.adminSubpanel}>
+        <summary>Twórcy ({CREATOR_CONTACTS.length})</summary>
+        <ul>
+          {CREATOR_CONTACTS.map(([name, email]) => (
+            <li key={email}>{name} · <a href={`mailto:${email}`}>{email}</a></li>
+          ))}
+        </ul>
+      </details>
+      <details className={styles.adminSubpanel}>
         <summary>Portale informacyjne ({PRESS_CONTACTS.length})</summary>
         <p>Kontakty redakcyjne do indywidualnych zgłoszeń prasowych.</p>
         <ul>
@@ -245,7 +255,7 @@ export function EmailCampaignsPanel({ canWrite, onSessionExpired }: { canWrite: 
                 <img src={form.imageUrl} alt="Wgrana grafika kampanii" />
                 <button type="button" className={styles.secondaryButton} disabled={imageUploading} onClick={() => update("imageUrl", "")}>Usuń grafikę</button>
               </div> : null}
-              <label className={styles.field}>Segment<select className={styles.input} value={form.segment} onChange={(e) => update("segment", e.target.value)}><option value="all">Wszystkie konta ze zgodą marketingową</option><option value="recent">Nowe konta ze zgodą z ostatnich 30 dni</option><option value="waitlist">Lista zainteresowanych pierwszą aukcją</option><option value="press">Portale informacyjne ({PRESS_CONTACTS.length} redakcji)</option></select></label>
+              <label className={styles.field}>Segment<select className={styles.input} value={form.segment} onChange={(e) => update("segment", e.target.value)}><option value="all">Wszystkie konta ze zgodą marketingową</option><option value="recent">Nowe konta ze zgodą z ostatnich 30 dni</option><option value="waitlist">Lista zainteresowanych pierwszą aukcją</option><option value="press">Portale informacyjne ({PRESS_CONTACTS.length} redakcji)</option><option value="creators">Twórcy ({CREATOR_CONTACTS.length} kontaktów)</option></select></label>
               <label className={styles.field}>Tekst przycisku<input className={styles.input} maxLength={80} value={form.ctaLabel} onChange={(e) => update("ctaLabel", e.target.value)} /></label>
               <label className={styles.field}>Link na Fiszy<input className={styles.input} maxLength={450} placeholder="/aukcje" value={form.ctaUrl} onChange={(e) => update("ctaUrl", e.target.value)} /></label>
             </fieldset>
