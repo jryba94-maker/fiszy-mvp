@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import styles from "../AdminDashboard.module.css";
 import { MarketingConsentPanel } from "./MarketingConsentPanel";
 
-type Content = { name: string; subject: string; text: string; imageUrl: string; ctaLabel: string; ctaUrl: string; segment: "all" | "recent" | "waitlist" };
+type Content = { name: string; subject: string; text: string; imageUrl: string; ctaLabel: string; ctaUrl: string; segment: "all" | "recent" | "waitlist" | "press" };
 type Campaign = Content & {
   id: string; revision: number; state: "draft" | "queued" | "paused" | "completed" | "cancelled";
   scheduledAt: string | null; audience: number; processed: number; accepted: number; skipped: number; failed: number;
@@ -238,7 +238,7 @@ export function EmailCampaignsPanel({ canWrite, onSessionExpired }: { canWrite: 
                 <img src={form.imageUrl} alt="Wgrana grafika kampanii" />
                 <button type="button" className={styles.secondaryButton} disabled={imageUploading} onClick={() => update("imageUrl", "")}>Usuń grafikę</button>
               </div> : null}
-              <label className={styles.field}>Segment<select className={styles.input} value={form.segment} onChange={(e) => update("segment", e.target.value)}><option value="all">Wszystkie konta ze zgodą marketingową</option><option value="recent">Nowe konta ze zgodą z ostatnich 30 dni</option><option value="waitlist">Lista zainteresowanych pierwszą aukcją</option></select></label>
+              <label className={styles.field}>Segment<select className={styles.input} value={form.segment} onChange={(e) => update("segment", e.target.value)}><option value="all">Wszystkie konta ze zgodą marketingową</option><option value="recent">Nowe konta ze zgodą z ostatnich 30 dni</option><option value="waitlist">Lista zainteresowanych pierwszą aukcją</option><option value="press">Portale informacyjne (18 redakcji)</option></select></label>
               <label className={styles.field}>Tekst przycisku<input className={styles.input} maxLength={80} value={form.ctaLabel} onChange={(e) => update("ctaLabel", e.target.value)} /></label>
               <label className={styles.field}>Link na Fiszy<input className={styles.input} maxLength={450} placeholder="/aukcje" value={form.ctaUrl} onChange={(e) => update("ctaUrl", e.target.value)} /></label>
             </fieldset>
@@ -246,7 +246,7 @@ export function EmailCampaignsPanel({ canWrite, onSessionExpired }: { canWrite: 
               <button type="submit" className={styles.cardPrimaryButton} disabled={busy}>Zapisz szkic</button>
               <button type="button" className={styles.secondaryButton} disabled={busy} onClick={() => void run(async () => setEstimate((await api(`?segment=${form.segment}`)).eligible))}>Policz odbiorców</button>
             </div>
-            {estimate !== null ? <p role="status">Konta spełniające warunki segmentu: <strong>{estimate}</strong>. Adresy i wypisy zostaną zweryfikowane przy wysyłce.</p> : null}
+            {estimate !== null ? <p role="status">Odbiorcy w segmencie: <strong>{estimate}</strong>. Adresy i wypisy zostaną zweryfikowane przy wysyłce.</p> : null}
           </form> : <h3>{selected?.name ?? "Wybierz kampanię"}</h3>}
           {selected?.state === "draft" && canWrite ? <div className={styles.operationsList}>
             <label className={styles.field}>Najwcześniejszy termin (czas urządzenia)<input className={styles.input} type="datetime-local" value={schedule} disabled={busy} onChange={(e) => setSchedule(e.target.value)} /></label>
