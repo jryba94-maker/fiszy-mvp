@@ -20,6 +20,9 @@ export const clerkAppearance = {
     unsafe_disableDevelopmentModeWarnings: true,
   },
   elements: {
+    userButtonPopoverActionButton: { color: "#aaa6b2" },
+    userButtonPopoverActionButtonText: { color: "#aaa6b2" },
+    userButtonPopoverActionButtonIcon: { color: "#aaa6b2" },
     rootBox: { width: "100%" },
     cardBox: { width: "100%", boxShadow: "none" },
     card: {
