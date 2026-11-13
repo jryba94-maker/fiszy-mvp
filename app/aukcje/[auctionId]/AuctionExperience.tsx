@@ -26,7 +26,7 @@ import { StatusBadge } from "../../components/public/StatusBadge";
 import { AuctionWatchControl } from "../../components/public/AuctionWatchControl";
 import styles from "./page.module.css";
 
-type Feedback = { text: string; error?: boolean } | null;
+type Feedback = { text: string; error?: boolean; needsProfile?: boolean } | null;
 
 function EntryServiceConsent({
   checked,
@@ -373,7 +373,24 @@ export function AuctionExperience({ auctionId, runId }: { auctionId: string; run
   const visiblePrice = auction ? priceAt(auction, displayStatus, serverNow) : 0;
   const entryStateReady = Boolean(auction && checkedEntryKey === `${auctionId}:${auction.runId}:${userId}`);
   const checkingEntry = Boolean(auction && isAuthLoaded && isSignedIn && !entryStateReady);
+  const [missingShippingDetails, setMissingShippingDetails] = useState(false);
   const hasCurrentEntry = Boolean(auction && entryStateReady && hasEntry && entryRunId === auction.runId);
+  useEffect(() => {
+    setMissingShippingDetails(false);
+    if (!userId || !hasCurrentEntry) return;
+    const controller = new AbortController();
+    void fetch("/api/account/profile", { cache: "no-store", signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) return;
+        const { profile } = await response.json();
+        if (!controller.signal.aborted) {
+          setMissingShippingDetails(!profile?.fullName || !profile.phone || !profile.address?.line1 || !profile.address.city || !profile.address.postalCode);
+        }
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [userId, hasCurrentEntry]);
+
   const queueScope = auction ? `${auctionId}:${auction.runId}:${userId}` : "";
   const storedQueue = queueData?.scope === queueScope ? queueData.status : null;
   const buyerQueue = storedQueue && displayStatus === "sold" ? { ...storedQueue, state: "closed" as const, checkoutUrl: null } : storedQueue;
@@ -527,7 +544,7 @@ export function AuctionExperience({ auctionId, runId }: { auctionId: string; run
         setEntryFeedback({ text: "Masz już opłacone wejście do tej aukcji." });
         return;
       }
-      setEntryFeedback({ text: outcomeMessage(data.outcome, "entry"), error: true });
+      setEntryFeedback({ text: outcomeMessage(data.outcome, "entry"), error: true, needsProfile: data.outcome === "customer_details_required" });
     } catch {
       setEntryFeedback({ text: outcomeMessage("payment_error", "entry"), error: true });
     } finally {
@@ -661,6 +678,11 @@ export function AuctionExperience({ auctionId, runId }: { auctionId: string; run
       <div className={styles.content}>
         <Link className={styles.backLink} href="/aukcje"><span aria-hidden="true">←</span> Wszystkie aukcje</Link>
 
+        {hasCurrentEntry && displayStatus === "waiting" && missingShippingDetails ? (
+          <p className={styles.entryNote} role="status">
+            Wejście jest opłacone. <Link href="/moje-fiszy#profil">Uzupełnij dane do wysyłki</Link> przed startem aukcji.
+          </p>
+        ) : null}
         <section className={styles.auctionShell} aria-labelledby="auction-title">
           <SafeAuctionImage
             src={auction.productImageUrl}
@@ -840,7 +862,7 @@ export function AuctionExperience({ auctionId, runId }: { auctionId: string; run
           <label className={styles.ageConfirmation}><input type="checkbox" checked={ageConfirmed} onChange={(event) => setAgeConfirmed(event.target.checked)} /><span>Mam ukończone 18 lat i akceptuję <Link href="/regulamin" target="_blank" rel="noopener noreferrer">regulamin</Link>.</span></label>
           {consentAction === "entry" ? <p className={styles.entryNote}>Potwierdzenie umowy i zgody otrzymasz e-mailem.</p> : null}
         </fieldset>
-        {consentFeedback ? <p className={`${styles.feedback} ${consentFeedback.error ? styles.feedbackError : ""}`} role={consentFeedback.error ? "alert" : "status"}>{consentFeedback.text}</p> : null}
+        {consentFeedback ? <p className={`${styles.feedback} ${consentFeedback.error ? styles.feedbackError : ""}`} role={consentFeedback.error ? "alert" : "status"}>{consentFeedback.text}{consentFeedback.needsProfile ? <> <Link href="/moje-fiszy#profil">Przejdź do profilu</Link></> : null}</p> : null}
         <button className={styles.primaryButton} type="button" disabled={consentBusy || !ageConfirmed || (consentAction === "entry" ? !canEnter || !entryServiceAccepted : !canBuy)} onClick={() => {
           if (consentAction === "entry") void handleEntry();
           else if (consentAction === "buy") { consentDialog.current?.close(); void handleBuy(); }

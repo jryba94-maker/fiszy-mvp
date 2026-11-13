@@ -211,8 +211,7 @@ export function AuctionList({
                     }
                   }}>Kopiuj link</button> : null}
                   {copyNotice?.id === auction.auctionId ? <small role="status">{copyNotice.message}</small> : null}
-                </div>
-                <div className={styles.auctionCardActions}>
+
                   <button
                     className={styles.secondaryButton}
                     type="button"

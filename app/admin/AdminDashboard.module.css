@@ -2584,8 +2584,8 @@
   display: flex;
   flex-wrap: wrap;
   gap: 12px 28px;
-  margin: 16px 0;
-  padding: 12px 0;
+  margin: 10px 0;
+  padding: 8px 0;
   border-block: 1px solid var(--admin-border);
 }
 
@@ -2603,10 +2603,6 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-}
-
-.auctionCardActions + .auctionCardActions {
-  margin-top: 8px;
 }
 
 .auctionCardActions .auctionCancelButton {
