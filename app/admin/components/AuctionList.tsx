@@ -174,7 +174,6 @@ export function AuctionList({
             const active = isAuctionActive(auction.status);
             const archived = auction.recordState === "archived";
             const busy = busyAuctionId === auction.auctionId;
-            const disabledReasonId = `auction-disabled-${auction.auctionId}`;
             const scheduleErrorId = `run-start-error-${auction.auctionId}`;
 
             return (
@@ -188,14 +187,13 @@ export function AuctionList({
                           {STATUS_LABELS[auction.recordState === "published" ? auction.status ?? "published" : auction.recordState]}
                         </span>
                       </div>
-                      <span className={styles.slug}>/{auction.slug}</span>
                     </div>
                     <h3>{auction.productName}</h3>
                     <p>{countdownLabel(auction, now)}</p>
                   </div>
                 </div>
 
-                <p>{formatDateTime(auction.startsAt)} · Opłacone wejścia: {auction.paidEntryCount ?? "—"}{auction.status === "sold" ? ` · Sprzedano za ${formatMoney(auction.currentPrice ?? 0)}` : ""}</p>
+                <p>{auction.startsAt ? formatDateTime(auction.startsAt) : "Bez terminu"} · Opłacone wejścia: <strong>{auction.paidEntryCount ?? "—"}</strong>{auction.status === "sold" ? ` · Sprzedano za ${formatMoney(auction.currentPrice ?? 0)}` : ""}</p>
                 <div className={styles.cardActions}>
                   {onOrder && auction.status === "sold" && auction.runId ? <button className={styles.secondaryButton} type="button" onClick={() => onOrder(auction.runId!)}>Zamówienie</button> : null}
                   {onDetails && auction.runId ? <button className={styles.secondaryButton} type="button" onClick={() => onDetails(auction.auctionId)}>Szczegóły</button> : null}
@@ -208,7 +206,8 @@ export function AuctionList({
                     }
                   }}>Kopiuj link</button> : null}
                   {copyNotice?.id === auction.auctionId ? <small role="status">{copyNotice.message}</small> : null}
-                  <details><summary>Więcej</summary><div className={styles.cardActions}>
+                </div>
+                <div className={styles.cardActions}>
                   <button
                     className={styles.secondaryButton}
                     type="button"
@@ -225,30 +224,27 @@ export function AuctionList({
                   >
                     Duplikuj
                   </button>
-                  <button
+                  {!active ? <button
                     className={styles.secondaryButton}
                     type="button"
                     onClick={() => onArchiveToggle(auction)}
-                    disabled={busy || active}
+                    disabled={busy}
                     aria-busy={busy}
-                    aria-describedby={active ? disabledReasonId : undefined}
                   >
                     {archived ? "Przywróć" : "Archiwizuj"}
-                  </button>
+                  </button> : null}
                   {auction.recordState === "published" && (auction.status === "waiting" || auction.status === "live") && auction.runId && auction.revision !== null ? (
                     <button className={styles.secondaryButton} type="button" disabled={busy} onClick={() => onCancelRun(auction)}>
                       Anuluj aukcję
                     </button>
                   ) : null}
-                  </div></details>
-                  {!auction.runId ? (
+                  {!auction.runId && !archived && !active ? (
                     <button
                       className={styles.cardPrimaryButton}
                       type="button"
                       onClick={() => openSchedule(auction.auctionId)}
-                      disabled={active || archived || busy}
+                      disabled={busy}
                       aria-busy={busy}
-                      aria-describedby={active || archived ? disabledReasonId : undefined}
                     >
                       {busy ? "PRACUJĘ…" : "ZAPLANUJ AUKCJĘ"}
                     </button>
@@ -290,13 +286,6 @@ export function AuctionList({
                   </form>
                 ) : null}
 
-                {active || archived ? (
-                  <p className={styles.disabledReason} id={disabledReasonId}>
-                    {archived
-                      ? "Przywróć aukcję, aby uruchomić nową rundę."
-                      : "Archiwizacja i nowa runda będą dostępne po zakończeniu bieżącej rundy."}
-                  </p>
-                ) : null}
               </article>
             );
           })}
