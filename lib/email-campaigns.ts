@@ -8,6 +8,29 @@ import { siteUrl } from "./site";
 import { sendCampaignMessage, transactionalEmailConfigured } from "./transactional-email";
 import { EMAIL_MARKETING_CONSENT_VERSION, WAITLIST_CONSENT_VERSION, listRecentWaitlistSignups, normalizeWaitlistEmail } from "./waitlist-storage";
 
+const CREATOR_EMAILS = [
+  "kontakt@gtadiscord.pl",
+  "bachus@stormmedia.gg",
+  "pisicelarpgamers@stormmedia.gg",
+  "kamilos.kontakt@gmail.com",
+  "net4laugh@gmail.com",
+  "graczol@stormmedia.gg",
+  "nexoshunter@gmail.com",
+  "playboxkontakt@gmail.com",
+  "mateusz@jestemgeek.pl",
+  "wspolpraca@arhn.eu",
+  "rckbrs@agencjaslucham.pl",
+  "przemekbestgames@stormmedia.gg",
+  "luffa@stormmedia.gg",
+  "mefjuu@stormmedia.gg",
+  "mlodacsgo@gmail.com",
+  "kontakt@forumogadka.pl",
+  "kontakt@rozgrywka.online",
+  "mkwadratpodcast@gmail.com",
+  "polskidubbingdogier@gmail.com",
+  "redakcja@psxextreme.pl"
+];
+
 const PRESS_EMAILS = [
   "redakcja@ziemialubuska.pl",
   "redakcja@mamstartup.pl",
@@ -36,7 +59,7 @@ const PRESS_EMAILS = [
   "poczta@rzg.pl"
 ];
 
-type Segment = "all" | "recent" | "waitlist" | "press";
+type Segment = "all" | "recent" | "waitlist" | "press" | "creators";
 type State = "draft" | "queued" | "paused" | "completed" | "cancelled";
 type Content = { name: string; subject: string; text: string; imageUrl: string; ctaLabel: string; ctaUrl: string; segment: Segment };
 type Pending = { fingerprint: string; since: number; attempts: number };
@@ -87,7 +110,7 @@ export function normalizeCampaign(input: unknown): Content | null {
   const ctaLabel = field(values.ctaLabel ?? "", 80);
   const rawUrl = field(values.ctaUrl ?? "", 450);
   if (!name || !subject || !text || rawImageUrl === null || ctaLabel === null || rawUrl === null || Boolean(ctaLabel) !== Boolean(rawUrl)) return null;
-  if (values.segment !== "all" && values.segment !== "recent" && values.segment !== "waitlist" && values.segment !== "press") return null;
+  if (values.segment !== "all" && values.segment !== "recent" && values.segment !== "waitlist" && values.segment !== "press" && values.segment !== "creators") return null;
   let ctaUrl = "";
   if (rawUrl) {
     try {
@@ -179,6 +202,7 @@ export async function saveCampaign(input: unknown, id?: string, revision?: unkno
 }
 
 export async function campaignAudience(segment: Segment) {
+  if (segment === "creators") return CREATOR_EMAILS.map((email) => `email:${email}`);
   if (segment === "press") return PRESS_EMAILS.map((email) => `email:${email}`);
   if (segment !== "all" && segment !== "recent" && segment !== "waitlist") throw new CampaignError("invalid_segment", 400);
   if (segment === "waitlist") {
