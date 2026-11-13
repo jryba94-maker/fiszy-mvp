@@ -10,6 +10,27 @@ type Campaign = Content & {
   scheduledAt: string | null; audience: number; processed: number; accepted: number; skipped: number; failed: number;
 };
 
+const PRESS_CONTACTS = [
+  ["ZiemiaLubuska.pl","redakcja@ziemialubuska.pl"],
+  ["MamStartup","redakcja@mamstartup.pl"],
+  ["Ecommerceportal.pl","redakcja@ecommerceportal.pl"],
+  ["Gram.pl","redakcja@gram.pl"],
+  ["My Company Polska","redakcja@mycompanypolska.pl"],
+  ["BRIEF","redakcja@brief.pl"],
+  ["Dziś we Wrocławiu","kontakt@dziswewroclawiu.pl"],
+  ["Metropolia Bydgoska","redakcja@metropoliabydgoska.pl"],
+  ["TuŁódź","redakcja@tulodz.pl"],
+  ["LoveKraków","redakcja@lovekrakow.pl"],
+  ["TuStolica","redakcja@gazetaecho.pl"],
+  ["24Opole","redakcja@24opole.pl"],
+  ["Rzeszów News","redakcja@rzeszow-news.pl"],
+  ["BiałystokOnline","24@bialystokonline.pl"],
+  ["Katowice24","redakcja@katowice24.info"],
+  ["Portal Kielecki","portalkielecki.pl@gmail.com"],
+  ["Metro Poznań","redakcja@metropoznan.pl"],
+  ["wSzczecinie.pl","wiadomosci@wszczecinie.pl"],
+] as const;
+
 const EMPTY: Content = { name: "", subject: "", text: "", imageUrl: "", ctaLabel: "", ctaUrl: "", segment: "all" };
 const STATES = { draft: "Szkic", queued: "W kolejce", paused: "Wstrzymana", completed: "Zakończona", cancelled: "Anulowana" };
 const ERRORS: Record<string, string> = {
@@ -164,6 +185,16 @@ export function EmailCampaignsPanel({ canWrite, onSessionExpired }: { canWrite: 
   return (
     <section className={styles.panelSection} aria-labelledby="campaign-heading" aria-busy={busy}>
       <MarketingConsentPanel onSessionExpired={onSessionExpired} />
+      <details className={styles.adminSubpanel}>
+        <summary>Portale informacyjne ({PRESS_CONTACTS.length})</summary>
+        <p>Kontakty redakcyjne do indywidualnych zgłoszeń prasowych.</p>
+        <ul>
+          {PRESS_CONTACTS.map(([name, email]) => (
+            <li key={email}>{name} · <a href={`mailto:${email}`}>{email}</a></li>
+          ))}
+        </ul>
+        <p><a href="https://24zielonagora.pl/strona/redakcja">24 Zielona Góra — kontakt przez stronę redakcji</a></p>
+      </details>
       <div className={styles.sectionHeader}>
         <div><p className={styles.eyebrow}>Marketing</p><h2 id="campaign-heading">Kampanie e-mail</h2></div>
         <div className={styles.cardActions}>
