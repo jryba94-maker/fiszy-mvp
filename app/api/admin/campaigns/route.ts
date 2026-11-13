@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
     if (statsId !== null) return json({ outcome: "ok", stats: await readCampaignStats(statsId) });
     const segment = request.nextUrl.searchParams.get("segment");
     if (segment !== null) {
-      if (segment !== "all" && segment !== "recent" && segment !== "waitlist") return json({ outcome: "invalid_segment" }, 400);
+      if (segment !== "all" && segment !== "recent" && segment !== "waitlist" && segment !== "press") return json({ outcome: "invalid_segment" }, 400);
       return json({ outcome: "ok", eligible: (await campaignAudience(segment)).length });
     }
     return json({ outcome: "ok", campaigns: await listCampaigns(), sendingConfigured: campaignSendingConfigured(), testConfigured: Boolean(campaignTestRecipient()) });
