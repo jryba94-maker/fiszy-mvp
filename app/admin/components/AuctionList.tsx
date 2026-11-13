@@ -194,8 +194,12 @@ export function AuctionList({
                   </div>
                 </div>
 
-                <p>{auction.startsAt ? formatDateTime(auction.startsAt) : "Bez terminu"} · Opłacone wejścia: <strong>{auction.paidEntryCount ?? "—"}</strong>{auction.status === "sold" ? ` · Sprzedano za ${formatMoney(auction.currentPrice ?? 0)}` : ""}</p>
-                <div className={styles.cardActions}>
+                <dl className={styles.auctionCardFacts}>
+                  <div><dt>Start aukcji</dt><dd>{auction.startsAt ? formatDateTime(auction.startsAt) : "Bez terminu"}</dd></div>
+                  <div><dt>Opłacone wejścia</dt><dd>{auction.paidEntryCount ?? "—"}</dd></div>
+                  {auction.status === "sold" ? <div><dt>Cena sprzedaży</dt><dd>{formatMoney(auction.currentPrice ?? 0)}</dd></div> : null}
+                </dl>
+                <div className={styles.auctionCardActions}>
                   {onOrder && auction.status === "sold" && auction.runId ? <button className={styles.secondaryButton} type="button" onClick={() => onOrder(auction.runId!)}>Zamówienie</button> : null}
                   {onDetails && auction.runId ? <button className={styles.secondaryButton} type="button" onClick={() => onDetails(auction.auctionId)}>Szczegóły</button> : null}
                   {auction.runId ? <button className={styles.secondaryButton} type="button" onClick={async () => {
@@ -208,7 +212,7 @@ export function AuctionList({
                   }}>Kopiuj link</button> : null}
                   {copyNotice?.id === auction.auctionId ? <small role="status">{copyNotice.message}</small> : null}
                 </div>
-                <div className={styles.cardActions}>
+                <div className={styles.auctionCardActions}>
                   <button
                     className={styles.secondaryButton}
                     type="button"
@@ -235,7 +239,7 @@ export function AuctionList({
                     {archived ? "Przywróć" : "Archiwizuj"}
                   </button> : null}
                   {auction.recordState === "published" && (auction.status === "waiting" || auction.status === "live") && auction.runId && auction.revision !== null ? (
-                    <button className={styles.secondaryButton} type="button" disabled={busy} onClick={() => onCancelRun(auction)}>
+                    <button className={`${styles.secondaryButton} ${styles.auctionCancelButton}`} type="button" disabled={busy} onClick={() => onCancelRun(auction)}>
                       Anuluj aukcję
                     </button>
                   ) : null}

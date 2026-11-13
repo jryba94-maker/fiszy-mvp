@@ -605,7 +605,7 @@
 
 .auctionGrid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
 }
 
@@ -2578,4 +2578,45 @@
 
 .adminSectionNav [aria-current="page"] {
   border-color: var(--admin-accent, #a78bfa);
+}
+
+.auctionCardFacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 28px;
+  margin: 16px 0;
+  padding: 12px 0;
+  border-block: 1px solid var(--admin-border);
+}
+
+.auctionCardFacts dt {
+  font-size: 0.78rem;
+}
+
+.auctionCardFacts dd {
+  margin: 4px 0 0;
+  font-weight: 700;
+}
+
+.auctionCardActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.auctionCardActions + .auctionCardActions {
+  margin-top: 8px;
+}
+
+.auctionCardActions .auctionCancelButton {
+  margin-inline-start: auto;
+  border-color: currentColor;
+  color: #bf5050;
+}
+
+@media (max-width: 540px) {
+  .auctionCard .auctionCardTop { flex-direction: row; }
+  .auctionCardTop .productThumb { width: 64px; height: 64px; flex-basis: 64px; }
+  .auctionCardActions .auctionCancelButton { margin-inline-start: 0; }
 }
