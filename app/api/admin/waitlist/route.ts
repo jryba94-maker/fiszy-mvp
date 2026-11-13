@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { hasAdminPermission, isAdminConfigured } from "../../../../lib/admin-auth";
-import { listWaitlistSignups, type WaitlistRecord } from "../../../../lib/waitlist-storage";
+import { EMAIL_MARKETING_CONSENT_VERSION, listWaitlistSignups, type WaitlistRecord } from "../../../../lib/waitlist-storage";
 
 export const dynamic = "force-dynamic";
 
 function csvCell(value: string | null) {
   return `"${(value ?? "").replaceAll('"', '""')}"`;
+}
+
+function signupType(signup: WaitlistRecord) {
+  return signup.consentVersion === EMAIL_MARKETING_CONSENT_VERSION ? "Marketing Fiszy" : "Pierwsza aukcja";
 }
 
 export async function GET(request: NextRequest) {
@@ -32,9 +36,10 @@ export async function GET(request: NextRequest) {
         cursor = page.nextCursor;
       } while (cursor);
       const rows = [
-        ["email", "zapisano", "utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "referrer"],
+        ["email", "rodzaj_zapisu", "zapisano", "utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "referrer"],
         ...signups.map((signup) => [
           signup.email,
+          signupType(signup),
           signup.createdAt,
           signup.source.utmSource,
           signup.source.utmMedium,
@@ -48,7 +53,7 @@ export async function GET(request: NextRequest) {
       return new NextResponse(csv, {
         headers: {
           "Cache-Control": "private, no-store, max-age=0",
-          "Content-Disposition": "attachment; filename=fiszy-pierwsza-aukcja.csv",
+          "Content-Disposition": "attachment; filename=fiszy-zapisy-email.csv",
           "Content-Type": "text/csv; charset=utf-8",
           "X-Waitlist-Total": String(total),
         },
@@ -64,7 +69,7 @@ export async function GET(request: NextRequest) {
     const result = await listWaitlistSignups({ cursor, limit });
     if (!result) return NextResponse.json({ outcome: "invalid_request" }, { status: 400 });
     return NextResponse.json(
-      { outcome: "ok", ...result },
+      { outcome: "ok", ...result, signups: result.signups.map(signup => ({ ...signup, signupType: signupType(signup) })) },
       { headers: { "Cache-Control": "private, no-store, max-age=0" } },
     );
   } catch (error) {

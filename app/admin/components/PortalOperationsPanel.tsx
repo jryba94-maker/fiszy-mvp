@@ -45,6 +45,7 @@ type Ticket = {
 };
 
 type WaitlistSignup = {
+  signupType: string;
   subscriberId: string;
   email: string;
   createdAt: string;
@@ -258,17 +259,17 @@ export function PortalOperationsPanel({ onSessionExpired, view = "clients" }: { 
         </div>
 
         </> : <div className={`${styles.adminSubpanel} ${styles.waitlistPanel}`}>
-          <div className={styles.subpanelTitle}><h3>Lista zainteresowanych pierwszą aukcją</h3><span>{waitlistTotal} zapisanych</span></div>
+          <div className={styles.subpanelTitle}><h3>Lista zapisów e-mail</h3><span>{waitlistTotal} zapisanych</span></div>
           {waitlist.length ? <div className={styles.waitlistRows}>{waitlist.map((signup) => {
             const campaign = [signup.source.utmSource, signup.source.utmCampaign].filter(Boolean).join(" / ") || signup.source.referrerHost || "wejście bezpośrednie";
             return <div className={styles.waitlistRow} key={signup.subscriberId}>
-              <span><strong>{signup.email}</strong><small>{campaign}</small></span>
+              <span><strong>{signup.email}</strong><small><b>{signup.signupType}</b> · {campaign}</small></span>
               <div className={styles.waitlistActions}>
                 <time dateTime={signup.createdAt}>{WAITLIST_DATE_FORMATTER.format(new Date(signup.createdAt))}</time>
                 <button className={styles.deleteWaitlistButton} type="button" onClick={() => void deleteWaitlistSignup(signup)} disabled={busy === `waitlist-delete-${signup.subscriberId}`}>{busy === `waitlist-delete-${signup.subscriberId}` ? "Usuwam…" : "Usuń"}</button>
               </div>
             </div>;
-          })}</div> : <p className={styles.emptyState}>Pierwsze zapisy z landing page pojawią się tutaj.</p>}
+          })}</div> : <p className={styles.emptyState}>Tutaj pojawią się zapisy na pierwszą aukcję i zgody marketingowe z dema.</p>}
           <a className={styles.secondaryButton} href="/api/admin/waitlist?format=csv" download>Pobierz pełną listę CSV</a>
         </div>}
       </div>
