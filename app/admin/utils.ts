@@ -100,10 +100,10 @@ export function isAuctionActive(status: AuctionRunStatus | null) {
 }
 
 export function matchesFilter(auction: AdminAuction, filter: AuctionFilter) {
-  if (filter === "all") return true;
   if (filter === "archived") return auction.recordState === "archived";
   if (filter === "draft") return auction.recordState === "draft";
   if (auction.recordState === "archived") return false;
+  if (filter === "all") return true;
   if (filter === "finished") {
     return auction.status === "sold" || auction.status === "ended";
   }

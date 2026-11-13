@@ -89,11 +89,12 @@ export function AuctionList({
     ),
     [auctions, deferredSearch, filter],
   );
+  const catalogCount = filterCount(auctions, "all");
   const workflowCounts = useMemo(() => ({
     draft: auctions.filter((auction) => auction.recordState === "draft").length,
     waiting: auctions.filter((auction) => auction.status === "waiting").length,
     live: auctions.filter((auction) => auction.status === "live" || auction.status === "payment_pending").length,
-    finished: auctions.filter((auction) => auction.status === "sold" || auction.status === "ended").length,
+    finished: filterCount(auctions, "finished"),
   }), [auctions]);
 
   const openSchedule = (auctionId: string) => {
@@ -120,8 +121,8 @@ export function AuctionList({
           <p className={styles.eyebrow}>Katalog</p>
           <h2 id="auctions-heading">Wszystkie aukcje</h2>
         </div>
-        <span className={styles.sectionCount} aria-label={`${auctions.length} aukcji`}>
-          {auctions.length}
+        <span className={styles.sectionCount} aria-label={`${catalogCount} aukcji`}>
+          {catalogCount}
         </span>
       </div>
 
