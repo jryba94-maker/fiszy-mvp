@@ -1,7 +1,15 @@
 import { randomUUID } from "node:crypto";
 import { redisCommand } from "./redis";
 
-export type MarketingAgent = "Creative" | "A/B" | "Performance";
+export type MarketingAgent =
+  | "Social Listening"
+  | "Community"
+  | "Creative"
+  | "Landing Page"
+  | "A/B"
+  | "Performance"
+  | "Analityk"
+  | "Lifecycle";
 
 export type MarketingWorkflow = {
   id: string;
@@ -9,6 +17,9 @@ export type MarketingWorkflow = {
   motive: string;
   audience: string;
   cta: string;
+  auctionProduct: string;
+  auctionStartsAt: string;
+  communityNotes: string;
   createdAt: string;
   messages: Array<{ agent: MarketingAgent; content: string }>;
 };
@@ -28,10 +39,23 @@ function asWorkflow(value: unknown): MarketingWorkflow | null {
   const messages = item.messages.flatMap((message) => {
     if (!message || typeof message !== "object" || Array.isArray(message)) return [];
     const record = message as Record<string, unknown>;
-    if ((record.agent !== "Creative" && record.agent !== "A/B" && record.agent !== "Performance") || typeof record.content !== "string") return [];
+    if (![
+      "Social Listening", "Community", "Creative", "Landing Page", "A/B", "Performance", "Analityk", "Lifecycle",
+    ].includes(record.agent as string) || typeof record.content !== "string") return [];
     return [{ agent: record.agent, content: record.content } as MarketingWorkflow["messages"][number]];
   });
-  return messages.length === item.messages.length ? { id: item.id as string, brief: item.brief as string, motive: item.motive as string, audience: item.audience as string, cta: item.cta as string, createdAt: item.createdAt as string, messages } : null;
+  return messages.length === item.messages.length ? {
+    id: item.id as string,
+    brief: item.brief as string,
+    motive: item.motive as string,
+    audience: item.audience as string,
+    cta: item.cta as string,
+    auctionProduct: typeof item.auctionProduct === "string" ? item.auctionProduct : "",
+    auctionStartsAt: typeof item.auctionStartsAt === "string" ? item.auctionStartsAt : "",
+    communityNotes: typeof item.communityNotes === "string" ? item.communityNotes : "",
+    createdAt: item.createdAt as string,
+    messages,
+  } : null;
 }
 
 async function readWorkflows() {

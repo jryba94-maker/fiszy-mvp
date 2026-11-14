@@ -21,9 +21,9 @@ export async function POST(request: NextRequest) {
   if (!isSameOriginAdminMutation(request)) return NextResponse.json({ outcome: "invalid_origin" }, { status: 403 });
   try {
     const body = await request.json() as Record<string, unknown>;
-    const fields = ["brief", "motive", "audience", "cta"] as const;
+    const fields = ["brief", "motive", "audience", "cta", "auctionProduct", "auctionStartsAt", "communityNotes"] as const;
     const input = Object.fromEntries(fields.map((field) => [field, typeof body[field] === "string" ? body[field].trim() : ""])) as Record<(typeof fields)[number], string>;
-    if (fields.some((field) => !input[field] || input[field].length > 1600)) return NextResponse.json({ outcome: "invalid_request" }, { status: 400 });
+    if (["brief", "motive", "audience", "cta"].some((field) => !input[field as keyof typeof input]) || fields.some((field) => input[field].length > 1600)) return NextResponse.json({ outcome: "invalid_request" }, { status: 400 });
     const messages = await runMarketingAgents(input);
     const workflow = await saveMarketingWorkflow({ ...input, messages });
     return NextResponse.json({ outcome: "ok", workflow });
