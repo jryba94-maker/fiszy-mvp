@@ -57,6 +57,7 @@ export function AuctionCard({ auction, watched = false, watchBusy = false, onWat
           {auction.lowestPrice30DaysBeforeAuction != null ? <small>Najniższa cena z 30 dni przed aukcją: {auction.lowestPrice30DaysBeforeAuction} zł</small> : null}
         </div>
         <Link
+          prefetch={false}
           className={styles.cardLink}
           href={auctionRunPath(auction.auctionId, auction.runId)}
           aria-label={`Zobacz aukcję: ${auction.product}`}

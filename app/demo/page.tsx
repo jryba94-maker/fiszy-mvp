@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import type { Metadata } from "next";
 import { readPublicAuction } from "../../lib/auction-view";
 import { ClerkShell } from "../components/auth/ClerkShell";
@@ -10,11 +11,17 @@ export const metadata: Metadata = {
   robots: { index: false, follow: true },
 };
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
+
+const readFeaturedAuction = unstable_cache(
+  () => readPublicAuction("dc2afb9c-b63b-4811-ba98-94d5b4031362"),
+  ["demo-featured-public-auction", process.env.VERCEL_ENV ?? "local"],
+  { revalidate: 60 },
+);
 
 export default async function DemoPage() {
-  const auction = await readPublicAuction("dc2afb9c-b63b-4811-ba98-94d5b4031362").catch(() => null);
-  const target = auction?.status === "waiting" ? auction : null;
+  const auction = await readFeaturedAuction().catch(() => null);
+  const target = auction?.status === "waiting" && Date.parse(auction.startsAt) > Date.now() ? auction : null;
 
   return (
     <ClerkShell>
