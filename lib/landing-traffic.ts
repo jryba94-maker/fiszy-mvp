@@ -31,8 +31,9 @@ function prefix() { return `fiszy:${process.env.VERCEL_ENV ?? "local"}`; }
 function dayKey(date: string) { return `${prefix()}:traffic:v1:day:${date}`; }
 function visitorsKey(date: string) { return `${prefix()}:traffic:v1:visitors:${date}`; }
 function dedupeKey(date: string, kind: string, sessionId: string) { return `${prefix()}:traffic:v1:dedupe:${date}:${kind}:${sessionId}`; }
+const warsawDay = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Warsaw", year: "numeric", month: "2-digit", day: "2-digit" });
 function dateInWarsaw(now: number) {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Warsaw", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(now));
+  return warsawDay.format(now);
 }
 function emptyEvents() { return Object.fromEntries(LANDING_EVENTS.map((event) => [event, 0])) as Record<LandingEvent, number>; }
 function zeroDay(date: string): DailyTraffic {
@@ -68,7 +69,7 @@ async function write(input: { sessionId: string; viewId?: unknown; visitorId?: u
   const timedSession = dedupeKey(date, "timed", input.sessionId);
   const event = input.event ?? "";
   const seconds = Math.max(0, Math.min(60 * 60, Math.round(input.seconds ?? 0)));
-  const result = await redisCommand<string>([
+  const result = await redisCommand<number>([
     "EVAL", `
 local raw = redis.call("GET", KEYS[1])
 local record
@@ -104,7 +105,7 @@ end
 record.updatedAt = ARGV[8]
 local encoded = cjson.encode(record)
 redis.call("SET", KEYS[1], encoded, "EX", ARGV[6])
-return encoded`,
+return 1`,
     5, dayKey(date), unique, dedupe, visitorsKey(date), timedSession,
     date, input.kind, sourceId, event, seconds, RETENTION_SECONDS, source, new Date(now).toISOString(),
     input.page ?? "", validLandingSession(input.visitorId) ? input.visitorId : "",
@@ -145,9 +146,20 @@ function parseDay(raw: unknown): DailyTraffic | null {
   } catch { return null; }
 }
 
+function trafficDates(days: number, now: number) {
+  return Array.from({ length: days }, (_, offset) => dateInWarsaw(now - offset * 86_400_000)).reverse();
+}
+
+export async function readDemoOpenCount(now = Date.now()) {
+  const dates = trafficDates(30, now);
+  const raw = await redisCommand<Array<string | null>>(["MGET", ...dates.map(dayKey)]);
+  if (!raw || raw.length !== dates.length) throw new Error("Incomplete daily traffic response.");
+  return raw.reduce((sum, value) => sum + (parseDay(value)?.events.demo_opened ?? 0), 0);
+}
+
 export async function readLandingTraffic(days = 30, now = Date.now()) {
   if (!Number.isInteger(days) || days < 1 || days > 90) return null;
-  const dates = Array.from({ length: days }, (_, offset) => dateInWarsaw(now - offset * 86_400_000)).reverse();
+  const dates = trafficDates(days, now);
   const raw = await redisCommand<Array<string | null>>(["MGET", ...dates.map(dayKey)]);
   const visitorCounts = await redisCommand<number[]>(["EVAL", `local counts = {}; for i=1,#KEYS do counts[i] = redis.call("SCARD", KEYS[i]) end; counts[#KEYS+1] = #redis.call("SUNION", unpack(KEYS)); return counts`, dates.length, ...dates.map(visitorsKey)]);
   const daily = dates.map((date, index) => ({ ...(parseDay(raw?.[index]) ?? zeroDay(date)), uniqueVisitors: visitorCounts?.[index] ?? 0 }));

@@ -134,22 +134,31 @@ export function AuctionCatalog() {
     }
   }, []);
 
+  const pollDelay = !catalog || error || catalog.auctions.some(auction =>
+    auction.status === "live" || (auction.status === "waiting" && Date.parse(auction.startsAt) <= Date.now() + 60_000)
+  ) ? 10_000 : 60_000;
+
   useEffect(() => {
     if (redirectStripeReturn()) return;
 
     const controller = new AbortController();
     void loadInitial(controller.signal);
+    return () => controller.abort();
+  }, [loadInitial]);
+
+  useEffect(() => {
+    const controller = new AbortController();
     const refreshIfVisible = () => {
       if (document.visibilityState === "visible") void loadInitial(controller.signal);
     };
-    const timer = window.setInterval(refreshIfVisible, 10_000);
+    const timer = window.setInterval(refreshIfVisible, pollDelay);
     document.addEventListener("visibilitychange", refreshIfVisible);
     return () => {
       controller.abort();
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", refreshIfVisible);
     };
-  }, [loadInitial]);
+  }, [loadInitial, pollDelay]);
 
   useEffect(() => {
     if (!authLoaded) return;
@@ -224,7 +233,7 @@ export function AuctionCatalog() {
 
       <section className={styles.launchIntro} aria-labelledby="hero-title">
         <h1 id="hero-title">Aukcje<span>.</span></h1>
-        <Link className={styles.demoLink} href="/demo?from=catalog">Wypróbuj aukcję za darmo w demo →</Link>
+        <Link prefetch={false} className={styles.demoLink} href="/demo?from=catalog">Wypróbuj aukcję za darmo w demo →</Link>
       </section>
 
       <section className={styles.launchAuctions} id="aukcje" aria-label="Lista aukcji">
